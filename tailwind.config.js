@@ -6,9 +6,10 @@ module.exports = {
     extend: {
       colors: {
         purdueGold: "#CEB888",
-        themeBlue: {
-          100: "#2d3748",
-          200: "#1a202c",
+        purdueBlack: {
+          100: "#1a1a1a",
+          200: "#0d0d0d",
+          300: "#000000",
         },
         warmWhite: "#fafaf9",
       },
