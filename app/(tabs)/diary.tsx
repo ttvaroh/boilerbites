@@ -72,17 +72,17 @@ export default function DiaryPage() {
       <View className="p-6">
         {/* Header */}
         <View className="mb-6">
-          <Text className="text-3xl font-bold text-purdueBlack-200 mb-2">
+          <Text className="text-3xl font-sora-bold text-purdueBlack-200 mb-2">
             Food Diary
           </Text>
-          <Text className="text-lg text-purdueBlack-100">
+          <Text className="text-lg font-sora text-purdueBlack-100">
             Track your daily nutrition
           </Text>
         </View>
 
         {/* Daily Summary */}
         <View className="mb-6">
-          <Text className="text-lg font-semibold text-purdueBlack-200 mb-4">
+          <Text className="text-lg font-sora-semibold text-purdueBlack-200 mb-4">
             Today's Summary
           </Text>
           <View className="flex-row space-x-4">
@@ -115,7 +115,7 @@ export default function DiaryPage() {
           className="bg-purdueGold p-4 rounded-lg mb-6 flex-row items-center justify-center"
         >
           <Ionicons name="add" size={24} color="#0d0d0d" />
-          <Text className="text-purdueBlack-200 font-semibold ml-2">
+          <Text className="text-purdueBlack-200 font-sora-semibold ml-2">
             {showAddForm ? "Cancel" : "Add New Meal"}
           </Text>
         </TouchableOpacity>

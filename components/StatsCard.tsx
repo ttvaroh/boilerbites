@@ -16,7 +16,7 @@ export default function StatsCard({
   value,
   subtitle,
   icon,
-  iconColor = "#CEB888",
+  iconColor = "#CFB991",
   variant = "default",
 }: StatsCardProps) {
   return (
@@ -43,14 +43,14 @@ export default function StatsCard({
         </View>
       )}
       <Text
-        className={`text-3xl font-bold mb-1 ${
+        className={`text-3xl font-sora-bold mb-1 ${
           variant === "highlight" ? "text-purdueBlack-200" : "text-purdueGold"
         }`}
       >
         {value}
       </Text>
       <Text
-        className={`text-sm font-medium text-center ${
+        className={`text-sm font-sora-medium text-center ${
           variant === "highlight"
             ? "text-purdueBlack-200"
             : "text-purdueBlack-100"
@@ -60,7 +60,7 @@ export default function StatsCard({
       </Text>
       {subtitle && (
         <Text
-          className={`text-xs text-center mt-1 ${
+          className={`text-xs font-sora text-center mt-1 ${
             variant === "highlight"
               ? "text-purdueBlack-100"
               : "text-purdueBlack-100"

@@ -5,13 +5,19 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        purdueGold: "#CEB888",
+        purdueGold: "#CFB991",
         purdueBlack: {
           100: "#1a1a1a",
           200: "#0d0d0d",
           300: "#000000",
         },
         warmWhite: "#fafaf9",
+      },
+      fontFamily: {
+        sora: ["Sora_400Regular"],
+        "sora-medium": ["Sora_500Medium"],
+        "sora-semibold": ["Sora_600SemiBold"],
+        "sora-bold": ["Sora_700Bold"],
       },
     },
   },

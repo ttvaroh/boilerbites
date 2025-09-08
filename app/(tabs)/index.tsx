@@ -1,115 +1,138 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as React from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
-import { getDining } from "../../api";
-import StatsCard from "../../components/StatsCard";
+import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import CategoryFilter from "../../components/CategoryFilter";
+import DiningHallCard from "../../components/DiningHallCard";
+
+import {
+  earhartLogo,
+  fordLogo,
+  hillenbrandLogo,
+  wileyLogo,
+  windsorLogo,
+} from "../../assets/images/logos/logos";
 
 export default function HomePage() {
-  const [data, setData] = React.useState<any>(null);
-  const [err, setErr] = React.useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = React.useState("Open Now");
 
-  const load = async () => {
-    setErr(null);
-    try {
-      const today = new Date().toISOString().slice(0, 10);
-      const jsonMealData = await getDining("Ford", today);
-      setData(jsonMealData);
-    } catch (error: any) {
-      setErr(String(error?.message || error));
-      setData(null);
-    }
+  const categories = ["Open Now", "Breakfast", "Lunch", "Dinner"];
+
+  const diningHalls = [
+    {
+      id: 1,
+      name: "Wiley",
+      hours: "Lunch: 11AM-2PM",
+      status: "open" as const,
+      isFavorite: true,
+      image: wileyLogo,
+    },
+    {
+      id: 2,
+      name: "Ford",
+      hours: "Lunch: 11AM-2PM",
+      status: "closed" as const,
+      isFavorite: true,
+      image: fordLogo,
+    },
+    {
+      id: 3,
+      name: "Windsor",
+      hours: "Lunch: 11AM-2PM",
+      status: "closed" as const,
+      isFavorite: false,
+      image: windsorLogo,
+    },
+    {
+      id: 4,
+      name: "Earhart",
+      hours: "Lunch: 11AM-2PM",
+      status: "open" as const,
+      isFavorite: false,
+      image: earhartLogo,
+    },
+    {
+      id: 5,
+      name: "Hillenbrand",
+      hours: "Lunch: 11AM-2PM",
+      status: "closed" as const,
+      isFavorite: false,
+      image: hillenbrandLogo,
+    },
+  ];
+
+  const handleLogMeal = () => {
+    Alert.alert("Log Meal", "Log meal button clicked!");
   };
 
-  React.useEffect(() => {
-    load();
-  }, []);
+  const handleDiningHallPress = (name: string) => {
+    Alert.alert("Dining Hall", `${name} dining hall clicked!`);
+  };
+
+  const handleFavoritePress = (name: string, isFavorite: boolean) => {
+    Alert.alert(
+      "Favorite",
+      `${name} ${isFavorite ? "removed from" : "added to"} favorites!`
+    );
+  };
+
+  const handleCategoryChange = (category: string) => {
+    setActiveCategory(category);
+    Alert.alert("Filter", `Filter changed to: ${category}`);
+  };
 
   return (
-    <ScrollView className="flex-1 bg-warmWhite">
-      <View className="p-6">
-        {/* Header Section */}
-        <View className="mb-8">
-          <Text className="text-4xl font-bold text-purdueBlack-200 mb-2">
-            Welcome to BoilerBites!
-          </Text>
-          <Text className="text-lg text-purdueBlack-100">
-            Your Purdue dining companion
-          </Text>
-        </View>
-
-        {/* Quick Actions */}
-        <View className="mb-8">
-          <Text className="text-xl font-semibold text-purdueBlack-200 mb-4">
-            Quick Actions
-          </Text>
-          <View className="flex-row space-x-4">
-            <TouchableOpacity className="flex-1 bg-purdueGold p-4 rounded-lg items-center">
-              <Ionicons name="add-circle" size={24} color="#0d0d0d" />
-              <Text className="text-purdueBlack-200 font-semibold mt-2">
-                Log Meal
-              </Text>
-            </TouchableOpacity>
+    <View className="flex-1 bg-warmWhite">
+      {/* Header Section */}
+      <View className="bg-purdueBlack-200 pt-12 pb-6 px-6">
+        <View className="flex-row items-center justify-between mb-6">
+          <View>
+            <Text className="text-white text-lg font-sora">Welcome</Text>
+            <Text className="text-white text-2xl font-sora-bold">
+              Tom Tvaroh
+            </Text>
           </View>
         </View>
 
-        {/* Dining Locations */}
-        <View className="mb-8">
-          <Text className="text-xl font-semibold text-purdueBlack-200 mb-4">
-            Dining Locations
+        {/* Log Meal Button */}
+        <TouchableOpacity
+          onPress={handleLogMeal}
+          className="bg-purdueGold rounded-xl p-4 items-center"
+        >
+          <Text className="text-purdueBlack-200 font-sora-bold text-lg mb-2">
+            Log meal
           </Text>
-          <View className="bg-white p-4 rounded-lg border border-purdueGold">
-            {err ? (
-              <Text className="text-red-500 text-center">{err}</Text>
-            ) : data ? (
-              <Text className="text-purdueBlack-100">
-                Dining locations loaded successfully!
-              </Text>
-            ) : (
-              <Text className="text-purdueBlack-100 text-center">
-                Loading dining locations...
-              </Text>
-            )}
-            <TouchableOpacity
-              onPress={load}
-              className="bg-purdueBlack-200 mt-3 p-3 rounded-lg"
-            >
-              <Text className="text-purdueGold text-center font-semibold">
-                Refresh Locations
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Stats Section */}
-        <View className="mb-8">
-          <Text className="text-xl font-semibold text-purdueBlack-200 mb-4">
-            Your Stats
-          </Text>
-          <View className="flex-row space-x-4">
-            <StatsCard
-              title="Open Halls"
-              value="3"
-              subtitle="Currently Open"
-              icon="restaurant"
-              variant="highlight"
-            />
-            <StatsCard
-              title="Today's Calories"
-              value="1,250"
-              subtitle="Goal: 2,000"
-              icon="flame"
-            />
-          </View>
-          <View className="mt-4">
-            <StatsCard
-              title="Today's Protein"
-              value="85g"
-              subtitle="Goal: 120g"
-              icon="fitness"
-            />
-          </View>
-        </View>
+          <Ionicons name="add" size={24} color="#0d0d0d" />
+        </TouchableOpacity>
       </View>
-    </ScrollView>
+
+      {/* Main Content */}
+      <ScrollView className="flex-1 px-6 pt-6">
+        {/* Category Filter */}
+        <CategoryFilter
+          categories={categories}
+          activeCategory={activeCategory}
+          onCategoryChange={handleCategoryChange}
+        />
+
+        {/* Dining Halls Grid */}
+        <View className="flex-row flex-wrap justify-between">
+          {diningHalls.map((hall) => (
+            <View key={hall.id} className="w-[48%]">
+              <DiningHallCard
+                name={hall.name}
+                hours={hall.hours}
+                status={hall.status}
+                isFavorite={hall.isFavorite}
+                image={hall.image}
+                onPress={() => handleDiningHallPress(hall.name)}
+                onFavoritePress={() =>
+                  handleFavoritePress(hall.name, hall.isFavorite)
+                }
+              />
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
