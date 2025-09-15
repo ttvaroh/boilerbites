@@ -37,4 +37,7 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-app-example
+
+database-schema.sql
+.supabase-setup/
+

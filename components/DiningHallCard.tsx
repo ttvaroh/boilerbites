@@ -85,7 +85,7 @@ export default function DiningHallCard({
             status === "open" ? "text-purdueBlack-100" : "text-red-500"
           }`}
         >
-          {status === "open" ? hours : `Opens at <Format This Later>`}
+          {hours}
         </Text>
       </View>
     </TouchableOpacity>

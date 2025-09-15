@@ -9,6 +9,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import "../global.css";
+import { MenuDataProvider } from "../lib/MenuDataContext";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -32,8 +33,14 @@ export default function RootLayout() {
   }
 
   return (
-    <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-    </Stack>
+    <MenuDataProvider>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="dining-hall/[name]"
+          options={{ headerShown: false }}
+        />
+      </Stack>
+    </MenuDataProvider>
   );
 }
