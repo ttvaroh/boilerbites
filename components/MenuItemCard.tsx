@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { FontAwesome6, Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import React from "react";
 import { Text, View } from "react-native";
 
@@ -36,37 +36,46 @@ interface MenuItemCardProps {
 
 export default function MenuItemCard({ item, showDietaryTag = true, meals }: MenuItemCardProps) {
   const getDietaryIcons = () => {
-    const icons = [];
+    const icons: Array<{
+      icon: string;
+      iconFamily: "Ionicons" | "MaterialIcons" | "MaterialCommunityIcons" | "FontAwesome6";
+      color: string;
+      tooltip: string;
+    }> = [];
     
-    // Always show gluten-free if applicable
-    if (item.gluten === false) {
+    // Show gluten warning if item contains gluten
+    if (item.gluten === true) {
       icons.push({ 
-        icon: "shield-checkmark" as const, 
-        color: "#10B981", // Green
-        tooltip: "Gluten-Free" 
+        icon: "wheat-awn-circle-exclamation", 
+        iconFamily: "FontAwesome6",
+        color: "#F59E0B", // Amber
+        tooltip: "Contains Gluten" 
       });
     }
     
     // Show vegan or vegetarian (vegan takes priority)
     if (item.vegan) {
       icons.push({ 
-        icon: "leaf" as const, 
+        icon: "leaf", 
+        iconFamily: "Ionicons",
         color: "#059669", // Dark green
         tooltip: "Vegan" 
       });
     } else if (item.vegetarian) {
       icons.push({ 
-        icon: "leaf-outline" as const, 
+        icon: "leaf-outline", 
+        iconFamily: "Ionicons",
         color: "#10B981", // Green
         tooltip: "Vegetarian" 
       });
     }
     
     // Only show high protein if no other dietary tags
-    if (icons.length === 0 && item.protein_g !== undefined && item.protein_g !== null && !isNaN(Number(item.protein_g)) && Number(item.protein_g) > 20) {
+    if (icons.length === 0 && item.protein_per_100cals !== undefined && item.protein_per_100cals !== null && !isNaN(Number(item.protein_per_100cals)) && Number(item.protein_per_100cals) > 8) {
       icons.push({ 
-        icon: "fitness" as const, 
-        color: "#F59E0B", // Amber
+        icon: "fitness-center", 
+        iconFamily: "MaterialIcons",
+        color: "#3b82f6", // Blue
         tooltip: "High Protein" 
       });
     }
@@ -89,19 +98,41 @@ export default function MenuItemCard({ item, showDietaryTag = true, meals }: Men
             {/* Dietary Icons */}
             {showDietaryTag && dietaryIcons.length > 0 && (
               <View className="flex-row">
-                {dietaryIcons.map((iconData, index) => (
-                  <View 
-                    key={index} 
-                    className="w-6 h-6 rounded-full bg-gray-700 items-center justify-center mr-1"
-                    style={{ backgroundColor: `${iconData.color}20` }} // 20% opacity
-                  >
-                    <Ionicons 
-                      name={iconData.icon} 
-                      size={14} 
-                      color={iconData.color} 
-                    />
-                  </View>
-                ))}
+                {dietaryIcons.map((iconData, index) => {
+                  return (
+                    <View 
+                      key={index} 
+                      className="w-6 h-6 rounded-full bg-gray-700 items-center justify-center mr-1"
+                      style={{ backgroundColor: `${iconData.color}20` }} // 20% opacity
+                    >
+                      {iconData.iconFamily === "MaterialIcons" ? (
+                        <MaterialIcons 
+                          name={iconData.icon as any} 
+                          size={14} 
+                          color={iconData.color} 
+                        />
+                      ) : iconData.iconFamily === "MaterialCommunityIcons" ? (
+                        <MaterialCommunityIcons 
+                          name={iconData.icon as any} 
+                          size={14} 
+                          color={iconData.color} 
+                        />
+                      ) : iconData.iconFamily === "FontAwesome6" ? (
+                        <FontAwesome6 
+                          name={iconData.icon as any} 
+                          size={14} 
+                          color={iconData.color} 
+                        />
+                      ) : (
+                        <Ionicons 
+                          name={iconData.icon as any} 
+                          size={14} 
+                          color={iconData.color} 
+                        />
+                      )}
+                    </View>
+                  );
+                })}
               </View>
             )}
           </View>

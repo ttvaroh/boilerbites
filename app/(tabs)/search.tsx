@@ -123,12 +123,34 @@ export default function SearchPage() {
   }, [debouncedSearchQuery, currentFilters, sortBy, sortOrder]);
 
   /**
-   * Load initial popular/available items
+   * Load initial items (all items, not just currently available)
    */
   const loadInitialItems = React.useCallback(async () => {
     try {
       setLoading(true);
-      const { data, error } = await searchService.getCurrentlyAvailableItems('', sortBy, sortOrder);
+      // Use regular search with default filters (timeOfDay: "All", mealAvailabilityOnly: false)
+      const defaultFilters: SearchFilters = {
+        timeOfDay: "All",
+        diningHalls: [],
+        dietaryPreferences: {
+          vegetarian: false,
+          vegan: false,
+          glutenFree: false,
+        },
+        excludeAllergens: [],
+        mealAvailabilityOnly: false,
+      };
+      
+      const { data, error } = await searchService.searchMenuItems(
+        '', // Empty query to get all items
+        defaultFilters,
+        {
+          sortBy,
+          sortOrder,
+          limit: ITEMS_PER_PAGE,
+          offset: 0
+        }
+      );
       
       if (error) {
         console.error('Initial load error:', error);
@@ -137,7 +159,7 @@ export default function SearchPage() {
 
       setResults(data);
       setTotalCount(data.length);
-      setHasMore(false); // Currently available items don't need pagination
+      setHasMore(data.length === ITEMS_PER_PAGE);
     } catch (error) {
       console.error('Initial load error:', error);
     } finally {
@@ -203,7 +225,7 @@ export default function SearchPage() {
 
   return (
     <BackgroundTemplate>
-      <View className="flex-1 px-6 pt-12">
+      <View className="flex-1 px-6 pt-16">
         {/* Search Component */}
         <ItemSearchComponent 
           onSearch={handleSearch}

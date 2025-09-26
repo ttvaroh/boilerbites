@@ -39,7 +39,7 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({ onSearch }) => {
       glutenFree: false,
     },
     excludeAllergens: [],
-    mealAvailabilityOnly: true,
+    mealAvailabilityOnly: false,
   });
 
   const timeOfDayOptions = ["All", "Breakfast", "Lunch", "Late Lunch", "Dinner"];
