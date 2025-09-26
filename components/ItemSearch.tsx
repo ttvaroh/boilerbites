@@ -24,10 +24,9 @@ interface SearchFilters {
 
 interface ItemSearchProps {
   onSearch: (query: string, filters: SearchFilters) => void;
-  onResults: (results: any[]) => void;
 }
 
-const ItemSearchComponent: React.FC<ItemSearchProps> = ({ onSearch, onResults }) => {
+const ItemSearchComponent: React.FC<ItemSearchProps> = ({ onSearch }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   
@@ -43,9 +42,21 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({ onSearch, onResults })
     mealAvailabilityOnly: true,
   });
 
-  const timeOfDayOptions = ["All", "Breakfast", "Lunch", "Dinner"];
+  const timeOfDayOptions = ["All", "Breakfast", "Lunch", "Late Lunch", "Dinner"];
   const diningHallOptions = ["Wiley", "Earhart", "Ford", "Windsor", "Hillenbrand"];
   const allergenOptions = ["Dairy", "Eggs", "Fish", "Shellfish", "Tree Nuts", "Peanuts", "Wheat", "Soybeans"];
+
+  // Helper function to get current meal time based on time of day
+  const getCurrentMealTime = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    
+    if (hour >= 6 && hour < 11) return "Breakfast";
+    if (hour >= 11 && hour < 14) return "Lunch";
+    if (hour >= 14 && hour < 16) return "Late Lunch";
+    if (hour >= 16 && hour < 22) return "Dinner";
+    return "All"; // Outside meal hours
+  };
 
   const handleSearch = () => {
     onSearch(searchQuery, filters);
@@ -84,20 +95,31 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({ onSearch, onResults })
   const FilterChip = ({ 
     label, 
     isSelected, 
-    onPress 
+    onPress,
+    isDisabled = false
   }: {
     label: string;
     isSelected: boolean;
     onPress: () => void;
+    isDisabled?: boolean;
   }) => (
     <TouchableOpacity
       onPress={onPress}
+      disabled={false} // Always allow clicking
       className={`px-3 py-2 rounded-full mr-2 mb-2 ${
-        isSelected ? 'bg-purdueGold' : 'bg-gray-700'
+        isDisabled 
+          ? 'bg-gray-600 opacity-50' 
+          : isSelected 
+            ? 'bg-purdueGold' 
+            : 'bg-gray-700'
       }`}
     >
       <Text className={`text-sm font-sora ${
-        isSelected ? 'text-black' : 'text-white'
+        isDisabled 
+          ? 'text-gray-400' 
+          : isSelected 
+            ? 'text-black' 
+            : 'text-white'
       }`}>
         {label}
       </Text>
@@ -153,14 +175,30 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({ onSearch, onResults })
                 <View className="mb-6">
                   <Text className="text-white text-lg font-sora-bold mb-3">Time of Day</Text>
                   <View className="flex-row flex-wrap">
-                    {timeOfDayOptions.map((option) => (
-                      <FilterChip
-                        key={option}
-                        label={option}
-                        isSelected={filters.timeOfDay === option}
-                        onPress={() => updateFilter('timeOfDay', option)}
-                      />
-                    ))}
+                    {timeOfDayOptions.map((option) => {
+                      const isCurrentMeal = filters.mealAvailabilityOnly && option === getCurrentMealTime();
+                      const isSelected = filters.mealAvailabilityOnly ? isCurrentMeal : filters.timeOfDay === option;
+                      const isDisabled = filters.mealAvailabilityOnly && !isCurrentMeal;
+                      
+                      return (
+                        <FilterChip
+                          key={option}
+                          label={option}
+                          isSelected={isSelected}
+                          isDisabled={isDisabled} // Pass the disabled state for styling
+                          onPress={() => {
+                            if (filters.mealAvailabilityOnly) {
+                              // If meal availability is on and user clicks any time, turn it off
+                              updateFilter('mealAvailabilityOnly', false);
+                              updateFilter('timeOfDay', option);
+                            } else {
+                              // Normal behavior when meal availability is off
+                              updateFilter('timeOfDay', option);
+                            }
+                          }}
+                        />
+                      );
+                    })}
                   </View>
                 </View>
 
@@ -244,7 +282,10 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({ onSearch, onResults })
                 {/* Apply Button */}
                 <View className="mt-8 mb-6">
                   <TouchableOpacity
-                    onPress={() => setShowFilters(false)}
+                    onPress={() => {
+                      handleSearch();
+                      setShowFilters(false);
+                    }}
                     className="bg-purdueGold rounded-xl py-4"
                   >
                     <Text className="text-black text-center font-sora-bold text-lg">

@@ -1,14 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as React from "react";
 import {
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import BackgroundTemplate from "../../components/BackgroundTemplate";
-
+import DailyProgress from "../../components/DailyProgress";
 export default function DiaryPage() {
   const [meals, setMeals] = React.useState([
     {
@@ -127,6 +127,7 @@ export default function DiaryPage() {
             </Text>
           </View>
         </View>
+        <DailyProgress />
 
         {/* Log Your Intake Section */}
         <View className="mb-6">

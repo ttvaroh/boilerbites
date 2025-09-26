@@ -38,6 +38,7 @@ yarn-error.*
 *.tsbuildinfo
 
 
-# database-schema.sql
-# .supabase-setup/
-
+.examples/
+.supabase-setup/
+ADVANCED_SEARCH_IMPLEMENTATION.md
+SEARCH_ARCHITECTURE.md

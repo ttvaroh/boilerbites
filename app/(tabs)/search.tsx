@@ -258,6 +258,7 @@ export default function SearchPage() {
                       <MenuItemCard
                         item={item}
                         showDietaryTag={true}
+                        meals={item.meals || []}
                       />
                     </TouchableOpacity>
                   ))}

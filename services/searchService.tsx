@@ -35,6 +35,8 @@ export interface MenuItem {
   location_name?: string;
   meal_name?: string;
   station_name?: string;
+  // Support for multiple meals
+  meals?: string[];
 }
 
 export interface SearchOptions {
@@ -307,6 +309,36 @@ class SearchService {
       const meal = station?.day_meal;
       const menu = meal?.day_menu;
 
+      // Collect all unique meals for this item
+      const allMeals = new Set<string>();
+      if (item.day_station_item) {
+        item.day_station_item.forEach((stationItem: any) => {
+          const mealName = stationItem?.day_station?.day_meal?.meal_name;
+          if (mealName) {
+            allMeals.add(mealName);
+          }
+        });
+      }
+
+      // Sort meals in the correct order: Breakfast, Lunch, Late Lunch, Dinner
+      const mealOrder = ['Breakfast', 'Lunch', 'Late Lunch', 'Dinner'];
+      const sortedMeals = Array.from(allMeals).sort((a, b) => {
+        const aIndex = mealOrder.indexOf(a);
+        const bIndex = mealOrder.indexOf(b);
+        
+        // If both meals are in the predefined order, sort by that order
+        if (aIndex !== -1 && bIndex !== -1) {
+          return aIndex - bIndex;
+        }
+        
+        // If only one meal is in the predefined order, prioritize it
+        if (aIndex !== -1) return -1;
+        if (bIndex !== -1) return 1;
+        
+        // If neither meal is in the predefined order, sort alphabetically
+        return a.localeCompare(b);
+      });
+
       return {
         id: item.id,
         name: item.name,
@@ -328,6 +360,8 @@ class SearchService {
         location_name: menu?.location_name,
         meal_name: meal?.meal_name,
         station_name: station?.name,
+        // All meals this item is available for (sorted in correct order)
+        meals: sortedMeals,
       };
     });
   }
