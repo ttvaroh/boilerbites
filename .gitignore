@@ -38,6 +38,6 @@ yarn-error.*
 *.tsbuildinfo
 
 
-database-schema.sql
-.supabase-setup/
+# database-schema.sql
+# .supabase-setup/
 

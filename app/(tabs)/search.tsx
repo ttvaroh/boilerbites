@@ -1,204 +1,309 @@
+// Updated search.tsx
 import { Ionicons } from "@expo/vector-icons";
 import * as React from "react";
 import {
-  FlatList,
+  ActivityIndicator,
+  Alert,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
+import BackgroundTemplate from "../../components/BackgroundTemplate";
+import ItemSearchComponent from "../../components/ItemSearch";
+import MenuItemCard from "../../components/MenuItemCard";
+import SortBy from "../../components/SortBy";
+import { MenuItem, SearchFilters, searchService } from "../../services/searchService";
 
-export default function SearchPage() {
-  const [searchQuery, setSearchQuery] = React.useState("");
-  const [selectedCategory, setSelectedCategory] = React.useState("all");
-  const [searchResults, setSearchResults] = React.useState([]);
-
-  const categories = [
-    { id: "all", name: "All", icon: "grid" },
-    { id: "breakfast", name: "Breakfast", icon: "sunny" },
-    { id: "lunch", name: "Lunch", icon: "restaurant" },
-    { id: "dinner", name: "Dinner", icon: "moon" },
-    { id: "snacks", name: "Snacks", icon: "cafe" },
-  ];
-
-  const sampleFoods = [
-    {
-      id: 1,
-      name: "Grilled Chicken Breast",
-      category: "lunch",
-      calories: 165,
-      protein: "31g",
-      location: "Ford Dining",
-    },
-    {
-      id: 2,
-      name: "Oatmeal with Berries",
-      category: "breakfast",
-      calories: 150,
-      protein: "6g",
-      location: "Wiley Dining",
-    },
-    {
-      id: 3,
-      name: "Salmon Fillet",
-      category: "dinner",
-      calories: 206,
-      protein: "22g",
-      location: "Ford Dining",
-    },
-    {
-      id: 4,
-      name: "Greek Yogurt",
-      category: "snacks",
-      calories: 100,
-      protein: "17g",
-      location: "Wiley Dining",
-    },
-    {
-      id: 5,
-      name: "Quinoa Bowl",
-      category: "lunch",
-      calories: 222,
-      protein: "8g",
-      location: "Ford Dining",
-    },
-  ];
-
-  const performSearch = () => {
-    // Simulate search functionality
-    const filtered = sampleFoods.filter((food) => {
-      const matchesQuery = food.name
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
-      const matchesCategory =
-        selectedCategory === "all" || food.category === selectedCategory;
-      return matchesQuery && matchesCategory;
-    });
-    setSearchResults(filtered);
-  };
+// Add debounce hook for search optimization
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = React.useState(value);
 
   React.useEffect(() => {
-    performSearch();
-  }, [searchQuery, selectedCategory]);
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
 
-  const renderFoodItem = ({ item }) => (
-    <View className="bg-white p-4 rounded-lg border border-purdueGold mb-3">
-      <View className="flex-row justify-between items-start mb-2">
-        <Text className="text-lg font-semibold text-purdueBlack-200 flex-1 mr-2">
-          {item.name}
-        </Text>
-        <View className="items-end">
-          <Text className="text-purdueGold font-bold">{item.calories} cal</Text>
-          <Text className="text-purdueBlack-100 text-sm">
-            {item.protein} protein
-          </Text>
-        </View>
-      </View>
-      <Text className="text-purdueBlack-100 text-sm mb-2">{item.location}</Text>
-      <View className="flex-row">
-        <View className="bg-purdueGold px-2 py-1 rounded-full mr-2">
-          <Text className="text-purdueBlack-200 text-xs capitalize">
-            {item.category}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+export default function SearchPage() {
+  // State management
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [showSortBy, setShowSortBy] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [results, setResults] = React.useState<MenuItem[]>([]);
+  const [totalCount, setTotalCount] = React.useState(0);
+  const [hasSearched, setHasSearched] = React.useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = React.useState(0);
+  const [loadingMore, setLoadingMore] = React.useState(false);
+  const [hasMore, setHasMore] = React.useState(true);
+  
+  // Sort state
+  const [sortBy, setSortBy] = React.useState<'calories' | 'protein_g' | 'protein/calorie' | 'carbs_g' | 'fat_g' | 'name'>('name');
+  const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('asc');
+  
+  // Current filters
+  const [currentFilters, setCurrentFilters] = React.useState<SearchFilters>({
+    timeOfDay: "All",
+    diningHalls: [],
+    dietaryPreferences: {
+      vegetarian: false,
+      vegan: false,
+      glutenFree: false,
+    },
+    excludeAllergens: [],
+    mealAvailabilityOnly: true,
+  });
+
+  // Debounced search query for auto-search
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
+
+  const ITEMS_PER_PAGE = 20;
+
+  /**
+   * Perform search with current parameters
+   */
+  const performSearch = React.useCallback(async (
+    query: string = debouncedSearchQuery,
+    filters: SearchFilters = currentFilters,
+    page: number = 0,
+    append: boolean = false
+  ) => {
+    try {
+      if (page === 0 && !append) {
+        setLoading(true);
+        setResults([]);
+        setHasSearched(true);
+      } else {
+        setLoadingMore(true);
+      }
+
+      const { data, count, error } = await searchService.searchMenuItems(
+        query,
+        filters,
+        {
+          sortBy,
+          sortOrder,
+          limit: ITEMS_PER_PAGE,
+          offset: page * ITEMS_PER_PAGE
+        }
+      );
+
+      if (error) {
+        Alert.alert('Search Error', 'Failed to search menu items. Please try again.');
+        console.error('Search error:', error);
+        return;
+      }
+
+      if (append && page > 0) {
+        setResults(prev => [...prev, ...data]);
+      } else {
+        setResults(data);
+        setTotalCount(count);
+      }
+
+      setCurrentPage(page);
+      setHasMore(data.length === ITEMS_PER_PAGE && (page + 1) * ITEMS_PER_PAGE < count);
+
+    } catch (error) {
+      console.error('Search error:', error);
+      Alert.alert('Search Error', 'An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [debouncedSearchQuery, currentFilters, sortBy, sortOrder]);
+
+  /**
+   * Load initial popular/available items
+   */
+  const loadInitialItems = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await searchService.getCurrentlyAvailableItems('', sortBy, sortOrder);
+      
+      if (error) {
+        console.error('Initial load error:', error);
+        return;
+      }
+
+      setResults(data);
+      setTotalCount(data.length);
+      setHasMore(false); // Currently available items don't need pagination
+    } catch (error) {
+      console.error('Initial load error:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [sortBy, sortOrder]);
+
+  /**
+   * Handle search from ItemSearchComponent
+   */
+  const handleSearch = React.useCallback(async (query: string, filters: SearchFilters) => {
+    setCurrentFilters(filters);
+    setSearchQuery(query);
+    // The actual search will be triggered by the useEffect below due to debouncing
+  }, []);
+
+  /**
+   * Handle sort changes
+   */
+  const handleSortChange = React.useCallback((newSortBy: string, order: 'highest' | 'lowest') => {
+    const sortByMap: Record<string, typeof sortBy> = {
+      'Calories': 'calories',
+      'Protein': 'protein_g',
+      'Protein/Calorie': 'protein/calorie',
+      'Carbs': 'carbs_g',
+      'Fat': 'fat_g'
+    };
+
+    setSortBy(sortByMap[newSortBy] || 'name');
+    setSortOrder(order === 'highest' ? 'desc' : 'asc');
+  }, []);
+
+  /**
+   * Load more items (pagination)
+   */
+  const loadMoreItems = React.useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    await performSearch(debouncedSearchQuery, currentFilters, currentPage + 1, true);
+  }, [loadingMore, hasMore, performSearch, debouncedSearchQuery, currentFilters, currentPage]);
+
+  /**
+   * Handle menu item press
+   */
+  const handleMenuItemPress = React.useCallback((item: MenuItem) => {
+    console.log('Item pressed:', item.name);
+    // Navigate to item details page
+    // navigation.navigate('ItemDetails', { item });
+  }, []);
+
+  // Effect for debounced search
+  React.useEffect(() => {
+    if (debouncedSearchQuery.trim() || hasSearched) {
+      performSearch();
+    } else if (!hasSearched) {
+      loadInitialItems();
+    }
+  }, [debouncedSearchQuery, currentFilters, sortBy, sortOrder]);
+
+  // Initial load
+  React.useEffect(() => {
+    loadInitialItems();
+  }, []);
 
   return (
-    <ScrollView className="flex-1 bg-warmWhite">
-      <View className="p-6">
-        {/* Header */}
-        <View className="mb-6">
-          <Text className="text-3xl font-bold text-purdueBlack-200 mb-2">
-            Search Food
-          </Text>
-          <Text className="text-lg text-purdueBlack-100">
-            Find meals and track nutrition
-          </Text>
-        </View>
+    <BackgroundTemplate>
+      <View className="flex-1 px-6 pt-12">
+        {/* Search Component */}
+        <ItemSearchComponent 
+          onSearch={handleSearch}
+        />
 
-        {/* Search Bar */}
-        <View className="mb-6">
-          <View className="flex-row items-center bg-white border border-purdueGold rounded-lg px-3">
-            <Ionicons name="search" size={20} color="#CEB888" />
-            <TextInput
-              placeholder="Search for food items..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              className="flex-1 p-3 text-purdueBlack-200"
-            />
-          </View>
-        </View>
-
-        {/* Category Filter */}
-        <View className="mb-6">
-          <Text className="text-lg font-semibold text-purdueBlack-200 mb-3">
-            Categories
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View className="flex-row space-x-3">
-              {categories.map((category) => (
-                <TouchableOpacity
-                  key={category.id}
-                  onPress={() => setSelectedCategory(category.id)}
-                  className={`px-4 py-2 rounded-full flex-row items-center ${
-                    selectedCategory === category.id
-                      ? "bg-purdueGold"
-                      : "bg-white border border-purdueGold"
-                  }`}
-                >
-                  <Ionicons
-                    name={category.icon}
-                    size={16}
-                    color={
-                      selectedCategory === category.id ? "#0d0d0d" : "#CEB888"
-                    }
-                  />
-                  <Text
-                    className={`ml-2 font-medium ${
-                      selectedCategory === category.id
-                        ? "text-purdueBlack-200"
-                        : "text-purdueGold"
-                    }`}
-                  >
-                    {category.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-        </View>
-
-        {/* Search Results */}
-        <View>
-          <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-xl font-semibold text-purdueBlack-200">
-              Search Results
+        {/* Results Section */}
+        <View className="flex-1 mt-6">
+          {/* Results Header */}
+          <View className="flex-row items-center justify-between mb-4">
+            <Text className="text-white text-base font-sora">
+              {loading ? "Loading..." : hasSearched ? `${totalCount} results` : "Available now"}
             </Text>
-            <Text className="text-purdueBlack-100">
-              {searchResults.length} items found
-            </Text>
+            <TouchableOpacity
+              onPress={() => setShowSortBy(true)}
+              className="p-2"
+            >
+              <Ionicons name="swap-vertical" size={20} color="#CFB991" />
+            </TouchableOpacity>
           </View>
 
-          {searchResults.length > 0 ? (
-            <FlatList
-              data={searchResults}
-              renderItem={renderFoodItem}
-              keyExtractor={(item) => item.id.toString()}
-              scrollEnabled={false}
-            />
-          ) : (
-            <View className="bg-white p-8 rounded-lg border border-purdueGold items-center">
-              <Ionicons name="search" size={48} color="#CEB888" />
-              <Text className="text-purdueBlack-100 text-center mt-2">
-                No results found. Try adjusting your search or category filter.
+          {/* Loading Indicator */}
+          {loading && results.length === 0 && (
+            <View className="flex-1 justify-center items-center py-8">
+              <ActivityIndicator size="large" color="#CFB991" />
+              <Text className="text-gray-400 text-lg font-sora mt-4">
+                Searching menu items...
               </Text>
             </View>
           )}
+
+          {/* Results */}
+          {!loading && (
+            <ScrollView 
+              className="flex-1" 
+              showsVerticalScrollIndicator={false}
+              onMomentumScrollEnd={({ nativeEvent }) => {
+                const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+                const isNearBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 100;
+                
+                if (isNearBottom && hasMore && !loadingMore) {
+                  loadMoreItems();
+                }
+              }}
+            >
+              {results.length > 0 ? (
+                <>
+                  {results.map((item, index) => (
+                    <TouchableOpacity
+                      key={`${item.id}-${index}`} // Handle potential duplicates
+                      onPress={() => handleMenuItemPress(item)}
+                    >
+                      <MenuItemCard
+                        item={item}
+                        showDietaryTag={true}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                  
+                  {/* Load more indicator */}
+                  {loadingMore && (
+                    <View className="py-4 justify-center items-center">
+                      <ActivityIndicator size="small" color="#CFB991" />
+                      <Text className="text-gray-400 text-sm font-sora mt-2">
+                        Loading more...
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {/* End of results indicator */}
+                  {!hasMore && results.length > 0 && (
+                    <View className="py-4 justify-center items-center">
+                      <Text className="text-gray-400 text-sm font-sora">
+                        That's all for now!
+                      </Text>
+                    </View>
+                  )}
+                </>
+              ) : !loading && (
+                <View className="flex-1 justify-center items-center py-8">
+                  <Text className="text-gray-400 text-lg font-sora text-center">
+                    {hasSearched ? "No results found" : "No items available"}
+                  </Text>
+                  <Text className="text-gray-500 text-sm font-sora text-center mt-2">
+                    {hasSearched ? "Try adjusting your search or filters" : "Check back later for menu updates"}
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          )}
         </View>
+
+        {/* Sort By Modal */}
+        <SortBy
+          visible={showSortBy}
+          onClose={() => setShowSortBy(false)}
+          onSortChange={handleSortChange}
+          currentSort="Calories"
+          currentOrder={sortOrder === 'desc' ? 'highest' : 'lowest'}
+        />
       </View>
-    </ScrollView>
+    </BackgroundTemplate>
   );
 }

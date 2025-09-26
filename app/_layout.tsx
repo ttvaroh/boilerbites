@@ -29,7 +29,25 @@ export default function RootLayout() {
   }, [fontsLoaded]);
 
   if (!fontsLoaded) {
-    return null;
+    return (
+      <MenuDataProvider>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="dining-hall/[name]"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="nutrition/[itemId]"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="missing-nutrition/[itemId]"
+            options={{ headerShown: false }}
+          />
+        </Stack>
+      </MenuDataProvider>
+    );
   }
 
   return (
@@ -38,6 +56,14 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
           name="dining-hall/[name]"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="nutrition/[itemId]"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="missing-nutrition/[itemId]"
           options={{ headerShown: false }}
         />
       </Stack>

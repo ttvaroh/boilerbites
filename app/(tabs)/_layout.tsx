@@ -5,12 +5,16 @@ export default function _Layout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "#CEB888", // Purdue Gold
-        tabBarInactiveTintColor: "#1a1a1a", // Purdue Black 100
+        tabBarActiveTintColor: "#CFB991", // Purdue Gold
+        tabBarInactiveTintColor: "#B0B0B0", // Light Gray
         tabBarStyle: {
-          backgroundColor: "#fafaf9", // Warm White
-          borderTopColor: "#CEB888",
-          borderTopWidth: 1,
+          backgroundColor: "rgba(45, 45, 45, 0.95)", // Dark translucent
+          borderTopColor: "transparent",
+          borderTopWidth: 0,
+          position: "absolute",
+          elevation: 0,
+          shadowOpacity: 0,
+          backdropFilter: "blur(20px)",
         },
         headerShown: false,
       }}
@@ -27,9 +31,9 @@ export default function _Layout() {
       <Tabs.Screen
         name="diary"
         options={{
-          title: "Diary",
+          title: "Stats",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="book" size={size} color={color} />
+            <Ionicons name="stats-chart" size={size} color={color} />
           ),
         }}
       />
@@ -39,6 +43,15 @@ export default function _Layout() {
           title: "Search",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="search" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="onboarding"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
           ),
         }}
       />

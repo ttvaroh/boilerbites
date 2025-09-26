@@ -24,27 +24,50 @@ export default function DiningHallCard({
   return (
     <TouchableOpacity
       onPress={onPress}
-      className="bg-white rounded-xl p-4 mb-4 shadow-sm"
+      className="bg-gray-800 rounded-xl p-4 mb-4"
       style={{
-        shadowColor: "#000",
+        shadowColor: "#CFB991",
         shadowOffset: {
           width: 0,
-          height: 2,
+          height: 0,
         },
         shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
+        shadowRadius: 8,
+        elevation: 5,
+        borderWidth: 1,
+        borderColor: "rgba(207, 185, 145, 0.2)",
+        opacity: status === "closed" ? 0.4 : 1,
       }}
     >
       <View className="relative">
+        {/* Status Button - Upper Left */}
+        <View
+          className="absolute top-1.5 left-3.5 z-10 px-2 py-1 rounded-full"
+          style={{
+            backgroundColor: status === "open" ? "rgba(34, 197, 94, 0.2)" : "rgba(239, 68, 68, 0.2)",
+            borderWidth: 1,
+            borderColor: status === "open" ? "#22c55e" : "#ef4444",
+          }}
+        >
+          <Text
+            className="text-xs font-sora-medium"
+            style={{
+              color: status === "open" ? "#22c55e" : "#ef4444",
+            }}
+          >
+            {status === "open" ? "Open" : "Closed"}
+          </Text>
+        </View>
+
         {/* Favorite Button */}
         <TouchableOpacity
           onPress={onFavoritePress}
-          className="absolute top-1 right-1 z-10 p-1"
+          className="absolute top-1.5 right-3.5 z-10 p-[.4rem] rounded-full"
+          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
         >
           <Ionicons
             name={isFavorite ? "heart" : "heart-outline"}
-            size={20}
+            size={18}
             color={isFavorite ? "#CFB991" : "#9CA3AF"}
           />
         </TouchableOpacity>
@@ -53,8 +76,17 @@ export default function DiningHallCard({
         <View className="items-center mb-4">
           {image ? (
             <View
-              className="w-[160px] h-[160px] rounded-3xl overflow-hidden"
-              style={{ backgroundColor: "rgba(207, 185, 145, 0.3)" }}
+              className="w-[140px] h-[140px] p-4 rounded-2xl overflow-hidden"
+              style={{
+                backgroundColor: "rgba(207, 185, 145, 0.1)",
+                borderWidth: 1,
+                borderColor: "rgba(207, 185, 145, 0.3)",
+                shadowColor: "#CFB991",
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.2,
+                shadowRadius: 6,
+                elevation: 4,
+              }}
             >
               <Image
                 source={image}
@@ -64,10 +96,19 @@ export default function DiningHallCard({
             </View>
           ) : (
             <View
-              className="w-[160px] h-[160px] rounded-3xl items-center justify-center"
-              style={{ backgroundColor: "rgba(207, 185, 145, 0.3)" }}
+              className="w-[140px] h-[140px] rounded-2xl items-center justify-center"
+              style={{
+                backgroundColor: "rgba(207, 185, 145, 0.1)",
+                borderWidth: 1,
+                borderColor: "rgba(207, 185, 145, 0.3)",
+                shadowColor: "#CFB991",
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.2,
+                shadowRadius: 6,
+                elevation: 4,
+              }}
             >
-              <Text className="text-purdueBlack-200 font-bold text-2xl">
+              <Text className="text-purdueGold font-sora-bold text-3xl">
                 {name.charAt(0)}
               </Text>
             </View>
@@ -75,18 +116,16 @@ export default function DiningHallCard({
         </View>
 
         {/* Name */}
-        <Text className="text-purdueBlack-200 font-sora-bold text-center text-xl mb-2">
+        <Text className="text-white font-sora-bold text-center text-xl mb-2">
           {name}
         </Text>
 
-        {/* Hours/Status */}
-        <Text
-          className={`text-center text-sm font-sora-medium ${
-            status === "open" ? "text-purdueBlack-100" : "text-red-500"
-          }`}
-        >
-          {hours}
-        </Text>
+        {/* Hours */}
+        <View className="items-center">
+          <Text className="text-gray-400 text-xs font-sora text-center">
+            {hours}
+          </Text>
+        </View>
       </View>
     </TouchableOpacity>
   );

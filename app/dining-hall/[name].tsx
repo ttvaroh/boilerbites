@@ -2,14 +2,22 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  Alert,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
+import BackgroundTemplate from "../../components/BackgroundTemplate";
+import MenuItemCard from "../../components/MenuItemCard";
 import { useMenuData } from "../../lib/MenuDataContext";
+import { getCurrentTimeInEST } from "../../lib/timezone-utils";
+
+interface DiningHallMenu {
+  locationName: string;
+  menuId: string;
+  isPublished: boolean;
+  meals: Meal[];
+}
 
 interface MenuItem {
   id: string;
@@ -18,13 +26,21 @@ interface MenuItem {
   vegan?: boolean;
   gluten?: boolean;
   allergens?: string[];
+  serving_size?: string;
+  calories?: number;
+  protein_g?: number;
+  carbs_g?: number;
+  fat_g?: number;
+  fiber_g?: number;
+  sugar_g?: number;
+  sodium_mg?: number;
+  last_verified?: string;
 }
 
 interface Station {
   id: string;
   name: string;
   items: MenuItem[];
-  isExpanded: boolean;
 }
 
 interface Meal {
@@ -36,48 +52,103 @@ interface Meal {
   stations: Station[];
 }
 
+interface LocalStation extends Station {
+  isExpanded: boolean;
+}
+
+interface LocalMeal extends Meal {
+  stations: LocalStation[];
+}
+
 export default function DiningHallPage() {
   const { name } = useLocalSearchParams<{ name: string }>();
   const router = useRouter();
   const {
     getMenuForLocation,
+    isLocationLoading,
+    isMenuReady,
     loading: contextLoading,
     error: contextError,
   } = useMenuData();
 
   const [currentMealIndex, setCurrentMealIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [locationMenu, setLocationMenu] = useState<DiningHallMenu | null>(null);
+  const [menuLoading, setMenuLoading] = useState(false);
 
-  // Get preloaded menu data for this location
-  const locationMenu = getMenuForLocation(name || "");
+  // Convert menu data to local state format with expanded/collapsed state
+  const [meals, setMeals] = useState<LocalMeal[]>([]);
 
-  // Convert preloaded data to local state format with expanded/collapsed state
-  const [meals, setMeals] = useState<Meal[]>(() => {
-    if (!locationMenu) return [];
-    return locationMenu.meals.map((meal) => ({
-      ...meal,
-      stations: meal.stations.map((station) => ({
-        ...station,
-        isExpanded: false, // Start with all stations collapsed
-      })),
-    }));
-  });
-
-  // Update meals when locationMenu changes
+  // Load menu data when component mounts or location changes
   React.useEffect(() => {
-    if (locationMenu) {
-      setMeals(
-        locationMenu.meals.map((meal) => ({
-          ...meal,
-          stations: meal.stations.map((station) => ({
-            ...station,
-            isExpanded: false, // Start with all stations collapsed
-          })),
-        }))
-      );
-      setCurrentMealIndex(0); // Reset to first meal
-    }
-  }, [locationMenu]);
+    const loadMenuData = async () => {
+      if (!name) return;
+      
+      setMenuLoading(true);
+      try {
+        const menu = await getMenuForLocation(name);
+        setLocationMenu(menu);
+        
+        if (menu) {
+          const mealsWithExpanded = menu.meals.map((meal): LocalMeal => ({
+            ...meal,
+            stations: meal.stations.map((station): LocalStation => ({
+              ...station,
+              isExpanded: false, // Start with all stations collapsed
+            })),
+          }));
+          
+          setMeals(mealsWithExpanded);
+          // Set to current meal based on time
+          setCurrentMealIndex(findCurrentMealIndex(mealsWithExpanded));
+        }
+      } catch (error) {
+        console.error('Error loading menu data:', error);
+      } finally {
+        setMenuLoading(false);
+      }
+    };
+
+    loadMenuData();
+  }, [name, getMenuForLocation]);
+
+  // Watch for when menu becomes ready (from background loading)
+  React.useEffect(() => {
+    const checkMenuReady = async () => {
+      if (!name || locationMenu) return; // Don't reload if we already have menu data
+      
+      if (isMenuReady(name)) {
+        try {
+          const menu = await getMenuForLocation(name);
+          if (menu) {
+            setLocationMenu(menu);
+            const mealsWithExpanded = menu.meals.map((meal): LocalMeal => ({
+              ...meal,
+              stations: meal.stations.map((station): LocalStation => ({
+                ...station,
+                isExpanded: false, // Start with all stations collapsed
+              })),
+            }));
+            
+            setMeals(mealsWithExpanded);
+            // Set to current meal based on time
+            setCurrentMealIndex(findCurrentMealIndex(mealsWithExpanded));
+            setMenuLoading(false);
+          }
+        } catch (error) {
+          console.error('Error loading ready menu data:', error);
+        }
+      }
+    };
+
+    // Check immediately
+    checkMenuReady();
+
+    // Set up interval to check periodically
+    const interval = setInterval(checkMenuReady, 500);
+    
+    return () => clearInterval(interval);
+  }, [name, isMenuReady, getMenuForLocation, locationMenu]);
 
   // Function to format time from HH:MM:SS to H AM/PM (removes :00 minutes)
   const formatTime = (timeString: string): string => {
@@ -100,6 +171,45 @@ export default function DiningHallPage() {
     return `${start}-${end}`;
   };
 
+  // Function to find the current meal based on time
+  const findCurrentMealIndex = (meals: LocalMeal[]): number => {
+    if (!meals || meals.length === 0) return 0;
+
+    const { hours, minutes } = getCurrentTimeInEST();
+    const currentTime = hours * 60 + minutes;
+
+    // Find currently open meal
+    const currentMealIndex = meals.findIndex((meal) => {
+      if (!meal.start_time || !meal.end_time) return false;
+      const [startHour, startMin] = meal.start_time.split(":").map(Number);
+      const [endHour, endMin] = meal.end_time.split(":").map(Number);
+      const startTime = startHour * 60 + startMin;
+      const endTime = endHour * 60 + endMin;
+      return meal.open && currentTime >= startTime && currentTime <= endTime;
+    });
+
+    // If found a currently open meal, return its index
+    if (currentMealIndex !== -1) {
+      return currentMealIndex;
+    }
+
+    // Find next meal today
+    const nextMealIndex = meals.findIndex((meal) => {
+      if (!meal.start_time) return false;
+      const [startHour, startMin] = meal.start_time.split(":").map(Number);
+      const startTime = startHour * 60 + startMin;
+      return meal.open && startTime > currentTime;
+    });
+
+    // If found next meal, return its index
+    if (nextMealIndex !== -1) {
+      return nextMealIndex;
+    }
+
+    // Default to first meal if no current or next meal found
+    return 0;
+  };
+
   const toggleStation = (mealIndex: number, stationIndex: number) => {
     const updatedMeals = [...meals];
     updatedMeals[mealIndex].stations[stationIndex].isExpanded =
@@ -108,7 +218,12 @@ export default function DiningHallPage() {
   };
 
   const handleMenuItemPress = (item: MenuItem) => {
-    Alert.alert("Menu Item", `Clicked on: ${item.name}`);
+    // Navigate to nutrition page if serving size exists, otherwise to missing nutrition page
+    if (item.serving_size) {
+      router.push(`/nutrition/${item.id}`);
+    } else {
+      router.push(`/missing-nutrition/${item.id}`);
+    }
   };
 
   const navigateMeal = (direction: "prev" | "next") => {
@@ -121,86 +236,93 @@ export default function DiningHallPage() {
 
   const currentMeal = meals[currentMealIndex];
 
-  // Show loading state while context is loading
-  if (contextLoading) {
+  // Show loading state while context is loading or menu is loading
+  if (contextLoading || menuLoading || isLocationLoading(name || "")) {
     return (
-      <View className="flex-1 bg-warmWhite">
-        <View className="bg-purdueBlack-200 pt-12 pb-6 px-6">
-          <View className="flex-row items-center justify-between">
-            <TouchableOpacity
-              onPress={() => router.back()}
-              className="flex-row items-center"
-            >
-              <Ionicons name="arrow-back" size={24} color="white" />
-              <Text className="text-white text-lg font-sora ml-2">Back</Text>
-            </TouchableOpacity>
+      <BackgroundTemplate>
+        <View className="flex-1">
+          <View className="bg-purdueBlack-200 pt-12 pb-6 px-6">
+            <View className="flex-row items-center justify-between">
+              <TouchableOpacity
+                onPress={() => router.back()}
+                className="flex-row items-center"
+              >
+                <Ionicons name="arrow-back" size={24} color="white" />
+                <Text className="text-white text-lg font-sora ml-2">Back</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View className="flex-1 justify-center items-center">
+            <Text className="text-white text-lg font-sora">
+              Loading menu...
+            </Text>
           </View>
         </View>
-        <View className="flex-1 justify-center items-center">
-          <Text className="text-purdueBlack-200 text-lg font-sora">
-            Loading menu...
-          </Text>
-        </View>
-      </View>
+      </BackgroundTemplate>
     );
   }
 
   // Show error state if context has error
   if (contextError) {
     return (
-      <View className="flex-1 bg-warmWhite">
-        <View className="bg-purdueBlack-200 pt-12 pb-6 px-6">
-          <View className="flex-row items-center justify-between">
-            <TouchableOpacity
-              onPress={() => router.back()}
-              className="flex-row items-center"
-            >
-              <Ionicons name="arrow-back" size={24} color="white" />
-              <Text className="text-white text-lg font-sora ml-2">Back</Text>
-            </TouchableOpacity>
+      <BackgroundTemplate>
+        <View className="flex-1">
+          <View className="bg-purdueBlack-200 pt-12 pb-6 px-6">
+            <View className="flex-row items-center justify-between">
+              <TouchableOpacity
+                onPress={() => router.back()}
+                className="flex-row items-center"
+              >
+                <Ionicons name="arrow-back" size={24} color="white" />
+                <Text className="text-white text-lg font-sora ml-2">Back</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View className="flex-1 justify-center items-center px-6">
+            <Text className="text-white text-lg font-sora text-center mb-4">
+              Error loading menu data
+            </Text>
+            <Text className="text-gray-300 text-sm font-sora text-center opacity-70">
+              {contextError}
+            </Text>
           </View>
         </View>
-        <View className="flex-1 justify-center items-center px-6">
-          <Text className="text-purdueBlack-200 text-lg font-sora text-center mb-4">
-            Error loading menu data
-          </Text>
-          <Text className="text-purdueBlack-200 text-sm font-sora text-center opacity-70">
-            {contextError}
-          </Text>
-        </View>
-      </View>
+      </BackgroundTemplate>
     );
   }
 
   // Show no menu state if no data for this location
   if (!locationMenu || !currentMeal) {
     return (
-      <View className="flex-1 bg-warmWhite">
-        <View className="bg-purdueBlack-200 pt-12 pb-6 px-6">
-          <View className="flex-row items-center justify-between">
-            <TouchableOpacity
-              onPress={() => router.back()}
-              className="flex-row items-center"
-            >
-              <Ionicons name="arrow-back" size={24} color="white" />
-              <Text className="text-white text-lg font-sora ml-2">Back</Text>
-            </TouchableOpacity>
+      <BackgroundTemplate>
+        <View className="flex-1">
+          <View className="bg-purdueBlack-200 pt-12 pb-6 px-6">
+            <View className="flex-row items-center justify-between">
+              <TouchableOpacity
+                onPress={() => router.back()}
+                className="flex-row items-center"
+              >
+                <Ionicons name="arrow-back" size={24} color="white" />
+                <Text className="text-white text-lg font-sora ml-2">Back</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View className="flex-1 justify-center items-center">
+            <Text className="text-white text-lg font-sora text-center">
+              No menu available for {name} today.
+            </Text>
           </View>
         </View>
-        <View className="flex-1 justify-center items-center">
-          <Text className="text-purdueBlack-200 text-lg font-sora text-center">
-            No menu available for {name} today.
-          </Text>
-        </View>
-      </View>
+      </BackgroundTemplate>
     );
   }
 
   return (
-    <View className="flex-1 bg-warmWhite">
+    <BackgroundTemplate>
+      <View className="flex-1">
       {/* Header */}
-      <View className="bg-purdueBlack-200 pt-12 pb-6 px-6">
-        <View className="flex-row items-center justify-between mb-4">
+      <View className="bg-transparent pt-12 pb-6 px-6">
+        <View className="flex-row items-center justify-between mb-0">
           <TouchableOpacity
             onPress={() => router.back()}
             className="flex-row items-center"
@@ -210,44 +332,26 @@ export default function DiningHallPage() {
           </TouchableOpacity>
         </View>
 
-        <Text className="text-gray-300 text-sm font-sora mb-1">
-          Dining Courts
-        </Text>
         <Text className="text-white text-2xl font-sora-bold mb-4">{name}</Text>
-
-        {/* Search Bar */}
-        <View className="flex-row items-center bg-white/10 rounded-lg px-4 py-3 mb-2">
-          <Ionicons name="search" size={20} color="white" />
-          <TextInput
-            className="flex-1 text-white ml-3 font-sora"
-            placeholder="Search menu items..."
-            placeholderTextColor="rgba(255,255,255,0.6)"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          <TouchableOpacity className="ml-2">
-            <Ionicons name="options" size={20} color="white" />
-          </TouchableOpacity>
-        </View>
       </View>
 
       {/* Main Content */}
       <ScrollView className="flex-1 px-6">
         {/* Meal Navigation */}
-        <View className="flex-row items-center justify-between py-4 border-b border-gray-200">
+        <View className="flex-row items-center justify-between py-4 border-b border-gray-600">
           <TouchableOpacity
             onPress={() => navigateMeal("prev")}
             disabled={currentMealIndex === 0}
             className={`p-2 ${currentMealIndex === 0 ? "opacity-30" : ""}`}
           >
-            <Ionicons name="chevron-back" size={24} color="#0d0d0d" />
+            <Ionicons name="chevron-back" size={24} color="white" />
           </TouchableOpacity>
 
           <View className="flex-1 items-center">
-            <Text className="text-purdueBlack-200 text-lg font-sora-bold">
+            <Text className="text-white text-lg font-sora-bold">
               {currentMeal.name}
             </Text>
-            <Text className="text-purdueBlack-200 text-sm font-sora">
+            <Text className="text-gray-300 text-sm font-sora">
               {formatMealTime(currentMeal.start_time, currentMeal.end_time)}
             </Text>
           </View>
@@ -257,13 +361,13 @@ export default function DiningHallPage() {
             disabled={currentMealIndex === meals.length - 1}
             className={`p-2 ${currentMealIndex === meals.length - 1 ? "opacity-30" : ""}`}
           >
-            <Ionicons name="chevron-forward" size={24} color="#0d0d0d" />
+            <Ionicons name="chevron-forward" size={24} color="white" />
           </TouchableOpacity>
         </View>
 
         {/* Stations */}
         <View className="py-4">
-          <Text className="text-purdueBlack-200 text-lg font-sora-bold mb-4">
+          <Text className="text-white text-lg font-sora-bold mb-4">
             Stations
           </Text>
 
@@ -272,58 +376,39 @@ export default function DiningHallPage() {
               {/* Station Header */}
               <TouchableOpacity
                 onPress={() => toggleStation(currentMealIndex, stationIndex)}
-                className="flex-row items-center justify-between py-3"
+                className="flex-row items-center justify-between py-3 px-4 bg-gray-800 rounded-lg mb-2"
+                style={{
+                  borderWidth: 1,
+                  borderColor: "rgba(207, 185, 145, 0.2)",
+                }}
               >
                 <View className="flex-row items-center flex-1">
-                  <Text className="text-purdueBlack-200 text-base font-sora-bold flex-1">
+                  <Text className="text-white text-base font-sora-bold flex-1">
                     {station.name}
                   </Text>
                   <Ionicons
                     name="restaurant"
                     size={20}
-                    color="#0d0d0d"
+                    color="#CFB991"
                     style={{ marginRight: 8 }}
                   />
                 </View>
                 <Ionicons
                   name={station.isExpanded ? "chevron-down" : "chevron-forward"}
                   size={20}
-                  color="#0d0d0d"
+                  color="#CFB991"
                 />
               </TouchableOpacity>
 
               {/* Station Items */}
               {station.isExpanded && (
-                <View className="ml-4">
+                <View className="ml-2 mt-2">
                   {station.items.map((item) => (
                     <TouchableOpacity
                       key={item.id}
                       onPress={() => handleMenuItemPress(item)}
-                      className="py-2 border-b border-gray-100 last:border-b-0"
                     >
-                      <Text className="text-purdueBlack-200 text-sm font-sora">
-                        {item.name}
-                      </Text>
-                      {/* Show dietary info if available */}
-                      {(item.vegetarian || item.vegan || item.gluten) && (
-                        <View className="flex-row mt-1">
-                          {item.vegetarian && (
-                            <Text className="text-green-600 text-xs mr-2">
-                              Vegetarian
-                            </Text>
-                          )}
-                          {item.vegan && (
-                            <Text className="text-green-600 text-xs mr-2">
-                              Vegan
-                            </Text>
-                          )}
-                          {item.gluten && (
-                            <Text className="text-orange-600 text-xs mr-2">
-                              Contains Gluten
-                            </Text>
-                          )}
-                        </View>
-                      )}
+                      <MenuItemCard item={item} />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -332,6 +417,7 @@ export default function DiningHallPage() {
           ))}
         </View>
       </ScrollView>
-    </View>
+      </View>
+    </BackgroundTemplate>
   );
 }
