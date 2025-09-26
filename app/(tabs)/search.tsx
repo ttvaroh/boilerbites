@@ -1,5 +1,6 @@
 // Updated search.tsx
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import * as React from "react";
 import {
   ActivityIndicator,
@@ -33,6 +34,8 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export default function SearchPage() {
+  const router = useRouter();
+  
   // State management
   const [searchQuery, setSearchQuery] = React.useState("");
   const [showSortBy, setShowSortBy] = React.useState(false);
@@ -204,10 +207,13 @@ export default function SearchPage() {
    * Handle menu item press
    */
   const handleMenuItemPress = React.useCallback((item: MenuItem) => {
-    console.log('Item pressed:', item.name);
-    // Navigate to item details page
-    // navigation.navigate('ItemDetails', { item });
-  }, []);
+    // Navigate to nutrition page if serving size exists, otherwise to missing nutrition page
+    if (item.serving_size) {
+      router.push(`/nutrition/${item.id}`);
+    } else {
+      router.push(`/missing-nutrition/${item.id}`);
+    }
+  }, [router]);
 
   // Effect for debounced search
   React.useEffect(() => {

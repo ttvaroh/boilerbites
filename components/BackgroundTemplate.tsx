@@ -4,15 +4,16 @@ import { View } from 'react-native';
 
 interface BackgroundTemplateProps {
   children: React.ReactNode;
+  paddingBottom?: number;
 }
 
-const BackgroundTemplate = ({ children }: BackgroundTemplateProps) => {
+const BackgroundTemplate = ({ children, paddingBottom = 80 }: BackgroundTemplateProps) => {
   return (
     <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
       <LinearGradient
         colors={['#0a0a0a', '#1a1a1a', '#0d0d0d']}
         locations={[0, 0.5, 1]}
-        style={{ flex: 1, paddingBottom: 80}}
+        style={{ flex: 1, paddingBottom }}
       >
         {children}
       </LinearGradient>

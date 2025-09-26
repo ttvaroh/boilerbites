@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   ScrollView,
   Text,
@@ -70,7 +70,7 @@ export default function NutritionPage() {
   };
 
   return (
-    <BackgroundTemplate>
+    <BackgroundTemplate paddingBottom={40}>
       <View className="flex-1">
         {/* Header */}
         <View className="bg-transparent pt-12 pb-2 px-6">
