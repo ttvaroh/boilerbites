@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ScrollView,
   Text,
@@ -12,7 +12,7 @@ import BackgroundTemplate from "../../components/BackgroundTemplate";
 import IngredientsAndAllergens from "../../components/IngredientsAndAllergens";
 import MacroBreakdown from "../../components/MacroBreakdown";
 import NutritionFacts from "../../components/NutritionFacts";
-import { useMenuData } from "../../lib/MenuDataContext";
+import { supabase } from "../../lib/supabase";
 
 interface MenuItem {
   id: string;
@@ -36,28 +36,59 @@ interface MenuItem {
 export default function NutritionPage() {
   const { itemId } = useLocalSearchParams<{ itemId: string }>();
   const router = useRouter();
-  const { menuData } = useMenuData();
   const [servingCount, setServingCount] = useState("1");
+  const [item, setItem] = useState<MenuItem | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Find the item across all menu data
-  const findItem = (): MenuItem | null => {
-    for (const [locationName, locationMenu] of menuData) {
-      for (const meal of locationMenu.meals) {
-        for (const station of meal.stations) {
-          const item = station.items.find((item) => item.id === itemId);
-          if (item) return item;
+  // Fetch item data directly from Supabase
+  useEffect(() => {
+    const fetchItem = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('item')
+          .select('*')
+          .eq('id', itemId)
+          .single();
+
+        if (error) {
+          console.error('Error fetching item:', error);
+          router.replace(`/missing-nutrition/${itemId}`);
+          return;
         }
+
+        if (!data || !data.serving_size) {
+          router.replace(`/missing-nutrition/${itemId}`);
+          return;
+        }
+
+        setItem(data);
+      } catch (error) {
+        console.error('Error fetching item:', error);
+        router.replace(`/missing-nutrition/${itemId}`);
+      } finally {
+        setLoading(false);
       }
+    };
+
+    if (itemId) {
+      fetchItem();
     }
-    return null;
-  };
+  }, [itemId, router]);
 
-  const item = findItem();
+  // Show loading state
+  if (loading) {
+    return (
+      <BackgroundTemplate paddingBottom={40}>
+        <View className="flex-1 justify-center items-center">
+          <Text className="text-white text-lg font-sora">Loading nutrition info...</Text>
+        </View>
+      </BackgroundTemplate>
+    );
+  }
 
-
-  // If no item found or serving size is null, redirect to missing nutrition page
-  if (!item || !item.serving_size) {
-    router.replace(`/missing-nutrition/${itemId}`);
+  // If no item found, return null (navigation handled in useEffect)
+  if (!item) {
     return null;
   }
 

@@ -1,9 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
+import { useEffect, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import BackgroundTemplate from "../../components/BackgroundTemplate";
-import { useMenuData } from "../../lib/MenuDataContext";
+import { supabase } from "../../lib/supabase";
 
 interface MenuItem {
   id: string;
@@ -27,27 +27,58 @@ interface MenuItem {
 export default function MissingNutritionPage() {
   const { itemId } = useLocalSearchParams<{ itemId: string }>();
   const router = useRouter();
-  const { menuData } = useMenuData();
+  const [item, setItem] = useState<MenuItem | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Find the item across all menu data
-  const findItem = (): MenuItem | null => {
-    for (const [locationName, locationMenu] of menuData) {
-      for (const meal of locationMenu.meals) {
-        for (const station of meal.stations) {
-          const item = station.items.find((item) => item.id === itemId);
-          if (item) return item;
+  // Fetch item data directly from Supabase
+  useEffect(() => {
+    const fetchItem = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('item')
+          .select('*')
+          .eq('id', itemId)
+          .single();
+
+        if (error) {
+          console.error('Error fetching item:', error);
+          router.back();
+          return;
         }
+
+        if (!data) {
+          router.back();
+          return;
+        }
+
+        setItem(data);
+      } catch (error) {
+        console.error('Error fetching item:', error);
+        router.back();
+      } finally {
+        setLoading(false);
       }
+    };
+
+    if (itemId) {
+      fetchItem();
     }
-    return null;
-  };
+  }, [itemId, router]);
 
-  const item = findItem();
+  // Show loading state
+  if (loading) {
+    return (
+      <BackgroundTemplate>
+        <View className="flex-1 justify-center items-center">
+          <Text className="text-white text-lg font-sora">Loading item info...</Text>
+        </View>
+      </BackgroundTemplate>
+    );
+  }
 
-
-  // If no item found, go back
+  // If no item found, return null (navigation handled in useEffect)
   if (!item) {
-    router.back();
     return null;
   }
 

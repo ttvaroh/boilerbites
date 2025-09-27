@@ -24,11 +24,21 @@ interface SearchFilters {
 
 interface ItemSearchProps {
   onSearch: (query: string, filters: SearchFilters) => void;
+  searchQuery?: string;
+  onSearchQueryChange?: (query: string) => void;
 }
 
-const ItemSearchComponent: React.FC<ItemSearchProps> = ({ onSearch }) => {
-  const [searchQuery, setSearchQuery] = useState("");
+const ItemSearchComponent: React.FC<ItemSearchProps> = ({ 
+  onSearch, 
+  searchQuery: externalSearchQuery, 
+  onSearchQueryChange 
+}) => {
+  const [internalSearchQuery, setInternalSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Use external search query if provided, otherwise use internal state
+  const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery;
+  const setSearchQuery = onSearchQueryChange || setInternalSearchQuery;
   
   const [filters, setFilters] = useState<SearchFilters>({
     timeOfDay: "All",

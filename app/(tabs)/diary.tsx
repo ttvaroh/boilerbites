@@ -70,7 +70,7 @@ export default function DiaryPage() {
   return (
     <BackgroundTemplate>
       <ScrollView className="flex-1">
-        <View className="p-6">
+        <View className="p-6 pt-14">
         {/* Header */}
         <View className="flex-row items-center justify-between mb-6">
           <TouchableOpacity>
@@ -82,57 +82,20 @@ export default function DiaryPage() {
           <View style={{ width: 24 }} />
         </View>
         
-        {/* Test Content */}
-        <View className="bg-white rounded-lg p-4 mb-6">
-          <Text className="text-black text-xl font-sora-bold text-center">
-            Diary Screen Test
-          </Text>
-          <Text className="text-gray-600 text-center">
-            This should be visible
-          </Text>
-        </View>
-
         {/* Today's Summary */}
         <View className="mb-6">
-          <Text className="text-lg font-sora-semibold text-purdueBlack-200 mb-4">
+          <Text className="text-lg font-sora-semibold text-white mb-4">
             Today's Summary
           </Text>
-          <View className="flex-row space-x-4 mb-4">
-            {/* Calories Card */}
-            <View className="bg-white rounded-lg p-4 flex-1">
-              <Text className="text-purdueBlack-200 text-sm font-sora mb-1">
-                Calories
-              </Text>
-              <Text className="text-purdueBlack-200 text-2xl font-sora-bold">
-                {totalCalories}
-              </Text>
-            </View>
-            {/* Protein Card */}
-            <View className="bg-white rounded-lg p-4 flex-1">
-              <Text className="text-purdueBlack-200 text-sm font-sora mb-1">
-                Protein
-              </Text>
-              <Text className="text-purdueBlack-200 text-2xl font-sora-bold">
-                {totalProtein}g
-              </Text>
-            </View>
-          </View>
-          {/* Fat Card */}
-          <View className="bg-white rounded-lg p-4">
-            <Text className="text-purdueBlack-200 text-sm font-sora mb-1">
-              Fat
-            </Text>
-            <Text className="text-purdueBlack-200 text-2xl font-sora-bold">
-              {totalFat}g
-            </Text>
-          </View>
+
+            {/* Daily Progress */}
+            <DailyProgress />
         </View>
-        <DailyProgress />
 
         {/* Log Your Intake Section */}
         <View className="mb-6">
           <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-lg font-sora-semibold text-purdueBlack-200">
+            <Text className="text-lg font-sora-semibold text-white">
               Log Your Intake
             </Text>
             <TouchableOpacity
@@ -145,38 +108,49 @@ export default function DiaryPage() {
 
           {/* Add Meal Form */}
           {showAddForm && (
-            <View className="bg-white p-4 rounded-lg mb-4">
-              <Text className="text-lg font-sora-semibold text-purdueBlack-200 mb-4">
+            <View className="bg-gray-800 p-4 rounded-xl mb-4" style={{
+              shadowColor: "#CFB991",
+              shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 0.1,
+              shadowRadius: 8,
+              elevation: 5,
+              borderWidth: 1,
+              borderColor: "rgba(207, 185, 145, 0.2)",
+            }}>
+              <Text className="text-lg font-sora-semibold text-white mb-4">
                 Add New Meal
               </Text>
               <TextInput
                 placeholder="Meal Name"
+                placeholderTextColor="#9CA3AF"
                 value={newMeal.name}
                 onChangeText={(text) => setNewMeal({ ...newMeal, name: text })}
-                className="border border-gray-300 p-3 rounded-lg mb-3 font-sora"
+                className="bg-gray-700 border border-gray-600 text-white p-3 rounded-lg mb-3 font-sora"
               />
               <TextInput
                 placeholder="Meal Type (Breakfast, Lunch, Dinner, Snacks)"
+                placeholderTextColor="#9CA3AF"
                 value={newMeal.mealType}
                 onChangeText={(text) =>
                   setNewMeal({ ...newMeal, mealType: text })
                 }
-                className="border border-gray-300 p-3 rounded-lg mb-3 font-sora"
+                className="bg-gray-700 border border-gray-600 text-white p-3 rounded-lg mb-3 font-sora"
               />
               <TextInput
                 placeholder="Calories"
+                placeholderTextColor="#9CA3AF"
                 value={newMeal.calories}
                 onChangeText={(text) =>
                   setNewMeal({ ...newMeal, calories: text })
                 }
-                className="border border-gray-300 p-3 rounded-lg mb-3 font-sora"
+                className="bg-gray-700 border border-gray-600 text-white p-3 rounded-lg mb-3 font-sora"
                 keyboardType="numeric"
               />
               <TouchableOpacity
                 onPress={addMeal}
                 className="bg-purdueGold p-3 rounded-lg"
               >
-                <Text className="text-purdueBlack-200 text-center font-sora-semibold">
+                <Text className="text-white text-center font-sora-semibold">
                   Add Meal
                 </Text>
               </TouchableOpacity>
@@ -187,7 +161,16 @@ export default function DiaryPage() {
           {meals.map((meal) => (
             <View
               key={meal.id}
-              className="bg-white rounded-lg p-4 mb-3 flex-row items-center"
+              className="bg-gray-800 rounded-xl p-4 mb-3 flex-row items-center"
+              style={{
+                shadowColor: "#CFB991",
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.1,
+                shadowRadius: 8,
+                elevation: 5,
+                borderWidth: 1,
+                borderColor: "rgba(207, 185, 145, 0.2)",
+              }}
             >
               {/* Meal Icon */}
               <View className="bg-purdueGold rounded-full w-10 h-10 items-center justify-center mr-4">
@@ -196,16 +179,16 @@ export default function DiaryPage() {
 
               {/* Meal Info */}
               <View className="flex-1">
-                <Text className="text-purdueBlack-200 text-base font-sora-semibold">
+                <Text className="text-white text-base font-sora-semibold">
                   {meal.name}
                 </Text>
-                <Text className="text-purdueBlack-100 text-sm font-sora">
+                <Text className="text-gray-300 text-sm font-sora">
                   {meal.mealType}
                 </Text>
               </View>
 
               {/* Calories */}
-              <Text className="text-purdueBlack-200 text-sm font-sora">
+              <Text className="text-white text-sm font-sora">
                 {meal.calories} kcal
               </Text>
             </View>

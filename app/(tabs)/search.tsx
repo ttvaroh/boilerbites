@@ -4,7 +4,6 @@ import { useRouter } from "expo-router";
 import * as React from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -14,7 +13,7 @@ import BackgroundTemplate from "../../components/BackgroundTemplate";
 import ItemSearchComponent from "../../components/ItemSearch";
 import MenuItemCard from "../../components/MenuItemCard";
 import SortBy from "../../components/SortBy";
-import { MenuItem, SearchFilters, searchService } from "../../services/searchService";
+import { MenuItem, SearchFilters, SearchOptions, searchService } from "../../services/searchService";
 
 // Add debounce hook for search optimization
 function useDebounce<T>(value: T, delay: number): T {
@@ -33,15 +32,118 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
+// Custom hook for debounced live search with request cancellation
+function useDebouncedSearch() {
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [isSearching, setIsSearching] = React.useState(false);
+  const [searchResults, setSearchResults] = React.useState<MenuItem[]>([]);
+  const [totalCount, setTotalCount] = React.useState(0);
+  const [error, setError] = React.useState<any>(null);
+  
+  const debouncedQuery = useDebounce(searchQuery, 300);
+  const abortControllerRef = React.useRef<AbortController | null>(null);
+
+  const performSearch = React.useCallback(async (
+    query: string,
+    filters: SearchFilters,
+    options: SearchOptions = {}
+  ) => {
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      setIsSearching(true);
+      setError(null);
+
+      const { data, count, error } = await searchService.searchMenuItems(
+        query,
+        filters,
+        options
+      );
+
+      // Check if request was aborted
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      if (error) {
+        setError(error);
+        return;
+      }
+
+      setSearchResults(data);
+      setTotalCount(count);
+    } catch (err) {
+      if (!controller.signal.aborted) {
+        setError(err);
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setIsSearching(false);
+      }
+    }
+  }, []);
+
+  const appendSearchResults = React.useCallback((newData: MenuItem[]) => {
+    setSearchResults(prev => [...prev, ...newData]);
+  }, []);
+
+  const resetSearchResults = React.useCallback(() => {
+    setSearchResults([]);
+    setTotalCount(0);
+    setError(null);
+  }, []);
+
+  // Cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  return {
+    searchQuery,
+    setSearchQuery,
+    debouncedQuery,
+    isSearching,
+    searchResults,
+    setSearchResults,
+    appendSearchResults,
+    resetSearchResults,
+    totalCount,
+    error,
+    performSearch
+  };
+}
+
 export default function SearchPage() {
   const router = useRouter();
   
+  // Use the debounced search hook
+  const {
+    searchQuery,
+    setSearchQuery,
+    debouncedQuery,
+    isSearching,
+    searchResults,
+    setSearchResults,
+    appendSearchResults,
+    resetSearchResults,
+    totalCount,
+    error,
+    performSearch
+  } = useDebouncedSearch();
+  
   // State management
-  const [searchQuery, setSearchQuery] = React.useState("");
   const [showSortBy, setShowSortBy] = React.useState(false);
-  const [loading, setLoading] = React.useState(false);
-  const [results, setResults] = React.useState<MenuItem[]>([]);
-  const [totalCount, setTotalCount] = React.useState(0);
   const [hasSearched, setHasSearched] = React.useState(false);
   
   // Pagination state
@@ -63,112 +165,38 @@ export default function SearchPage() {
       glutenFree: false,
     },
     excludeAllergens: [],
-    mealAvailabilityOnly: true,
+    mealAvailabilityOnly: false,
   });
-
-  // Debounced search query for auto-search
-  const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
   const ITEMS_PER_PAGE = 20;
 
-  /**
-   * Perform search with current parameters
-   */
-  const performSearch = React.useCallback(async (
-    query: string = debouncedSearchQuery,
-    filters: SearchFilters = currentFilters,
-    page: number = 0,
-    append: boolean = false
-  ) => {
-    try {
-      if (page === 0 && !append) {
-        setLoading(true);
-        setResults([]);
-        setHasSearched(true);
-      } else {
-        setLoadingMore(true);
-      }
-
-      const { data, count, error } = await searchService.searchMenuItems(
-        query,
-        filters,
-        {
-          sortBy,
-          sortOrder,
-          limit: ITEMS_PER_PAGE,
-          offset: page * ITEMS_PER_PAGE
-        }
-      );
-
-      if (error) {
-        Alert.alert('Search Error', 'Failed to search menu items. Please try again.');
-        console.error('Search error:', error);
-        return;
-      }
-
-      if (append && page > 0) {
-        setResults(prev => [...prev, ...data]);
-      } else {
-        setResults(data);
-        setTotalCount(count);
-      }
-
-      setCurrentPage(page);
-      setHasMore(data.length === ITEMS_PER_PAGE && (page + 1) * ITEMS_PER_PAGE < count);
-
-    } catch (error) {
-      console.error('Search error:', error);
-      Alert.alert('Search Error', 'An unexpected error occurred. Please try again.');
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
+  // Trigger search when debounced query or filters change
+  React.useEffect(() => {
+    // Reset pagination state when starting a new search
+    setCurrentPage(0);
+    setHasMore(true);
+    
+    // Reset search results for new search
+    resetSearchResults();
+    
+    if (debouncedQuery.trim() || hasSearched) {
+      setHasSearched(true);
+      performSearch(debouncedQuery, currentFilters, {
+        sortBy,
+        sortOrder,
+        limit: ITEMS_PER_PAGE,
+        offset: 0
+      });
+    } else {
+      // Load initial items with current filters
+      performSearch('', currentFilters, {
+        sortBy,
+        sortOrder,
+        limit: ITEMS_PER_PAGE,
+        offset: 0
+      });
     }
-  }, [debouncedSearchQuery, currentFilters, sortBy, sortOrder]);
-
-  /**
-   * Load initial items (all items, not just currently available)
-   */
-  const loadInitialItems = React.useCallback(async () => {
-    try {
-      setLoading(true);
-      // Use regular search with default filters (timeOfDay: "All", mealAvailabilityOnly: false)
-      const defaultFilters: SearchFilters = {
-        timeOfDay: "All",
-        diningHalls: [],
-        dietaryPreferences: {
-          vegetarian: false,
-          vegan: false,
-          glutenFree: false,
-        },
-        excludeAllergens: [],
-        mealAvailabilityOnly: false,
-      };
-      
-      const { data, error } = await searchService.searchMenuItems(
-        '', // Empty query to get all items
-        defaultFilters,
-        {
-          sortBy,
-          sortOrder,
-          limit: ITEMS_PER_PAGE,
-          offset: 0
-        }
-      );
-      
-      if (error) {
-        console.error('Initial load error:', error);
-        return;
-      }
-
-      setResults(data);
-      setTotalCount(data.length);
-      setHasMore(data.length === ITEMS_PER_PAGE);
-    } catch (error) {
-      console.error('Initial load error:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [sortBy, sortOrder]);
+  }, [debouncedQuery, currentFilters, sortBy, sortOrder, performSearch, hasSearched, resetSearchResults]);
 
   /**
    * Handle search from ItemSearchComponent
@@ -176,7 +204,7 @@ export default function SearchPage() {
   const handleSearch = React.useCallback(async (query: string, filters: SearchFilters) => {
     setCurrentFilters(filters);
     setSearchQuery(query);
-    // The actual search will be triggered by the useEffect below due to debouncing
+    // The actual search will be triggered by the useEffect above due to debouncing
   }, []);
 
   /**
@@ -199,9 +227,41 @@ export default function SearchPage() {
    * Load more items (pagination)
    */
   const loadMoreItems = React.useCallback(async () => {
-    if (loadingMore || !hasMore) return;
-    await performSearch(debouncedSearchQuery, currentFilters, currentPage + 1, true);
-  }, [loadingMore, hasMore, performSearch, debouncedSearchQuery, currentFilters, currentPage]);
+    setLoadingMore(true);
+    try {
+      const { data, error } = await searchService.searchMenuItems(
+        debouncedQuery,
+        currentFilters,
+        {
+          sortBy,
+          sortOrder,
+          limit: ITEMS_PER_PAGE,
+          offset: (currentPage + 1) * ITEMS_PER_PAGE
+        }
+      );
+
+      if (error) {
+        console.error('Load more error:', error);
+        return;
+      }
+
+
+      // Append to existing results using the hook's method
+      appendSearchResults(data);
+      setCurrentPage(prev => prev + 1);
+      
+      // Update hasMore based on whether we got a full page and if there are more items
+      const newTotalResults = searchResults.length + data.length;
+      const newHasMore = data.length === ITEMS_PER_PAGE && newTotalResults < totalCount;
+      setHasMore(newHasMore);
+      
+
+    } catch (error) {
+      console.error('Load more error:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, debouncedQuery, currentFilters, sortBy, sortOrder, currentPage, appendSearchResults, searchResults, totalCount]);
 
   /**
    * Handle menu item press
@@ -215,34 +275,30 @@ export default function SearchPage() {
     }
   }, [router]);
 
-  // Effect for debounced search
-  React.useEffect(() => {
-    if (debouncedSearchQuery.trim() || hasSearched) {
-      performSearch();
-    } else if (!hasSearched) {
-      loadInitialItems();
-    }
-  }, [debouncedSearchQuery, currentFilters, sortBy, sortOrder]);
-
-  // Initial load
-  React.useEffect(() => {
-    loadInitialItems();
-  }, []);
 
   return (
     <BackgroundTemplate>
       <View className="flex-1 px-6 pt-16">
+        {/* Header */}
+        <View className="flex-row items-center justify-center mb-6">
+          <Text className="text-2xl font-sora-bold text-white">
+            Search
+          </Text>
+        </View>
+
         {/* Search Component */}
         <ItemSearchComponent 
           onSearch={handleSearch}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
         />
 
         {/* Results Section */}
-        <View className="flex-1 mt-6">
+        <View className="flex-1">
           {/* Results Header */}
           <View className="flex-row items-center justify-between mb-4">
             <Text className="text-white text-base font-sora">
-              {loading ? "Loading..." : hasSearched ? `${totalCount} results` : "Available now"}
+              {isSearching ? "Searching..." : hasSearched ? `${totalCount} results` : "Available now"}
             </Text>
             <TouchableOpacity
               onPress={() => setShowSortBy(true)}
@@ -253,7 +309,7 @@ export default function SearchPage() {
           </View>
 
           {/* Loading Indicator */}
-          {loading && results.length === 0 && (
+          {isSearching && searchResults.length === 0 && (
             <View className="flex-1 justify-center items-center py-8">
               <ActivityIndicator size="large" color="#CFB991" />
               <Text className="text-gray-400 text-lg font-sora mt-4">
@@ -263,7 +319,7 @@ export default function SearchPage() {
           )}
 
           {/* Results */}
-          {!loading && (
+          {!isSearching && (
             <ScrollView 
               className="flex-1" 
               showsVerticalScrollIndicator={false}
@@ -276,9 +332,9 @@ export default function SearchPage() {
                 }
               }}
             >
-              {results.length > 0 ? (
+              {searchResults.length > 0 ? (
                 <>
-                  {results.map((item, index) => (
+                  {searchResults.map((item, index) => (
                     <TouchableOpacity
                       key={`${item.id}-${index}`} // Handle potential duplicates
                       onPress={() => handleMenuItemPress(item)}
@@ -302,7 +358,7 @@ export default function SearchPage() {
                   )}
                   
                   {/* End of results indicator */}
-                  {!hasMore && results.length > 0 && (
+                  {!hasMore && searchResults.length > 0 && (
                     <View className="py-4 justify-center items-center">
                       <Text className="text-gray-400 text-sm font-sora">
                         That's all for now!
@@ -310,7 +366,7 @@ export default function SearchPage() {
                     </View>
                   )}
                 </>
-              ) : !loading && (
+              ) : !isSearching && (
                 <View className="flex-1 justify-center items-center py-8">
                   <Text className="text-gray-400 text-lg font-sora text-center">
                     {hasSearched ? "No results found" : "No items available"}

@@ -47,6 +47,10 @@ export interface SearchOptions {
 }
 
 class SearchService {
+  private requestCache = new Map<string, { data: MenuItem[]; count: number; timestamp: number }>();
+  private activeRequests = new Map<string, AbortController>();
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
   /**
    * Main search function that builds efficient PostgreSQL queries
    */
@@ -61,6 +65,25 @@ class SearchService {
       limit = 50,
       offset = 0
     } = options;
+
+    // Create cache key
+    const cacheKey = this.createCacheKey(query, filters, options);
+    
+    // Check cache first
+    const cached = this.requestCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION) {
+      return { data: cached.data, count: cached.count, error: null };
+    }
+
+    // Cancel any existing request with the same cache key
+    const existingController = this.activeRequests.get(cacheKey);
+    if (existingController) {
+      existingController.abort();
+    }
+
+    // Create new abort controller for this request
+    const controller = new AbortController();
+    this.activeRequests.set(cacheKey, controller);
 
     try {
       // Start with base query - join all necessary tables
@@ -86,6 +109,13 @@ class SearchService {
           )
         `, { count: 'exact' });
 
+      // Always filter by today's date
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      queryBuilder = queryBuilder
+        .eq('day_station_item.day_station.day_meal.day_menu.serve_date', today)
+        .eq('day_station_item.day_station.day_meal.day_menu.is_published', true);
+
       // Apply text search on item name (case-insensitive, partial match)
       if (query.trim()) {
         queryBuilder = queryBuilder.ilike('name', `%${query.trim()}%`);
@@ -104,11 +134,13 @@ class SearchService {
 
       // Exclude allergens - PostgreSQL array operations
       if (filters.excludeAllergens.length > 0) {
-        // Items that don't contain any of the excluded allergens
-        const allergenConditions = filters.excludeAllergens.map(allergen => 
-          `not allergens @> '["${allergen}"]'`
-        ).join(' and ');
-        queryBuilder = queryBuilder.or(allergenConditions);
+        // Use PostgreSQL array overlap operator to exclude items that contain any of the specified allergens
+        // For each allergen to exclude, we want items where allergens array does NOT contain that allergen
+        
+        // Apply exclusion for each allergen individually
+        filters.excludeAllergens.forEach(allergen => {
+          queryBuilder = queryBuilder.not('allergens', 'cs', `{${allergen}}`);
+        });
       }
 
       // Filter by dining halls
@@ -121,15 +153,9 @@ class SearchService {
         queryBuilder = queryBuilder.eq('day_station_item.day_station.day_meal.meal_name', filters.timeOfDay);
       }
 
-      // Filter for meal availability only
+      // Filter for meal availability only (additional time-based filtering)
       if (filters.mealAvailabilityOnly) {
-        const now = new Date();
-        const today = now.toISOString().split('T')[0];
-        
-        queryBuilder = queryBuilder
-          .eq('day_station_item.day_station.day_meal.day_menu.serve_date', today)
-          .eq('day_station_item.day_station.day_meal.day_menu.is_published', true)
-          .eq('day_station_item.day_station.day_meal.open', true);
+        queryBuilder = queryBuilder.eq('day_station_item.day_station.day_meal.open', true);
       }
 
       // Apply sorting
@@ -146,11 +172,19 @@ class SearchService {
 
       if (error) {
         console.error('Search error:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
         return { data: [], count: 0, error };
       }
 
       // Transform the nested data structure
       const transformedData = this.transformSearchResults(data || []);
+      
+      // Cache the results
+      this.requestCache.set(cacheKey, {
+        data: transformedData,
+        count: count || 0,
+        timestamp: Date.now()
+      });
 
       return {
         data: transformedData,
@@ -161,7 +195,41 @@ class SearchService {
     } catch (error) {
       console.error('Search service error:', error);
       return { data: [], count: 0, error };
+    } finally {
+      // Clean up the abort controller
+      this.activeRequests.delete(cacheKey);
     }
+  }
+
+  /**
+   * Create a cache key for the search parameters
+   */
+  private createCacheKey(query: string, filters: SearchFilters, options: SearchOptions): string {
+    return JSON.stringify({
+      query: query.trim(),
+      filters,
+      options: {
+        sortBy: options.sortBy || 'name',
+        sortOrder: options.sortOrder || 'asc',
+        limit: options.limit || 50,
+        offset: options.offset || 0
+      }
+    });
+  }
+
+  /**
+   * Clear the request cache
+   */
+  clearCache(): void {
+    this.requestCache.clear();
+  }
+
+  /**
+   * Cancel all active requests
+   */
+  cancelAllRequests(): void {
+    this.activeRequests.forEach(controller => controller.abort());
+    this.activeRequests.clear();
   }
 
   /**
