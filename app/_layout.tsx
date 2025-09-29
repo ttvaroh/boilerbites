@@ -8,6 +8,8 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { AuthProvider } from "../contexts/AuthContext";
 import "../global.css";
 import { MenuDataProvider } from "../lib/MenuDataContext";
 
@@ -30,43 +32,69 @@ export default function RootLayout() {
 
   if (!fontsLoaded) {
     return (
-      <MenuDataProvider>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="dining-hall/[name]"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="nutrition/[itemId]"
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="missing-nutrition/[itemId]"
-            options={{ headerShown: false }}
-          />
-        </Stack>
-      </MenuDataProvider>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <MenuDataProvider>
+            <Stack>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="dining-hall/[name]"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="nutrition/[itemId]"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="missing-nutrition/[itemId]"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="signin"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="signup"
+                options={{ headerShown: false }}
+              />
+            </Stack>
+          </MenuDataProvider>
+        </AuthProvider>
+      </SafeAreaProvider>
     );
   }
 
   return (
-    <MenuDataProvider>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="dining-hall/[name]"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="nutrition/[itemId]"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="missing-nutrition/[itemId]"
-          options={{ headerShown: false }}
-        />
-      </Stack>
-    </MenuDataProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <MenuDataProvider>
+          <Stack>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="dining-hall/[name]"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="nutrition/[itemId]"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="missing-nutrition/[itemId]"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="signin"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="signup"
+              options={{ headerShown: false }}
+            />
+          </Stack>
+        </MenuDataProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

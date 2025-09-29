@@ -47,7 +47,7 @@ export default function _Layout() {
         }}
       />
       <Tabs.Screen
-        name="onboarding"
+        name="profile"
         options={{
           title: "Profile",
           tabBarIcon: ({ color, size }) => (
