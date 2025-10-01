@@ -1,5 +1,7 @@
 import { FontAwesome6, Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import { Alert, Text, TouchableOpacity, View } from "react-native";
+import { useAuth } from "../contexts/AuthContext";
 
 interface MenuItem {
   id: string;
@@ -34,6 +36,46 @@ interface MenuItemCardProps {
 }
 
 export default function MenuItemCard({ item, showDietaryTag = true, meals }: MenuItemCardProps) {
+  const { user, addFoodEntry } = useAuth();
+  const router = useRouter();
+
+  const handleAddToTracker = async () => {
+    if (!user) {
+      Alert.alert(
+        "Login Required",
+        "You need to be logged in to add items to your food tracker.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Sign In", onPress: () => router.push("/signin") }
+        ]
+      );
+      return;
+    }
+
+    if (!item?.id) return;
+
+    try {
+      const { error } = await addFoodEntry({
+        item_id: item.id,
+        quantity: 1, // Default to 1 serving
+        created_at: new Date().toISOString(),
+        meal_name: 0, // Default to uncategorized
+      });
+
+      if (error) {
+        Alert.alert("Error", "Failed to add item to tracker. Please try again.");
+        console.error("Add food entry error:", error);
+        return;
+      }
+
+      // Route to stats page (diary tab)
+      router.push("/(tabs)/diary");
+    } catch (error) {
+      Alert.alert("Error", "Failed to add item to tracker. Please try again.");
+      console.error("Add food entry error:", error);
+    }
+  };
+
   const getDietaryIcons = () => {
     const icons: Array<{
       icon: string;
@@ -151,7 +193,7 @@ export default function MenuItemCard({ item, showDietaryTag = true, meals }: Men
           </View>
 
           {/* Nutritional Information */}
-          <View className="flex-row flex-wrap">
+          <View className="flex-row flex-wrap mb-3">
             {item.protein_g !== undefined && item.protein_g !== null && !isNaN(Number(item.protein_g)) && (
               <Text className="text-gray-300 text-sm font-sora mr-5">
                 Protein: {Number(item.protein_g).toFixed(1)}g
@@ -168,6 +210,23 @@ export default function MenuItemCard({ item, showDietaryTag = true, meals }: Men
               </Text>
             )}
           </View>
+
+          {/* Add to Tracker Button */}
+          <TouchableOpacity
+            onPress={handleAddToTracker}
+            className="bg-purdueGold rounded-lg py-2 px-4 self-start"
+            style={{
+              shadowColor: "#CFB991",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              elevation: 3,
+            }}
+          >
+            <Text className="text-white text-sm font-sora-semibold">
+              Add to Tracker
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Right portion - Calories only */}

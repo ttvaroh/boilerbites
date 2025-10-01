@@ -1,24 +1,19 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 
 interface DiningHallCardProps {
   name: string;
   hours: string;
   status: "open" | "closed";
-  isFavorite: boolean;
   image?: any; // For require() imported images
   onPress: () => void;
-  onFavoritePress: () => void;
 }
 
 export default function DiningHallCard({
   name,
   hours,
   status,
-  isFavorite,
   image,
   onPress,
-  onFavoritePress,
 }: DiningHallCardProps) {
   return (
     <TouchableOpacity
@@ -57,19 +52,6 @@ export default function DiningHallCard({
             {status === "open" ? "Open" : "Closed"}
           </Text>
         </View>
-
-        {/* Favorite Button */}
-        <TouchableOpacity
-          onPress={onFavoritePress}
-          className="absolute top-1.5 right-3.5 z-10 p-[.4rem] rounded-full"
-          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
-        >
-          <Ionicons
-            name={isFavorite ? "heart" : "heart-outline"}
-            size={18}
-            color={isFavorite ? "#CFB991" : "#9CA3AF"}
-          />
-        </TouchableOpacity>
 
         {/* Image/Logo */}
         <View className="items-center mb-4">

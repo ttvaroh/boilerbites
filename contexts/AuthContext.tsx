@@ -2,6 +2,43 @@ import { Session, User } from '@supabase/supabase-js';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
+interface FoodEntry {
+  item_id: string;
+  quantity: number;
+  created_at?: string;
+  location_name?: string;
+  meal_name?: number; // 0=uncategorized, 1=breakfast, 2=lunch, 3=dinner, 4=snack
+}
+
+interface DailyNutrition {
+  id: string;
+  user_id: string;
+  date: string;
+  goal_calories: number;
+  goal_protein_g: number;
+  goal_carbs_g: number;
+  goal_fat_g: number;
+  consumed_calories: number;
+  consumed_protein_g: number;
+  consumed_carbs_g: number;
+  consumed_fat_g: number;
+  remaining_calories: number;
+  remaining_protein_g: number;
+  remaining_carbs_g: number;
+  remaining_fat_g: number;
+  percent_calories: number;
+  percent_protein: number;
+  percent_carbs: number;
+  percent_fat: number;
+}
+
+interface FavoriteItem {
+  id: string;
+  user_id: string;
+  item_id: string;
+  created_at: string;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -10,6 +47,12 @@ interface AuthContextType {
   signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
   signInWithAzure: () => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  addFoodEntry: (foodEntry: FoodEntry) => Promise<{ error: any }>;
+  removeFoodEntry: (entryId: string) => Promise<{ error: any }>;
+  toggleFavorite: (itemId: string) => Promise<{ error: any; isFavorited: boolean }>;
+  getFavorites: () => Promise<{ data: FavoriteItem[] | null; error: any }>;
+  getDailyNutrition: (date?: string) => Promise<{ data: DailyNutrition | null; error: any }>;
+  updateDailyGoals: (date: string, goals: { calories?: number; protein?: number; carbs?: number; fat?: number; }) => Promise<{ error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -20,6 +63,12 @@ const AuthContext = createContext<AuthContextType>({
   signUp: async () => ({ error: null }),
   signInWithAzure: async () => ({ error: null }),
   signOut: async () => {},
+  addFoodEntry: async () => ({ error: null }),
+  removeFoodEntry: async () => ({ error: null }),
+  toggleFavorite: async () => ({ error: null, isFavorited: false }),
+  getFavorites: async () => ({ data: null, error: null }),
+  getDailyNutrition: async () => ({ data: null, error: null }),
+  updateDailyGoals: async () => ({ error: null }),
 });
 
 export const useAuth = () => {
@@ -88,6 +137,144 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
   };
 
+  const addFoodEntry = async (foodEntry: FoodEntry) => {
+    if (!user) {
+      return { error: new Error('User not authenticated') };
+    }
+
+    const { error } = await supabase
+      .from('food_entry')
+      .insert({
+        user_id: user.id,
+        item_id: foodEntry.item_id,
+        quantity: foodEntry.quantity,
+        created_at: foodEntry.created_at || new Date().toISOString(),
+        location_name: foodEntry.location_name,
+        meal_name: foodEntry.meal_name || 0, // Default to uncategorized
+      });
+
+    return { error };
+  };
+
+  const removeFoodEntry = async (entryId: string) => {
+    if (!user) {
+      return { error: new Error('User not authenticated') };
+    }
+
+    const { error } = await supabase
+      .from('food_entry')
+      .delete()
+      .eq('id', entryId)
+      .eq('user_id', user.id); // Ensure user can only delete their own entries
+
+    return { error };
+  };
+
+  const getDailyNutrition = async (date?: string) => {
+    if (!user) {
+      return { data: null, error: new Error('User not authenticated') };
+    }
+
+    const { data, error } = await supabase
+      .rpc('get_daily_nutrition', {
+        p_user_id: user.id,
+        p_date: date || new Date().toISOString().split('T')[0],
+      })
+      .single();
+
+    if (error) {
+      console.error('Error fetching daily nutrition:', error);
+      return { data: null, error };
+    }
+
+    return { data: data as DailyNutrition, error: null };
+  };
+
+  const updateDailyGoals = async (
+    date: string,
+    goals: {
+      calories?: number;
+      protein?: number;
+      carbs?: number;
+      fat?: number;
+    }
+  ) => {
+    if (!user) {
+      return { error: new Error('User not authenticated') };
+    }
+
+    const { error } = await supabase
+      .from('user_daily_nutrition')
+      .update({
+        goal_calories: goals.calories,
+        goal_protein_g: goals.protein,
+        goal_carbs_g: goals.carbs,
+        goal_fat_g: goals.fat,
+      })
+      .eq('user_id', user.id)
+      .eq('date', date);
+
+    if (error) {
+      console.error('Error updating goals:', error);
+      return { error };
+    }
+
+    return { error: null };
+  };
+
+  const toggleFavorite = async (itemId: string) => {
+    if (!user) {
+      return { error: new Error('User not authenticated'), isFavorited: false };
+    }
+
+    // Check if item is already favorited
+    const { data: existingFavorite, error: checkError } = await supabase
+      .from('favorite_item')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('item_id', itemId)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      return { error: checkError, isFavorited: false };
+    }
+
+    if (existingFavorite) {
+      // Remove from favorites
+      const { error } = await supabase
+        .from('favorite_item')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('item_id', itemId);
+
+      return { error, isFavorited: false };
+    } else {
+      // Add to favorites
+      const { error } = await supabase
+        .from('favorite_item')
+        .insert({
+          user_id: user.id,
+          item_id: itemId,
+        });
+
+      return { error, isFavorited: true };
+    }
+  };
+
+  const getFavorites = async () => {
+    if (!user) {
+      return { data: null, error: new Error('User not authenticated') };
+    }
+
+    const { data, error } = await supabase
+      .from('favorite_item')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    return { data, error };
+  };
+
   const value = {
     user,
     session,
@@ -96,6 +283,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signUp,
     signInWithAzure,
     signOut,
+    addFoodEntry,
+    removeFoodEntry,
+    toggleFavorite,
+    getFavorites,
+    getDailyNutrition,
+    updateDailyGoals,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

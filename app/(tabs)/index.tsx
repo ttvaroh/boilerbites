@@ -26,7 +26,6 @@ interface DiningHall {
   name: string;
   hours: string;
   status: "open" | "closed";
-  isFavorite: boolean;
   image: any;
   mealHours: MealHours[];
 }
@@ -158,7 +157,6 @@ export default function HomePage() {
         name: location.name,
         hours: formattedHours,
         status: (isCurrentlyOpen ? "open" : "closed") as "open" | "closed",
-        isFavorite: false, // TODO: Implement favorites from user preferences
         image: logoMap[location.name] || wileyLogo,
         mealHours: mealHours,
       };
@@ -176,14 +174,6 @@ export default function HomePage() {
 
   const handleDiningHallPress = (name: string) => {
     router.push(`/dining-hall/${encodeURIComponent(name)}`);
-  };
-
-  const handleFavoritePress = (name: string, isFavorite: boolean) => {
-    // Alert.alert(
-    //   "Favorite",
-    //   `${name} ${isFavorite ? "removed from" : "added to"} favorites!`
-    // );
-    return;
   };
 
   return (
@@ -235,12 +225,8 @@ export default function HomePage() {
                     name={hall.name}
                     hours={hall.hours}
                     status={hall.status}
-                    isFavorite={hall.isFavorite}
                     image={hall.image}
                     onPress={() => handleDiningHallPress(hall.name)}
-                    onFavoritePress={() =>
-                      handleFavoritePress(hall.name, hall.isFavorite)
-                    }
                   />
                 </View>
               ))}

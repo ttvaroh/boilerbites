@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+  Alert,
   ScrollView,
   Text,
   TextInput,
@@ -12,6 +13,7 @@ import BackgroundTemplate from "../../components/BackgroundTemplate";
 import IngredientsAndAllergens from "../../components/IngredientsAndAllergens";
 import MacroBreakdown from "../../components/MacroBreakdown";
 import NutritionFacts from "../../components/NutritionFacts";
+import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabase";
 
 interface MenuItem {
@@ -36,9 +38,36 @@ interface MenuItem {
 export default function NutritionPage() {
   const { itemId } = useLocalSearchParams<{ itemId: string }>();
   const router = useRouter();
+  const { user, toggleFavorite, addFoodEntry } = useAuth();
   const [servingCount, setServingCount] = useState("1");
   const [item, setItem] = useState<MenuItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+
+  // Check if item is already favorited
+  useEffect(() => {
+    const checkFavoriteStatus = async () => {
+      if (!user || !item?.id) return;
+
+      try {
+        const { data: favorites, error } = await supabase
+          .from('favorite_item')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('item_id', item.id)
+          .single();
+
+        if (!error && favorites) {
+          setIsFavorited(true);
+        }
+      } catch (error) {
+        console.error('Error checking favorite status:', error);
+      }
+    };
+
+    checkFavoriteStatus();
+  }, [user, item?.id]);
 
   // Fetch item data directly from Supabase
   useEffect(() => {
@@ -94,10 +123,88 @@ export default function NutritionPage() {
 
   const servingCountNum = parseFloat(servingCount) || 1;
 
-  const handleAddToTracker = () => {
-    console.log(
-      `Add to Tracker clicked for ${item.name} with ${servingCount} servings`
-    );
+  const handleAddToTracker = async () => {
+    if (!user) {
+      Alert.alert(
+        "Login Required",
+        "You need to be logged in to add items to your food tracker.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Sign In", onPress: () => router.push("/signin") }
+        ]
+      );
+      return;
+    }
+
+    if (!item?.id) return;
+
+    try {
+      const servingCountNum = parseFloat(servingCount) || 1;
+      const { error } = await addFoodEntry({
+        item_id: item.id,
+        quantity: servingCountNum,
+        created_at: new Date().toISOString(),
+        meal_name: 0, // Default to uncategorized
+      });
+
+      if (error) {
+        Alert.alert("Error", "Failed to add item to tracker. Please try again.");
+        console.error("Add food entry error:", error);
+        return;
+      }
+
+      Alert.alert(
+        "Success",
+        `Added ${servingCount} serving${servingCountNum !== 1 ? 's' : ''} of ${item.name} to your food tracker!`,
+        [{ text: "OK" }]
+      );
+    } catch (error) {
+      Alert.alert("Error", "Failed to add item to tracker. Please try again.");
+      console.error("Add food entry error:", error);
+    }
+  };
+
+  const handleFavoritePress = async () => {
+    if (!user) {
+      Alert.alert(
+        "Login Required",
+        "You need to be logged in to add items to your favorites.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Sign In", onPress: () => router.push("/signin") }
+        ]
+      );
+      return;
+    }
+
+    if (!item?.id) return;
+
+    // Optimistic UI update - change heart immediately
+    const previousFavoriteState = isFavorited;
+    setIsFavorited(!isFavorited);
+
+    try {
+      setFavoriteLoading(true);
+      const { error, isFavorited: newFavoriteState } = await toggleFavorite(item.id);
+      
+      if (error) {
+        // Revert the optimistic update on error
+        setIsFavorited(previousFavoriteState);
+        Alert.alert("Error", "Failed to update favorite. Please try again.");
+        console.error("Favorite toggle error:", error);
+        return;
+      }
+
+      // Update with the actual state from the server
+      setIsFavorited(newFavoriteState);
+    } catch (error) {
+      // Revert the optimistic update on error
+      setIsFavorited(previousFavoriteState);
+      Alert.alert("Error", "Failed to update favorite. Please try again.");
+      console.error("Favorite toggle error:", error);
+    } finally {
+      setFavoriteLoading(false);
+    }
   };
 
   return (
@@ -132,9 +239,22 @@ export default function NutritionPage() {
             }}
           >
             {/* Product Information */}
-            <Text className="text-white text-xl font-sora-bold mb-2">
-              {item.name}
-            </Text>
+            <View className="flex-row items-center justify-between mb-2">
+              <Text className="text-white text-xl font-sora-bold flex-1 mr-3">
+                {item.name}
+              </Text>
+              <TouchableOpacity
+                onPress={handleFavoritePress}
+                className="p-2"
+                disabled={favoriteLoading}
+              >
+                <Ionicons
+                  name={isFavorited ? "heart" : "heart-outline"}
+                  size={24}
+                  color={isFavorited ? "#CFB991" : "#9CA3AF"}
+                />
+              </TouchableOpacity>
+            </View>
             <Text className="text-gray-300 text-sm font-sora mb-4">
               Serving Size: {item.serving_size}
             </Text>
