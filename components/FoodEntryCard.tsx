@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
-    runOnJS,
     useAnimatedStyle,
     useSharedValue,
     withSpring,
+    withTiming,
 } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 
 interface FoodEntry {
   id: string;
@@ -17,7 +18,7 @@ interface FoodEntry {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
-  meal_name: number; // 0=uncategorized, 1=breakfast, 2=lunch, 3=dinner, 4=snack
+  meal_name: number;
   created_at: string;
 }
 
@@ -27,105 +28,142 @@ interface FoodEntryCardProps {
 }
 
 const mealIcons = {
-  0: "help-circle-outline", // uncategorized
-  1: "sunny-outline", // breakfast
-  2: "restaurant-outline", // lunch
-  3: "moon-outline", // dinner
-  4: "nutrition-outline", // snack
+  0: "help-circle-outline",
+  1: "sunny-outline",
+  2: "restaurant-outline",
+  3: "moon-outline",
+  4: "nutrition-outline",
 };
 
 const mealNames = {
   0: "Uncategorized",
   1: "Breakfast",
-  2: "Lunch", 
+  2: "Lunch",
   3: "Dinner",
   4: "Snack",
 };
+
+const DELETE_BUTTON_WIDTH = 80;
+const FULL_SWIPE_THRESHOLD = -150;
 
 export default function FoodEntryCard({ entry, onRemove }: FoodEntryCardProps) {
   const mealIcon = mealIcons[entry.meal_name as keyof typeof mealIcons] || "help-circle-outline";
   const mealName = mealNames[entry.meal_name as keyof typeof mealNames] || "Uncategorized";
   
   const translateX = useSharedValue(0);
-  const SWIPE_THRESHOLD = -80; // Minimum swipe distance to trigger delete
+  const itemHeight = useSharedValue(0); // Will be set dynamically
+
+  const handleCardLayout = (event: any) => {
+    const { height } = event.nativeEvent.layout;
+    itemHeight.value = height;
+  };
 
   const panGesture = Gesture.Pan()
+    .activeOffsetX([-10, 10])
     .onUpdate((event) => {
       // Only allow swiping left (negative values)
-      if (event.translationX < 0) {
-        translateX.value = event.translationX;
-      }
+      const newTranslateX = Math.min(0, event.translationX);
+      // Cap at full swipe threshold
+      translateX.value = Math.max(FULL_SWIPE_THRESHOLD, newTranslateX);
     })
     .onEnd((event) => {
-      if (event.translationX < SWIPE_THRESHOLD) {
-        // Swipe threshold reached, trigger delete
-        if (onRemove) {
-          runOnJS(onRemove)(entry.id);
-        }
-        translateX.value = withSpring(0);
-      } else {
-        // Snap back to original position
-        translateX.value = withSpring(0);
+      const velocity = event.velocityX;
+      
+      // Full swipe - auto delete
+      if (translateX.value <= FULL_SWIPE_THRESHOLD || velocity < -500) {
+        translateX.value = withTiming(-500, { duration: 200 });
+        itemHeight.value = withTiming(0, { duration: 300 }, (finished) => {
+          if (finished && onRemove) {
+            // Call onRemove on the JS thread after animation completes
+            scheduleOnRN(onRemove, entry.id);
+          }
+        });
+      }
+      // Partial swipe - show delete button
+      else if (translateX.value < -DELETE_BUTTON_WIDTH / 2) {
+        translateX.value = withSpring(-DELETE_BUTTON_WIDTH, {
+          damping: 20,
+          stiffness: 300,
+        });
+      }
+      // Not enough swipe - snap back
+      else {
+        translateX.value = withSpring(0, {
+          damping: 20,
+          stiffness: 300,
+        });
       }
     });
 
-  const animatedStyle = useAnimatedStyle(() => {
+  const handleDeletePress = () => {
+    translateX.value = withTiming(-500, { duration: 200 });
+    itemHeight.value = withTiming(0, { duration: 300 }, (finished) => {
+      if (finished && onRemove) {
+        scheduleOnRN(onRemove, entry.id);
+      }
+    });
+  };
+
+  const animatedCardStyle = useAnimatedStyle(() => {
     return {
       transform: [{ translateX: translateX.value }],
     };
   });
 
-  const deleteButtonStyle = useAnimatedStyle(() => {
+  const animatedDeleteStyle = useAnimatedStyle(() => {
+    const opacity = translateX.value < -20 ? 1 : 0;
     return {
-      opacity: translateX.value < -20 ? 1 : 0,
-      transform: [{ translateX: translateX.value + 100 }], // Offset to stay in view
+      opacity: withTiming(opacity, { duration: 150 }),
+    };
+  });
+
+  const animatedContainerStyle = useAnimatedStyle(() => {
+    return {
+      height: itemHeight.value,
+      marginBottom: itemHeight.value > 0 ? 12 : 0,
+      opacity: itemHeight.value > 0 ? 1 : 0,
+    };
+  });
+
+  const animatedDeleteButtonStyle = useAnimatedStyle(() => {
+    return {
+      height: itemHeight.value, // Dynamic height to match the actual card
     };
   });
 
   return (
-    <View className="mb-3" style={{ position: 'relative' }}>
-      {/* Delete Button Background */}
+    <Animated.View style={[{ overflow: 'hidden' }, animatedContainerStyle]}>
+      {/* Delete Button - Behind the card */}
       <Animated.View
         style={[
           {
             position: 'absolute',
             right: 0,
             top: 0,
-            bottom: 0,
-            width: 100,
-            backgroundColor: '#FF5722',
-            borderRadius: 12,
+            width: DELETE_BUTTON_WIDTH,
             justifyContent: 'center',
             alignItems: 'center',
-            zIndex: 1,
           },
-          deleteButtonStyle,
+          animatedDeleteButtonStyle
         ]}
       >
-        <Ionicons name="trash" size={24} color="white" />
+        <Animated.View style={[animatedDeleteStyle, { width: '100%', height: '100%' }]}>
+          <TouchableOpacity
+            onPress={handleDeletePress}
+            className="bg-red-600 rounded-xl h-full w-full items-center justify-center"
+            activeOpacity={0.7}
+          >
+            <Ionicons name="trash-outline" size={24} color="white" />
+          </TouchableOpacity>
+        </Animated.View>
       </Animated.View>
 
-      {/* Main Card */}
+      {/* Main Card - Swipeable */}
       <GestureDetector gesture={panGesture}>
         <Animated.View
-          style={[
-            {
-              backgroundColor: '#1F2937',
-              borderRadius: 12,
-              padding: 16,
-              flexDirection: 'row',
-              alignItems: 'center',
-              shadowColor: "#CFB991",
-              shadowOffset: { width: 0, height: 0 },
-              shadowOpacity: 0.1,
-              shadowRadius: 8,
-              elevation: 5,
-              borderWidth: 1,
-              borderColor: "rgba(207, 185, 145, 0.2)",
-              zIndex: 2,
-            },
-            animatedStyle,
-          ]}
+          style={[animatedCardStyle]}
+          className="bg-gray-800 rounded-xl p-4 flex-row items-center border border-gray-700"
+          onLayout={handleCardLayout}
         >
           {/* Meal Icon */}
           <View className="bg-purdueGold rounded-full w-10 h-10 items-center justify-center mr-4">
@@ -137,7 +175,7 @@ export default function FoodEntryCard({ entry, onRemove }: FoodEntryCardProps) {
             <Text className="text-white text-base font-sora-semibold">
               {entry.item_name}
             </Text>
-            <Text className="text-gray-300 text-sm font-sora">
+            <Text className="text-gray-400 text-sm font-sora">
               {mealName} • {entry.quantity} serving{entry.quantity !== 1 ? 's' : ''}
             </Text>
           </View>
@@ -148,6 +186,6 @@ export default function FoodEntryCard({ entry, onRemove }: FoodEntryCardProps) {
           </Text>
         </Animated.View>
       </GestureDetector>
-    </View>
+    </Animated.View>
   );
 }

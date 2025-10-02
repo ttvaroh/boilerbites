@@ -175,19 +175,110 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { data: null, error: new Error('User not authenticated') };
     }
 
-    const { data, error } = await supabase
-      .rpc('get_daily_nutrition', {
-        p_user_id: user.id,
-        p_date: date || new Date().toISOString().split('T')[0],
-      })
-      .single();
+    const targetDate = date || new Date().toISOString().split('T')[0];
 
-    if (error) {
-      console.error('Error fetching daily nutrition:', error);
-      return { data: null, error };
+    try {
+      // First, try to get existing record
+      const { data: existingData, error: fetchError } = await supabase
+        .from('user_daily_nutrition')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('date', targetDate)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error fetching daily nutrition:', fetchError);
+        return { data: null, error: fetchError };
+      }
+
+      // If record exists, return it with calculated fields
+      if (existingData) {
+        const goal_calories = existingData.goal_calories || 2300;
+        const goal_protein_g = existingData.goal_protein_g || 115;
+        const goal_carbs_g = existingData.goal_carbs_g || 288;
+        const goal_fat_g = existingData.goal_fat_g || 77;
+        
+        const consumed_calories = existingData.consumed_calories || 0;
+        const consumed_protein_g = existingData.consumed_protein_g || 0;
+        const consumed_carbs_g = existingData.consumed_carbs_g || 0;
+        const consumed_fat_g = existingData.consumed_fat_g || 0;
+
+        const result: DailyNutrition = {
+          id: existingData.id,
+          user_id: existingData.user_id,
+          date: existingData.date,
+          goal_calories,
+          goal_protein_g,
+          goal_carbs_g,
+          goal_fat_g,
+          consumed_calories,
+          consumed_protein_g,
+          consumed_carbs_g,
+          consumed_fat_g,
+          remaining_calories: goal_calories - consumed_calories,
+          remaining_protein_g: goal_protein_g - consumed_protein_g,
+          remaining_carbs_g: goal_carbs_g - consumed_carbs_g,
+          remaining_fat_g: goal_fat_g - consumed_fat_g,
+          percent_calories: goal_calories > 0 ? (consumed_calories / goal_calories * 100) : 0,
+          percent_protein: goal_protein_g > 0 ? (consumed_protein_g / goal_protein_g * 100) : 0,
+          percent_carbs: goal_carbs_g > 0 ? (consumed_carbs_g / goal_carbs_g * 100) : 0,
+          percent_fat: goal_fat_g > 0 ? (consumed_fat_g / goal_fat_g * 100) : 0,
+        };
+
+        return { data: result, error: null };
+      }
+
+      // If no record exists, create one with default values
+      const { data: newData, error: insertError } = await supabase
+        .from('user_daily_nutrition')
+        .insert({
+          user_id: user.id,
+          date: targetDate,
+          goal_calories: 2300,
+          goal_protein_g: 115,
+          goal_carbs_g: 288,
+          goal_fat_g: 77,
+          consumed_calories: 0,
+          consumed_protein_g: 0,
+          consumed_carbs_g: 0,
+          consumed_fat_g: 0,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Error creating daily nutrition record:', insertError);
+        return { data: null, error: insertError };
+      }
+
+      // Return the new record with calculated fields
+      const result: DailyNutrition = {
+        id: newData.id,
+        user_id: newData.user_id,
+        date: newData.date,
+        goal_calories: newData.goal_calories,
+        goal_protein_g: newData.goal_protein_g,
+        goal_carbs_g: newData.goal_carbs_g,
+        goal_fat_g: newData.goal_fat_g,
+        consumed_calories: newData.consumed_calories,
+        consumed_protein_g: newData.consumed_protein_g,
+        consumed_carbs_g: newData.consumed_carbs_g,
+        consumed_fat_g: newData.consumed_fat_g,
+        remaining_calories: newData.goal_calories - newData.consumed_calories,
+        remaining_protein_g: newData.goal_protein_g - newData.consumed_protein_g,
+        remaining_carbs_g: newData.goal_carbs_g - newData.consumed_carbs_g,
+        remaining_fat_g: newData.goal_fat_g - newData.consumed_fat_g,
+        percent_calories: newData.goal_calories > 0 ? (newData.consumed_calories / newData.goal_calories * 100) : 0,
+        percent_protein: newData.goal_protein_g > 0 ? (newData.consumed_protein_g / newData.goal_protein_g * 100) : 0,
+        percent_carbs: newData.goal_carbs_g > 0 ? (newData.consumed_carbs_g / newData.goal_carbs_g * 100) : 0,
+        percent_fat: newData.goal_fat_g > 0 ? (newData.consumed_fat_g / newData.goal_fat_g * 100) : 0,
+      };
+
+      return { data: result, error: null };
+    } catch (error) {
+      console.error('Error in getDailyNutrition:', error);
+      return { data: null, error: error as Error };
     }
-
-    return { data: data as DailyNutrition, error: null };
   };
 
   const updateDailyGoals = async (

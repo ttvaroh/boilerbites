@@ -153,11 +153,8 @@ export default function NutritionPage() {
         return;
       }
 
-      Alert.alert(
-        "Success",
-        `Added ${servingCount} serving${servingCountNum !== 1 ? 's' : ''} of ${item.name} to your food tracker!`,
-        [{ text: "OK" }]
-      );
+      // Route to diary page after successful addition
+      router.push("/(tabs)/diary");
     } catch (error) {
       Alert.alert("Error", "Failed to add item to tracker. Please try again.");
       console.error("Add food entry error:", error);

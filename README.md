@@ -8,28 +8,42 @@ A modern React Native app built with Expo that helps Purdue students track their
 
 ### 🔐 Authentication
 - **Supabase Integration**: Secure user authentication with email/password
-- **Azure OAuth**: Purdue email sign-in with Microsoft Azure
 - **Session Management**: Persistent login with automatic token refresh
 - **Profile Management**: User profiles with sign-out functionality
+- **Onboarding Flow**: Smooth user experience for new users
+
+### 🏠 Home Screen
+- **Dining Hall Cards**: Visual cards for each campus dining hall (Wiley, Earhart, Ford, Windsor, Hillenbrand)
+- **Real-time Status**: Live meal hours and availability indicators
+- **Quick Navigation**: Direct access to each dining hall's menu
+- **Meal Time Detection**: Automatic detection of current meal period
 
 ### 🔍 Advanced Search
 - **Real-time Search**: Debounced live search with instant results
 - **Smart Filtering**: Filter by dining hall, meal time, dietary preferences, and calorie range
 - **Allergen Exclusion**: Filter out items containing specific allergens
 - **Meal Availability**: Show only items available for current meal time
-- **Client-side Caching**: Fast search results with intelligent caching
+- **Sorting Options**: Sort by calories, protein, carbs, or fat content
 
-### 📊 Nutrition Tracking
-- **Detailed Nutrition Facts**: Complete macronutrient and micronutrient breakdown
-- **Circular Progress Charts**: Visual macro breakdown with SVG charts
-- **Ingredient Information**: Comprehensive ingredient lists and allergen data
-- **Daily Progress**: Track daily nutrition goals and progress
+### 📊 Nutrition Tracking (Stats/Diary)
+- **Daily Progress**: Visual progress bars for calories and macronutrients
+- **Meal Organization**: Group food entries by meal type (Breakfast, Lunch, Dinner, Snacks, Other)
+- **Swipe-to-Delete**: Intuitive gesture-based food entry removal
+- **Date Navigation**: Browse nutrition data for any date with previous/next day navigation
+- **Macro Breakdown**: Detailed protein, carbs, and fat tracking with visual indicators
+
+### 🍽️ Menu & Item Details
+- **Comprehensive Item Info**: Complete nutrition facts, ingredients, and allergen information
+- **Favorites System**: Save frequently eaten items for quick access
+- **Add to Tracker**: One-tap food logging with quantity selection
+- **Station Organization**: Items grouped by dining hall stations
 
 ### 🎨 Modern UI/UX
 - **Dark Theme**: Beautiful dark interface with Purdue Gold accents
+- **Smooth Animations**: Fluid transitions using React Native Reanimated
+- **Gesture Support**: Swipe gestures for intuitive interactions
 - **Responsive Design**: Optimized for all screen sizes
-- **Smooth Animations**: Fluid transitions and micro-interactions
-- **Accessibility**: Screen reader support and proper touch targets
+- **Custom Typography**: Sora font family for clean, modern text
 
 ## 🚀 Quick Start
 
@@ -80,31 +94,69 @@ A modern React Native app built with Expo that helps Purdue students track their
 boilerbites/
 ├── app/                          # Expo Router pages
 │   ├── (tabs)/                   # Tab navigation screens
-│   │   ├── index.tsx             # Home screen
-│   │   ├── diary.tsx             # Nutrition tracking
+│   │   ├── index.tsx             # Home screen with dining halls
+│   │   ├── diary.tsx             # Nutrition tracking (Stats)
 │   │   ├── search.tsx            # Menu search
 │   │   └── profile.tsx           # User profile
+│   ├── dining-hall/[name].tsx    # Individual dining hall pages
+│   ├── nutrition/[itemId].tsx    # Food item details
+│   ├── missing-nutrition/[itemId].tsx # Missing nutrition fallback
 │   ├── signin.tsx                # Sign in screen
 │   ├── signup.tsx                # Sign up screen
-│   ├── onboarding.tsx           # Onboarding flow
-│   └── _layout.tsx              # Root layout
+│   └── _layout.tsx              # Root layout with providers
 ├── components/                   # Reusable UI components
 │   ├── BackgroundTemplate.tsx   # App background wrapper
-│   ├── MenuItemCard.tsx         # Menu item display
-│   ├── ItemSearch.tsx           # Search filters
-│   └── ...
+│   ├── MenuItemCard.tsx         # Menu item display cards
+│   ├── FoodEntryCard.tsx        # Swipeable food entry cards
+│   ├── DailyProgress.tsx        # Nutrition progress visualization
+│   ├── ItemSearch.tsx           # Search filters and controls
+│   ├── SortBy.tsx               # Sorting options
+│   ├── IngredientsAndAllergens.tsx # Ingredient display
+│   └── OnboardingComponent.tsx  # User onboarding
 ├── contexts/                     # React Context providers
-│   └── AuthContext.tsx           # Authentication context
+│   └── AuthContext.tsx           # Authentication and user data
 ├── lib/                         # Utility libraries
-│   ├── supabase.ts              # Supabase client
+│   ├── supabase.ts              # Supabase client configuration
 │   ├── api.ts                   # API utilities
-│   └── MenuDataContext.tsx      # Menu data context
+│   ├── MenuDataContext.tsx      # Menu data context
+│   ├── timezone-utils.ts        # Timezone handling
+│   └── supabase-setup/          # Database setup scripts
+│       ├── db-setup.ts          # Menu data population
+│       ├── populate-menu.sql    # SQL for menu data
+│       ├── daily-nutrition.sql  # Nutrition tracking setup
+│       └── search.sql           # Search optimization
 ├── services/                     # Business logic
 │   └── searchService.tsx        # Search functionality
-└── assets/                      # Static assets
-    ├── images/                  # App images and logos
-    └── fonts/                   # Custom fonts
+├── assets/                      # Static assets
+│   ├── images/                  # App images and logos
+│   │   ├── logos/              # Dining hall logos
+│   │   └── icons/              # App icons
+│   └── fonts/                   # Custom fonts
+└── examples/                    # Documentation and examples
+    ├── database-schema.sql      # Database schema reference
+    ├── menu-api-sample.xml      # Sample menu data
+    └── styling.jsx              # UI component examples
 ```
+
+## 🗄️ Database Schema
+
+### Core Tables
+- **`item`**: Food items with nutrition data, allergens, and dietary flags
+- **`food_entry`**: User food consumption tracking with meal categorization
+- **`user_daily_nutrition`**: Daily nutrition goals and progress tracking
+- **`favorite_item`**: User's saved favorite food items
+- **`location`**: Dining hall locations
+- **`day_menu`**: Daily menu schedules
+- **`day_meal`**: Meal periods and hours
+- **`day_station`**: Dining hall stations
+- **`day_station_item`**: Items available at each station
+
+### Key Features
+- **Nutrition Tracking**: Complete macronutrient and micronutrient data
+- **Meal Categorization**: Food entries organized by meal type (0-4)
+- **Allergen Management**: Comprehensive allergen tracking and filtering
+- **Favorites System**: User-specific food item preferences
+- **Real-time Updates**: Live menu data with automatic refresh
 
 ## 🔧 Configuration
 
@@ -112,15 +164,17 @@ boilerbites/
 
 1. **Create a Supabase project** at [supabase.com](https://supabase.com)
 2. **Enable Authentication** in your Supabase dashboard
-3. **Configure Azure OAuth** (optional):
-   - Go to Authentication > Providers
-   - Enable Azure provider
-   - Add your Azure app registration details
-4. **Set up your database** using the provided SQL scripts in `lib/supabase-setup/`
+3. **Set up your database** using the provided SQL scripts in `lib/supabase-setup/`
+4. **Configure Row Level Security (RLS)** for user data protection
 
-### Azure Authentication (Optional)
+### Database Setup Scripts
 
-For Purdue email authentication, follow the detailed setup guide in `AZURE_AUTH_SETUP.md`.
+Run these SQL scripts in your Supabase SQL editor:
+
+1. **`lib/supabase-setup/populate-menu.sql`** - Menu data population
+2. **`lib/supabase-setup/daily-nutrition.sql`** - Nutrition tracking setup
+3. **`lib/supabase-setup/search.sql`** - Search optimization indexes
+4. **`lib/supabase-setup/menu-updater.sql`** - Automated menu updates
 
 ## 📱 Development
 
@@ -139,12 +193,26 @@ npm run android
 # Run on web
 npm run web
 
-# Type checking
-npm run type-check
-
 # Lint code
 npm run lint
+
+# Populate menu data
+npm run populate-menu
+
+# Update today's menu
+npm run populate-today
 ```
+
+### Key Dependencies
+
+- **Expo SDK 54**: React Native development platform
+- **Expo Router**: File-based navigation
+- **Supabase**: Backend-as-a-Service
+- **React Native Reanimated**: Smooth animations
+- **React Native Gesture Handler**: Touch gestures
+- **NativeWind**: Tailwind CSS for React Native
+- **Expo Haptics**: Tactile feedback
+- **React Native SVG**: Vector graphics
 
 ### Code Style
 
@@ -152,6 +220,7 @@ npm run lint
 - **ESLint**: Code linting with React Native rules
 - **Prettier**: Automatic code formatting
 - **Tailwind CSS**: Utility-first styling with NativeWind
+- **Custom Fonts**: Sora font family for typography
 
 ## 🧪 Testing
 

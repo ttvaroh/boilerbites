@@ -1,10 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import * as React from "react";
 import {
   Alert,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -13,6 +13,7 @@ import DailyProgress from "../../components/DailyProgress";
 import FoodEntryCard from "../../components/FoodEntryCard";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabase";
+
 interface FoodEntry {
   id: string;
   item_id: string;
@@ -26,24 +27,54 @@ interface FoodEntry {
   created_at: string;
 }
 
+
 export default function DiaryPage() {
   const { user, removeFoodEntry } = useAuth();
+  const router = useRouter();
   const [foodEntries, setFoodEntries] = React.useState<FoodEntry[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [showAddForm, setShowAddForm] = React.useState(false);
-  const [newMeal, setNewMeal] = React.useState({
-    name: "",
-    mealType: "",
-    calories: "",
-  });
+  const [expandedMeals, setExpandedMeals] = React.useState<Set<string>>(new Set());
+  const [selectedDate, setSelectedDate] = React.useState(new Date());
 
-  // Fetch today's food entries
+  // Date navigation functions
+  const goToPreviousDay = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() - 1);
+    setSelectedDate(newDate);
+  };
+
+  const goToNextDay = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() + 1);
+    setSelectedDate(newDate);
+  };
+
+  const goToToday = () => {
+    setSelectedDate(new Date());
+  };
+
+  // Format date for display
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
+  // Check if selected date is today
+  const isToday = () => {
+    const today = new Date();
+    return selectedDate.toDateString() === today.toDateString();
+  };
+
+  // Fetch food entries for selected date
   const fetchFoodEntries = async () => {
     if (!user) return;
 
     try {
       setLoading(true);
-      const today = new Date().toISOString().split('T')[0];
+      const selectedDateString = selectedDate.toISOString().split('T')[0];
       
       const { data, error } = await supabase
         .from('food_entry')
@@ -62,8 +93,8 @@ export default function DiaryPage() {
           )
         `)
         .eq('user_id', user.id)
-        .gte('created_at', `${today}T00:00:00`)
-        .lte('created_at', `${today}T23:59:59`)
+        .gte('created_at', `${selectedDateString}T00:00:00`)
+        .lte('created_at', `${selectedDateString}T23:59:59`)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -71,7 +102,6 @@ export default function DiaryPage() {
         return;
       }
 
-      // Transform the data to match our interface
       const transformedEntries: FoodEntry[] = data?.map((entry: any) => ({
         id: entry.id,
         item_id: entry.item_id,
@@ -102,7 +132,6 @@ export default function DiaryPage() {
         return;
       }
       
-      // Remove from local state
       setFoodEntries(prev => prev.filter(entry => entry.id !== entryId));
     } catch (error) {
       Alert.alert('Error', 'Failed to remove food entry. Please try again.');
@@ -110,162 +139,177 @@ export default function DiaryPage() {
     }
   };
 
-  // Group entries by meal type
-  const groupEntriesByMeal = (entries: FoodEntry[]) => {
-    const grouped = {
-      breakfast: entries.filter(entry => entry.meal_name === 1),
-      lunch: entries.filter(entry => entry.meal_name === 2),
-      dinner: entries.filter(entry => entry.meal_name === 3),
-      snack: entries.filter(entry => entry.meal_name === 4),
-      uncategorized: entries.filter(entry => entry.meal_name === 0),
-    };
-    return grouped;
+
+  // Toggle meal section
+  const toggleMealSection = (mealKey: string) => {
+    setExpandedMeals(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(mealKey)) {
+        newSet.delete(mealKey);
+      } else {
+        newSet.add(mealKey);
+      }
+      return newSet;
+    });
+  };
+
+  // Define all meal sections
+  const MEAL_SECTIONS = [
+    { key: 'breakfast', title: 'Breakfast', icon: 'sunny-outline', mealType: 1 },
+    { key: 'lunch', title: 'Lunch', icon: 'fast-food-outline', mealType: 2 },
+    { key: 'dinner', title: 'Dinner', icon: 'restaurant-outline', mealType: 3 },
+    { key: 'snack', title: 'Snacks', icon: 'ice-cream-outline', mealType: 4 },
+    { key: 'uncategorized', title: 'Other', icon: 'ellipsis-horizontal-outline', mealType: 0 },
+  ];
+
+  // Get entries for a meal type with stable ordering
+  const getEntriesForMeal = (mealType: number) => {
+    return foodEntries
+      .filter(entry => entry.meal_name === mealType)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  };
+
+
+  // Calculate totals for entries
+  const calculateTotals = (entries: FoodEntry[]) => {
+    return entries.reduce((acc, entry) => ({
+      calories: acc.calories + entry.calories,
+      protein_g: acc.protein_g + entry.protein_g,
+      carbs_g: acc.carbs_g + entry.carbs_g,
+      fat_g: acc.fat_g + entry.fat_g,
+    }), { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
   };
 
   React.useEffect(() => {
     fetchFoodEntries();
-  }, [user]);
+  }, [user, selectedDate]);
 
   return (
     <BackgroundTemplate>
       <ScrollView className="flex-1">
         <View className="p-6 pt-14">
-        {/* Header */}
-        <View className="flex-row items-center justify-between mb-6">
-          <TouchableOpacity>
-            <Ionicons name="menu" size={24} color="white" />
-          </TouchableOpacity>
-          <Text className="text-2xl font-sora-bold text-white">
-            Tracker
-          </Text>
-          <View style={{ width: 24 }} />
-        </View>
-        
-        {/* Today's Summary */}
-        <View className="mb-6">
-          <Text className="text-lg font-sora-semibold text-white mb-4">
-            Today's Summary
-          </Text>
-
-            {/* Daily Progress */}
-            <DailyProgress />
-        </View>
-
-        {/* Log Your Intake Section */}
-        <View className="mb-6">
-          <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-lg font-sora-semibold text-white">
-              Log Your Intake
-            </Text>
-            <TouchableOpacity
-              onPress={() => setShowAddForm(!showAddForm)}
-              className="bg-purdueGold rounded-full w-8 h-8 items-center justify-center"
-            >
-              <Ionicons name="add" size={20} color="#0d0d0d" />
+          <View className="flex-row items-center justify-between mb-6">
+            <TouchableOpacity onPress={goToPreviousDay} className="p-2">
+              <Ionicons name="chevron-back" size={24} color="white" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity onPress={goToToday} className="flex-1 items-center">
+              <Text className="text-xl font-sora-bold text-white text-center">
+                {isToday() ? "Today" : formatDate(selectedDate)}
+              </Text>
+              {!isToday() && (
+                <Text className="text-sm text-gray-400 mt-1">
+                  Tap to go to today
+                </Text>
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity onPress={goToNextDay} className="p-2">
+              <Ionicons name="chevron-forward" size={24} color="white" />
             </TouchableOpacity>
           </View>
+        
+          <View className="mb-6">
+            <Text className="text-lg font-sora-semibold text-white mb-4">
+              {isToday() ? "Today's Summary" : `${formatDate(selectedDate)} Summary`}
+            </Text>
+            <DailyProgress selectedDate={selectedDate} />
+          </View>
 
-          {/* Add Meal Form */}
-          {showAddForm && (
-            <View className="bg-gray-800 p-4 rounded-xl mb-4" style={{
-              shadowColor: "#CFB991",
-              shadowOffset: { width: 0, height: 0 },
-              shadowOpacity: 0.1,
-              shadowRadius: 8,
-              elevation: 5,
-              borderWidth: 1,
-              borderColor: "rgba(207, 185, 145, 0.2)",
-            }}>
-              <Text className="text-lg font-sora-semibold text-white mb-4">
-                Add New Meal
+          <View className="mb-6">
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-lg font-sora-semibold text-white">
+                Log Your Intake
               </Text>
-              <TextInput
-                placeholder="Meal Name"
-                placeholderTextColor="#9CA3AF"
-                value={newMeal.name}
-                onChangeText={(text) => setNewMeal({ ...newMeal, name: text })}
-                className="bg-gray-700 border border-gray-600 text-white p-3 rounded-lg mb-3 font-sora"
-              />
-              <TextInput
-                placeholder="Meal Type (Breakfast, Lunch, Dinner, Snacks)"
-                placeholderTextColor="#9CA3AF"
-                value={newMeal.mealType}
-                onChangeText={(text) =>
-                  setNewMeal({ ...newMeal, mealType: text })
-                }
-                className="bg-gray-700 border border-gray-600 text-white p-3 rounded-lg mb-3 font-sora"
-              />
-              <TextInput
-                placeholder="Calories"
-                placeholderTextColor="#9CA3AF"
-                value={newMeal.calories}
-                onChangeText={(text) =>
-                  setNewMeal({ ...newMeal, calories: text })
-                }
-                className="bg-gray-700 border border-gray-600 text-white p-3 rounded-lg mb-3 font-sora"
-                keyboardType="numeric"
-              />
               <TouchableOpacity
-                onPress={() => {
-                  // TODO: Implement add meal functionality
-                  setShowAddForm(false);
-                }}
-                className="bg-purdueGold p-3 rounded-lg"
+                onPress={() => router.push("/(tabs)/search")}
+                className="bg-purdueGold rounded-full w-8 h-8 items-center justify-center"
               >
-                <Text className="text-white text-center font-sora-semibold">
-                  Add Meal
-                </Text>
+                <Ionicons name="add" size={20} color="#0d0d0d" />
               </TouchableOpacity>
             </View>
-          )}
 
-          {/* Food Entries List */}
-          {loading ? (
-            <View className="bg-gray-800 rounded-xl p-6 items-center">
-              <Text className="text-white text-lg font-sora">Loading food entries...</Text>
-            </View>
-          ) : foodEntries.length === 0 ? (
-            <View className="bg-gray-800 rounded-xl p-6 items-center">
-              <Ionicons name="restaurant-outline" size={48} color="#9CA3AF" />
-              <Text className="text-gray-300 text-lg font-sora mt-4 text-center">
-                No food entries for today
-              </Text>
-              <Text className="text-gray-400 text-sm font-sora mt-2 text-center">
-                Add your first meal to start tracking!
-              </Text>
-            </View>
-          ) : (
-            (() => {
-              const groupedEntries = groupEntriesByMeal(foodEntries);
-              const mealSections = [
-                { key: 'breakfast', title: 'Breakfast', entries: groupedEntries.breakfast },
-                { key: 'lunch', title: 'Lunch', entries: groupedEntries.lunch },
-                { key: 'dinner', title: 'Dinner', entries: groupedEntries.dinner },
-                { key: 'snack', title: 'Snacks', entries: groupedEntries.snack },
-                { key: 'uncategorized', title: 'Other', entries: groupedEntries.uncategorized },
-              ];
-              
-              return mealSections.map(section => {
-                if (section.entries.length === 0) return null;
-                
-                return (
-                  <View key={section.key} className="mb-4">
-                    <Text className="text-white text-lg font-sora-semibold mb-3">
-                      {section.title}
-                    </Text>
-                    {section.entries.map((entry) => (
-                      <FoodEntryCard
-                        key={entry.id}
-                        entry={entry}
-                        onRemove={handleRemoveEntry}
-                      />
-                    ))}
-                  </View>
-                );
-              });
-            })()
-          )}
-        </View>
+            {loading ? (
+              <View className="bg-gray-800 rounded-xl p-6 items-center">
+                <Text className="text-white text-base font-sora">Loading...</Text>
+              </View>
+            ) : (
+              <View>
+                {MEAL_SECTIONS.map(section => {
+                  const entries = getEntriesForMeal(section.mealType);
+                  const isExpanded = expandedMeals.has(section.key);
+                  const totals = calculateTotals(entries);
+                  const hasEntries = entries.length > 0;
+                  
+                  return (
+                    <View key={section.key} className="mb-2">
+                      <TouchableOpacity
+                        onPress={() => hasEntries && toggleMealSection(section.key)}
+                        className="bg-gray-800 rounded-xl px-4 py-3"
+                        activeOpacity={hasEntries ? 0.7 : 1}
+                      >
+                        <View className="flex-row items-center justify-between">
+                          <View className="flex-1">
+                            <View className="flex-row items-center">
+                              <Ionicons 
+                                name={section.icon as any} 
+                                size={18} 
+                                color={hasEntries ? "#CFB991" : "#6B7280"} 
+                              />
+                              <Text className={`text-sm font-sora-semibold ml-2 ${hasEntries ? 'text-white' : 'text-gray-500'}`}>
+                                {section.title}
+                              </Text>
+                            </View>
+                            {hasEntries && (
+                              <Text className="text-xs text-gray-400 font-sora ml-6 mt-1">
+                                Protein: {totals.protein_g.toFixed(1)}g • Carbs: {totals.carbs_g.toFixed(1)}g • Fat: {totals.fat_g.toFixed(1)}g
+                              </Text>
+                            )}
+                          </View>
+
+                          <View className="flex-row items-center">
+                            {hasEntries ? (
+                              <>
+                                <View className="items-end mr-2">
+                                  <Text className="text-purdueGold text-sm font-sora-semibold">
+                                    {Math.round(totals.calories)}
+                                  </Text>
+                                  <Text className="text-xs text-gray-400 font-sora">
+                                    kcal
+                                  </Text>
+                                </View>
+                                <Ionicons 
+                                  name={isExpanded ? "chevron-up" : "chevron-down"} 
+                                  size={18} 
+                                  color="#9CA3AF" 
+                                />
+                              </>
+                            ) : (
+                              <Text className="text-gray-500 text-xs font-sora">
+                                No items
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+
+                      {isExpanded && hasEntries && (
+                        <View className="mt-2 ml-2">
+                          {entries.map((entry) => (
+                            <FoodEntryCard
+                              key={entry.id}
+                              entry={entry}
+                              onRemove={handleRemoveEntry}
+                            />
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
         </View>
       </ScrollView>
     </BackgroundTemplate>
