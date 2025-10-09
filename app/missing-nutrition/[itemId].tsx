@@ -90,7 +90,7 @@ export default function MissingNutritionPage() {
     <BackgroundTemplate>
       <View className="flex-1">
         {/* Header */}
-        <View className="bg-transparent pt-12 pb-6 px-6">
+        <View className="bg-transparent pt-14 pb-6 px-6">
           <View className="flex-row items-center justify-between mb-4">
             <TouchableOpacity
               onPress={() => router.back()}

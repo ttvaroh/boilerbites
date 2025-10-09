@@ -1,13 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from "react-native";
+import { useRouter } from "expo-router";
+import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import BackgroundTemplate from "../../components/BackgroundTemplate";
 import OnboardingComponent from "../../components/OnboardingComponent";
 import { useAuth } from "../../contexts/AuthContext";
 
 export default function ProfileScreen() {
   const { user, signOut, loading } = useAuth();
-
-  // No need to redirect - we'll show onboarding component instead
+  const router = useRouter();
 
   const handleSignOut = async () => {
     Alert.alert(
@@ -23,14 +23,27 @@ export default function ProfileScreen() {
           style: "destructive",
           onPress: async () => {
             await signOut();
-            // No need to redirect - the component will automatically show onboarding
           },
         },
       ]
     );
   };
 
-  // Show loading spinner while checking authentication
+  const handleMenuSettings = () => {
+    // TODO: Navigate to menu settings page
+    router.push("/menu-settings");
+  };
+
+  const handleFavorites = () => {
+    // TODO: Navigate to favorites page
+    router.push("/favorites");
+  };
+
+  const handleCustomFoods = () => {
+    // TODO: Navigate to custom foods page
+    router.push("/custom-foods");
+  };
+
   if (loading) {
     return (
       <BackgroundTemplate>
@@ -42,7 +55,6 @@ export default function ProfileScreen() {
     );
   }
 
-  // If not authenticated, show onboarding component
   if (!user) {
     return (
       <BackgroundTemplate>
@@ -53,73 +65,169 @@ export default function ProfileScreen() {
 
   return (
     <BackgroundTemplate>
-      <View className="flex-1 px-8 pt-16">
-        {/* Header */}
-        <View className="mb-8">
-          <Text className="text-white text-3xl font-sora-bold mb-2">
-            Profile
-          </Text>
-          <Text className="text-gray-400 text-base font-sora">
-            Manage your account and preferences
-          </Text>
-        </View>
-
-        {/* User Info */}
-        <View className="bg-gray-800 rounded-xl p-6 mb-6 border border-gray-700">
-          <View className="flex-row items-center mb-4">
-            <View className="w-16 h-16 bg-purdueGold rounded-full items-center justify-center mr-4">
-              <Ionicons name="person" size={32} color="#000000" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-white text-lg font-sora-bold">
-                {user?.user_metadata?.full_name || "User"}
-              </Text>
-              <Text className="text-gray-400 text-sm font-sora">
-                {user?.email}
-              </Text>
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        <View className="px-6 pt-16 pb-8">
+          {/* Header with User Info */}
+          <View className="mb-6">
+            <View className="flex-row items-center">
+              <View className="w-20 h-20 bg-purdueGold rounded-full items-center justify-center mr-4 shadow-lg">
+                <Text className="text-black text-2xl font-sora-bold">
+                  {(user?.user_metadata?.full_name || user?.email || "U")[0].toUpperCase()}
+                </Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-white text-2xl font-sora-bold mb-1">
+                  {user?.user_metadata?.full_name || "User"}
+                </Text>
+                <Text className="text-gray-400 text-sm font-sora">
+                  {user?.email}
+                </Text>
+              </View>
             </View>
           </View>
+
+          {/* Quick Actions Grid */}
+          <View className="mb-4">
+            <Text className="text-white text-lg font-sora-semibold mb-4">
+              Quick Actions
+            </Text>
+            <View className="flex-row justify-between mb-3">
+              <TouchableOpacity 
+                onPress={handleMenuSettings}
+                className="bg-gray-800/60 backdrop-blur-xl rounded-2xl p-5 flex-1 mr-2 border border-gray-700/50"
+                activeOpacity={0.7}
+              >
+                <View className="bg-purdueGold/20 rounded-full w-12 h-12 items-center justify-center mb-3">
+                  <Ionicons name="restaurant" size={24} color="#CFB991" />
+                </View>
+                <Text className="text-white text-base font-sora-semibold mb-1">
+                  Menu Settings
+                </Text>
+                <Text className="text-gray-400 text-xs font-sora">
+                  Customize your meals
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                onPress={handleFavorites}
+                className="bg-gray-800/60 backdrop-blur-xl rounded-2xl p-5 flex-1 ml-2 border border-gray-700/50"
+                activeOpacity={0.7}
+              >
+                <View className="bg-purdueGold/20 rounded-full w-12 h-12 items-center justify-center mb-3">
+                  <Ionicons name="heart" size={24} color="#CFB991" />
+                </View>
+                <Text className="text-white text-base font-sora-semibold mb-1">
+                  Favorites
+                </Text>
+                <Text className="text-gray-400 text-xs font-sora">
+                  Your saved items
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity 
+              onPress={handleCustomFoods}
+              className="bg-gray-800/60 backdrop-blur-xl rounded-2xl p-5 border border-gray-700/50"
+              activeOpacity={0.7}
+            >
+              <View className="flex-row items-center">
+                <View className="bg-purdueGold/20 rounded-full w-12 h-12 items-center justify-center mr-4">
+                  <Ionicons name="add-circle" size={24} color="#CFB991" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-white text-base font-sora-semibold mb-1">
+                    Custom Foods
+                  </Text>
+                  <Text className="text-gray-400 text-xs font-sora">
+                    Create and manage custom entries
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Account Section */}
+          <View className="mb-4">
+            <Text className="text-white text-lg font-sora-semibold mb-4">
+              Account
+            </Text>
+            <View className="bg-gray-800/60 backdrop-blur-xl rounded-2xl border border-gray-700/50 overflow-hidden">
+              <TouchableOpacity 
+                className="flex-row items-center p-4 border-b border-gray-700/50"
+                activeOpacity={0.7}
+              >
+                <View className="bg-gray-700/50 rounded-full w-10 h-10 items-center justify-center mr-3">
+                  <Ionicons name="person-outline" size={20} color="#CFB991" />
+                </View>
+                <Text className="text-white text-base font-sora flex-1">
+                  Edit Profile
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                className="flex-row items-center p-4 border-b border-gray-700/50"
+                activeOpacity={0.7}
+              >
+                <View className="bg-gray-700/50 rounded-full w-10 h-10 items-center justify-center mr-3">
+                  <Ionicons name="notifications-outline" size={20} color="#CFB991" />
+                </View>
+                <Text className="text-white text-base font-sora flex-1">
+                  Notifications
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Support Section */}
+          <View className="mb-6">
+            <Text className="text-white text-lg font-sora-semibold mb-4">
+              Support
+            </Text>
+            <View className="bg-gray-800/60 backdrop-blur-xl rounded-2xl border border-gray-700/50 overflow-hidden">
+              <TouchableOpacity 
+                className="flex-row items-center p-4 border-b border-gray-700/50"
+                activeOpacity={0.7}
+              >
+                <View className="bg-gray-700/50 rounded-full w-10 h-10 items-center justify-center mr-3">
+                  <Ionicons name="chatbubble-outline" size={20} color="#CFB991" />
+                </View>
+                <Text className="text-white text-base font-sora flex-1">
+                  Contact Us
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                className="flex-row items-center p-4"
+                activeOpacity={0.7}
+              >
+                <View className="bg-gray-700/50 rounded-full w-10 h-10 items-center justify-center mr-3">
+                  <Ionicons name="information-circle-outline" size={20} color="#CFB991" />
+                </View>
+                <Text className="text-white text-base font-sora flex-1">
+                  About
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Sign Out Button */}
+          <TouchableOpacity
+            onPress={handleSignOut}
+            className="bg-red-600/90 backdrop-blur-xl py-4 px-6 rounded-2xl flex-row items-center justify-center border border-red-500/30 mb-4"
+            activeOpacity={0.8}
+          >
+            <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
+            <Text className="text-white text-base font-sora-semibold ml-2">
+              Sign Out
+            </Text>
+          </TouchableOpacity>
         </View>
-
-        {/* Profile Options */}
-        <View className="space-y-4 mb-8">
-          <TouchableOpacity className="bg-gray-800 rounded-xl p-4 flex-row items-center border border-gray-700">
-            <Ionicons name="settings-outline" size={24} color="#CFB991" />
-            <Text className="text-white text-base font-sora ml-4">Settings</Text>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" className="ml-auto" />
-          </TouchableOpacity>
-
-          <TouchableOpacity className="bg-gray-800 rounded-xl p-4 flex-row items-center border border-gray-700">
-            <Ionicons name="notifications-outline" size={24} color="#CFB991" />
-            <Text className="text-white text-base font-sora ml-4">Notifications</Text>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" className="ml-auto" />
-          </TouchableOpacity>
-
-          <TouchableOpacity className="bg-gray-800 rounded-xl p-4 flex-row items-center border border-gray-700">
-            <Ionicons name="help-circle-outline" size={24} color="#CFB991" />
-            <Text className="text-white text-base font-sora ml-4">Help & Support</Text>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" className="ml-auto" />
-          </TouchableOpacity>
-
-          <TouchableOpacity className="bg-gray-800 rounded-xl p-4 flex-row items-center border border-gray-700">
-            <Ionicons name="information-circle-outline" size={24} color="#CFB991" />
-            <Text className="text-white text-base font-sora ml-4">About</Text>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" className="ml-auto" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Sign Out Button */}
-        <TouchableOpacity
-          onPress={handleSignOut}
-          className="bg-red-600 py-4 px-6 rounded-xl flex-row items-center justify-center"
-          activeOpacity={0.8}
-        >
-          <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
-          <Text className="text-white text-base font-sora-bold ml-2">
-            Sign Out
-          </Text>
-        </TouchableOpacity>
-      </View>
+      </ScrollView>
     </BackgroundTemplate>
   );
 }

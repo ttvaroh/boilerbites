@@ -228,50 +228,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { data: result, error: null };
       }
 
-      // If no record exists, create one with default values
-      const { data: newData, error: insertError } = await supabase
-        .from('user_daily_nutrition')
-        .insert({
-          user_id: user.id,
-          date: targetDate,
-          goal_calories: 2300,
-          goal_protein_g: 115,
-          goal_carbs_g: 288,
-          goal_fat_g: 77,
-          consumed_calories: 0,
-          consumed_protein_g: 0,
-          consumed_carbs_g: 0,
-          consumed_fat_g: 0,
-        })
-        .select()
-        .single();
+      // If no record exists, return baseline values without creating database record
+      const baselineGoals = {
+        goal_calories: 2300,
+        goal_protein_g: 115,
+        goal_carbs_g: 288,
+        goal_fat_g: 77,
+      };
 
-      if (insertError) {
-        console.error('Error creating daily nutrition record:', insertError);
-        return { data: null, error: insertError };
-      }
+      const baselineConsumed = {
+        consumed_calories: 0,
+        consumed_protein_g: 0,
+        consumed_carbs_g: 0,
+        consumed_fat_g: 0,
+      };
 
-      // Return the new record with calculated fields
       const result: DailyNutrition = {
-        id: newData.id,
-        user_id: newData.user_id,
-        date: newData.date,
-        goal_calories: newData.goal_calories,
-        goal_protein_g: newData.goal_protein_g,
-        goal_carbs_g: newData.goal_carbs_g,
-        goal_fat_g: newData.goal_fat_g,
-        consumed_calories: newData.consumed_calories,
-        consumed_protein_g: newData.consumed_protein_g,
-        consumed_carbs_g: newData.consumed_carbs_g,
-        consumed_fat_g: newData.consumed_fat_g,
-        remaining_calories: newData.goal_calories - newData.consumed_calories,
-        remaining_protein_g: newData.goal_protein_g - newData.consumed_protein_g,
-        remaining_carbs_g: newData.goal_carbs_g - newData.consumed_carbs_g,
-        remaining_fat_g: newData.goal_fat_g - newData.consumed_fat_g,
-        percent_calories: newData.goal_calories > 0 ? (newData.consumed_calories / newData.goal_calories * 100) : 0,
-        percent_protein: newData.goal_protein_g > 0 ? (newData.consumed_protein_g / newData.goal_protein_g * 100) : 0,
-        percent_carbs: newData.goal_carbs_g > 0 ? (newData.consumed_carbs_g / newData.goal_carbs_g * 100) : 0,
-        percent_fat: newData.goal_fat_g > 0 ? (newData.consumed_fat_g / newData.goal_fat_g * 100) : 0,
+        id: '', // No database record, so no ID
+        user_id: user.id,
+        date: targetDate,
+        goal_calories: baselineGoals.goal_calories,
+        goal_protein_g: baselineGoals.goal_protein_g,
+        goal_carbs_g: baselineGoals.goal_carbs_g,
+        goal_fat_g: baselineGoals.goal_fat_g,
+        consumed_calories: baselineConsumed.consumed_calories,
+        consumed_protein_g: baselineConsumed.consumed_protein_g,
+        consumed_carbs_g: baselineConsumed.consumed_carbs_g,
+        consumed_fat_g: baselineConsumed.consumed_fat_g,
+        remaining_calories: baselineGoals.goal_calories - baselineConsumed.consumed_calories,
+        remaining_protein_g: baselineGoals.goal_protein_g - baselineConsumed.consumed_protein_g,
+        remaining_carbs_g: baselineGoals.goal_carbs_g - baselineConsumed.consumed_carbs_g,
+        remaining_fat_g: baselineGoals.goal_fat_g - baselineConsumed.consumed_fat_g,
+        percent_calories: baselineGoals.goal_calories > 0 ? (baselineConsumed.consumed_calories / baselineGoals.goal_calories * 100) : 0,
+        percent_protein: baselineGoals.goal_protein_g > 0 ? (baselineConsumed.consumed_protein_g / baselineGoals.goal_protein_g * 100) : 0,
+        percent_carbs: baselineGoals.goal_carbs_g > 0 ? (baselineConsumed.consumed_carbs_g / baselineGoals.goal_carbs_g * 100) : 0,
+        percent_fat: baselineGoals.goal_fat_g > 0 ? (baselineConsumed.consumed_fat_g / baselineGoals.goal_fat_g * 100) : 0,
       };
 
       return { data: result, error: null };
@@ -294,7 +285,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { error: new Error('User not authenticated') };
     }
 
-    const { error } = await supabase
+    // First, try to update existing record
+    const { error: updateError } = await supabase
       .from('user_daily_nutrition')
       .update({
         goal_calories: goals.calories,
@@ -305,9 +297,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .eq('user_id', user.id)
       .eq('date', date);
 
-    if (error) {
-      console.error('Error updating goals:', error);
-      return { error };
+    // If update failed (likely because no record exists), create a new one
+    if (updateError) {
+      const { error: insertError } = await supabase
+        .from('user_daily_nutrition')
+        .insert({
+          user_id: user.id,
+          date: date,
+          goal_calories: goals.calories || 2300,
+          goal_protein_g: goals.protein || 115,
+          goal_carbs_g: goals.carbs || 288,
+          goal_fat_g: goals.fat || 77,
+          consumed_calories: 0,
+          consumed_protein_g: 0,
+          consumed_carbs_g: 0,
+          consumed_fat_g: 0,
+        });
+
+      if (insertError) {
+        console.error('Error creating daily nutrition record:', insertError);
+        return { error: insertError };
+      }
     }
 
     return { error: null };

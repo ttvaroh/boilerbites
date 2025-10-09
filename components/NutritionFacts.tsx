@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 
 interface NutritionFactsProps {
@@ -16,7 +16,7 @@ interface NutritionFactsProps {
 }
 
 export default function NutritionFacts({ item, servingCount }: NutritionFactsProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const formatNutrientValue = (
     value: number | undefined,

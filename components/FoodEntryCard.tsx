@@ -1,13 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
 } from "react-native-reanimated";
-import { scheduleOnRN } from "react-native-worklets";
 
 interface FoodEntry {
   id: string;
@@ -47,46 +48,62 @@ const DELETE_BUTTON_WIDTH = 80;
 const FULL_SWIPE_THRESHOLD = -150;
 
 export default function FoodEntryCard({ entry, onRemove }: FoodEntryCardProps) {
+  const router = useRouter();
   const mealIcon = mealIcons[entry.meal_name as keyof typeof mealIcons] || "help-circle-outline";
   const mealName = mealNames[entry.meal_name as keyof typeof mealNames] || "Uncategorized";
   
   const translateX = useSharedValue(0);
-  const itemHeight = useSharedValue(0); // Will be set dynamically
+  const itemHeight = useSharedValue(0);
 
   const handleCardLayout = (event: any) => {
     const { height } = event.nativeEvent.layout;
     itemHeight.value = height;
   };
 
+  const handleCardPress = () => {
+    router.push(`/edit-food-entry/${entry.id}`);
+  };
+
+  const handleRemoveEntry = (entryId: string) => {
+    if (onRemove) {
+      onRemove(entryId);
+    }
+  };
+
+  // Tap gesture for navigation
+  const tapGesture = Gesture.Tap()
+    .maxDuration(250)
+    .onEnd(() => {
+      // Only navigate if card is not swiped open
+      if (translateX.value === 0) {
+        runOnJS(handleCardPress)();
+      }
+    });
+
+  // Pan gesture for swipe-to-delete
   const panGesture = Gesture.Pan()
     .activeOffsetX([-10, 10])
     .onUpdate((event) => {
-      // Only allow swiping left (negative values)
       const newTranslateX = Math.min(0, event.translationX);
-      // Cap at full swipe threshold
       translateX.value = Math.max(FULL_SWIPE_THRESHOLD, newTranslateX);
     })
     .onEnd((event) => {
       const velocity = event.velocityX;
       
-      // Full swipe - auto delete
       if (translateX.value <= FULL_SWIPE_THRESHOLD || velocity < -500) {
         translateX.value = withTiming(-500, { duration: 200 });
         itemHeight.value = withTiming(0, { duration: 300 }, (finished) => {
-          if (finished && onRemove) {
-            // Call onRemove on the JS thread after animation completes
-            scheduleOnRN(onRemove, entry.id);
+          if (finished) {
+            runOnJS(handleRemoveEntry)(entry.id);
           }
         });
       }
-      // Partial swipe - show delete button
       else if (translateX.value < -DELETE_BUTTON_WIDTH / 2) {
         translateX.value = withSpring(-DELETE_BUTTON_WIDTH, {
           damping: 20,
           stiffness: 300,
         });
       }
-      // Not enough swipe - snap back
       else {
         translateX.value = withSpring(0, {
           damping: 20,
@@ -95,11 +112,14 @@ export default function FoodEntryCard({ entry, onRemove }: FoodEntryCardProps) {
       }
     });
 
+  // Combine gestures - tap and pan work together
+  const composedGesture = Gesture.Simultaneous(tapGesture, panGesture);
+
   const handleDeletePress = () => {
     translateX.value = withTiming(-500, { duration: 200 });
     itemHeight.value = withTiming(0, { duration: 300 }, (finished) => {
-      if (finished && onRemove) {
-        scheduleOnRN(onRemove, entry.id);
+      if (finished) {
+        runOnJS(handleRemoveEntry)(entry.id);
       }
     });
   };
@@ -120,14 +140,14 @@ export default function FoodEntryCard({ entry, onRemove }: FoodEntryCardProps) {
   const animatedContainerStyle = useAnimatedStyle(() => {
     return {
       height: itemHeight.value,
-      marginBottom: itemHeight.value > 0 ? 12 : 0,
+      marginBottom: itemHeight.value > 0 ? 6 : 0,
       opacity: itemHeight.value > 0 ? 1 : 0,
     };
   });
 
   const animatedDeleteButtonStyle = useAnimatedStyle(() => {
     return {
-      height: itemHeight.value, // Dynamic height to match the actual card
+      height: itemHeight.value,
     };
   });
 
@@ -158,8 +178,8 @@ export default function FoodEntryCard({ entry, onRemove }: FoodEntryCardProps) {
         </Animated.View>
       </Animated.View>
 
-      {/* Main Card - Swipeable */}
-      <GestureDetector gesture={panGesture}>
+      {/* Main Card - Swipeable and Tappable */}
+      <GestureDetector gesture={composedGesture}>
         <Animated.View
           style={[animatedCardStyle]}
           className="bg-gray-800 rounded-xl p-4 flex-row items-center border border-gray-700"

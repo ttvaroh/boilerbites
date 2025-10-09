@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import * as React from "react";
+import { useCallback } from "react";
 import {
   Alert,
   ScrollView,
@@ -155,11 +156,11 @@ export default function DiaryPage() {
 
   // Define all meal sections
   const MEAL_SECTIONS = [
+    { key: 'uncategorized', title: 'Other', icon: 'ellipsis-horizontal-outline', mealType: 0 },
     { key: 'breakfast', title: 'Breakfast', icon: 'sunny-outline', mealType: 1 },
     { key: 'lunch', title: 'Lunch', icon: 'fast-food-outline', mealType: 2 },
     { key: 'dinner', title: 'Dinner', icon: 'restaurant-outline', mealType: 3 },
     { key: 'snack', title: 'Snacks', icon: 'ice-cream-outline', mealType: 4 },
-    { key: 'uncategorized', title: 'Other', icon: 'ellipsis-horizontal-outline', mealType: 0 },
   ];
 
   // Get entries for a meal type with stable ordering
@@ -180,9 +181,13 @@ export default function DiaryPage() {
     }), { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
   };
 
-  React.useEffect(() => {
-    fetchFoodEntries();
-  }, [user, selectedDate]);
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        fetchFoodEntries();
+      }
+    }, [user, selectedDate])
+  );
 
   return (
     <BackgroundTemplate>
@@ -209,7 +214,7 @@ export default function DiaryPage() {
             </TouchableOpacity>
           </View>
         
-          <View className="mb-6">
+          <View className="mb-2">
             <Text className="text-lg font-sora-semibold text-white mb-4">
               {isToday() ? "Today's Summary" : `${formatDate(selectedDate)} Summary`}
             </Text>

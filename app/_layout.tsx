@@ -1,8 +1,8 @@
 import {
-    Sora_400Regular,
-    Sora_500Medium,
-    Sora_600SemiBold,
-    Sora_700Bold,
+  Sora_400Regular,
+  Sora_500Medium,
+  Sora_600SemiBold,
+  Sora_700Bold,
 } from "@expo-google-fonts/sora";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
@@ -53,11 +53,19 @@ export default function RootLayout() {
                   options={{ headerShown: false }}
                 />
                 <Stack.Screen
+                  name="edit-food-entry/[entryId]"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
                   name="signin"
                   options={{ headerShown: false }}
                 />
                 <Stack.Screen
                   name="signup"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="[...unmatched]"
                   options={{ headerShown: false }}
                 />
               </Stack>
@@ -89,11 +97,19 @@ export default function RootLayout() {
                 options={{ headerShown: false }}
               />
               <Stack.Screen
+                name="edit-food-entry/[entryId]"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
                 name="signin"
                 options={{ headerShown: false }}
               />
               <Stack.Screen
                 name="signup"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="[...unmatched]"
                 options={{ headerShown: false }}
               />
             </Stack>
