@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import BackgroundTemplate from "../../components/BackgroundTemplate";
 import ItemSearchComponent from "../../components/ItemSearch";
-import MenuItemCard from "../../components/MenuItemCard";
+import SearchItemCard from "../../components/SearchItemCard";
 import SortBy from "../../components/SortBy";
 import { supabase } from "../../lib/supabase";
 import { DateSearchFilters, DateSearchOptions, dateSearchService, DayMenuItem } from "../../services/SearchService";
@@ -465,7 +465,7 @@ export default function SearchPage() {
                       key={`${item.id}-${index}`}
                       onPress={() => handleMenuItemPress(item)}
                     >
-                      <MenuItemCard
+                      <SearchItemCard
                         item={item}
                         showDietaryTag={true}
                         meals={item.meals || []}

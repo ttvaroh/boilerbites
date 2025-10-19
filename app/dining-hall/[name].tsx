@@ -95,7 +95,7 @@ export default function DiningHallPage() {
             ...meal,
             stations: meal.stations.map((station): LocalStation => ({
               ...station,
-              isExpanded: false, // Start with all stations collapsed
+              isExpanded: true, // Start with all stations collapsed
             })),
           }));
           
@@ -236,21 +236,6 @@ export default function DiningHallPage() {
 
   const [collectionStatus, setCollectionStatus] = useState<Record<string, boolean>>({});
 
-  const checkCollectionStatus = async (itemId: string) => {
-    try {
-      const { data: itemData, error } = await supabase
-        .from('item')
-        .select('is_collection')
-        .eq('id', itemId)
-        .single();
-
-      if (!error && itemData) {
-        setCollectionStatus(prev => ({ ...prev, [itemId]: itemData.is_collection }));
-      }
-    } catch (error) {
-      console.error('Error checking if item is collection:', error);
-    }
-  };
 
   const checkCollectionStatusBatch = async (itemIds: string[]) => {
     try {
@@ -428,12 +413,12 @@ export default function DiningHallPage() {
 
         {/* Stations */}
         <View className="py-4">
-          <Text className="text-white text-lg font-sora-bold mb-4">
+          <Text className="text-white text-xl font-sora-bold mb-4">
             Stations
           </Text>
 
           {currentMeal.stations.map((station, stationIndex) => (
-            <View key={station.id} className="mb-4">
+            <View key={station.id}>
               {/* Station Header */}
               <TouchableOpacity
                 onPress={() => toggleStation(currentMealIndex, stationIndex)}
@@ -463,7 +448,7 @@ export default function DiningHallPage() {
 
               {/* Station Items */}
               {station.isExpanded && (
-                <View className="ml-2 mt-2">
+                <View className="ml-2 mb-2">
                   {station.items.map((item) => {
                     const isCollection = collectionStatus[item.id] || false;
                     return (

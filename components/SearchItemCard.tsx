@@ -27,14 +27,14 @@ interface MenuItem {
   meals?: string[];
 }
 
-interface MenuItemCardProps {
+interface SearchItemCardProps {
   item: MenuItem;
   showDietaryTag?: boolean;
   meals?: string[];
   isCollection?: boolean;
 }
 
-export default function MenuItemCard({ item, showDietaryTag = true, meals, isCollection = false }: MenuItemCardProps) {
+export default function SearchItemCard({ item, showDietaryTag = true, meals, isCollection = false }: SearchItemCardProps) {
   const getDietaryIcons = () => {
     const icons: Array<{
       icon: string;
@@ -86,12 +86,12 @@ export default function MenuItemCard({ item, showDietaryTag = true, meals, isCol
   const dietaryIcons = getDietaryIcons();
 
   return (
-    <View className="bg-gray-800 rounded-xl py-2 px-4 mb-2 shadow-lg">
+    <View className="bg-gray-800 rounded-xl p-4 mb-2 shadow-lg">
       <View className="flex-row">
         {/* Left portion - Main content */}
         <View className="flex-1">
           {/* Title */}
-          <Text className="text-white text-l font-sora-bold mb-2">
+          <Text className="text-white text-xl font-sora-bold mb-2">
             {item.name || "Unknown Item"}
           </Text>
 
@@ -139,60 +139,58 @@ export default function MenuItemCard({ item, showDietaryTag = true, meals, isCol
           </View>
         </View>
 
-        {/* Right portion - Dietary Icons and Calories */}
+        {/* Right portion - Dietary Icons, Meals, and Calories */}
         <View className="items-end justify-start" style={{ minWidth: 80 }}>
-          <View className="flex-row items-center">
-            {/* Dietary Icons */}
-            {showDietaryTag && dietaryIcons.length > 0 && (
-              <View className="flex-row mr-3">
-                {dietaryIcons.map((iconData, index) => {
-                  return (
-                    <View 
-                      key={index} 
-                      className="w-6 h-6 rounded-full bg-gray-700 items-center justify-center mr-1"
-                      style={{ backgroundColor: `${iconData.color}20` }} // 20% opacity
-                    >
-                      {iconData.iconFamily === "MaterialIcons" ? (
-                        <MaterialIcons 
-                          name={iconData.icon as any} 
-                          size={14} 
-                          color={iconData.color} 
-                        />
-                      ) : iconData.iconFamily === "MaterialCommunityIcons" ? (
-                        <MaterialCommunityIcons 
-                          name={iconData.icon as any} 
-                          size={14} 
-                          color={iconData.color} 
-                        />
-                      ) : iconData.iconFamily === "FontAwesome6" ? (
-                        <FontAwesome6 
-                          name={iconData.icon as any} 
-                          size={14} 
-                          color={iconData.color} 
-                        />
-                      ) : (
-                        <Ionicons 
-                          name={iconData.icon as any} 
-                          size={14} 
-                          color={iconData.color} 
-                        />
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
-            )}
+          {/* Dietary Icons */}
+          {showDietaryTag && dietaryIcons.length > 0 && (
+            <View className="flex-row mb-2">
+              {dietaryIcons.map((iconData, index) => {
+                return (
+                  <View 
+                    key={index} 
+                    className="w-6 h-6 rounded-full bg-gray-700 items-center justify-center mr-1"
+                    style={{ backgroundColor: `${iconData.color}20` }} // 20% opacity
+                  >
+                    {iconData.iconFamily === "MaterialIcons" ? (
+                      <MaterialIcons 
+                        name={iconData.icon as any} 
+                        size={14} 
+                        color={iconData.color} 
+                      />
+                    ) : iconData.iconFamily === "MaterialCommunityIcons" ? (
+                      <MaterialCommunityIcons 
+                        name={iconData.icon as any} 
+                        size={14} 
+                        color={iconData.color} 
+                      />
+                    ) : iconData.iconFamily === "FontAwesome6" ? (
+                      <FontAwesome6 
+                        name={iconData.icon as any} 
+                        size={14} 
+                        color={iconData.color} 
+                      />
+                    ) : (
+                      <Ionicons 
+                        name={iconData.icon as any} 
+                        size={14} 
+                        color={iconData.color} 
+                      />
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
 
-            {/* Calories */}
-            {item.calories !== undefined && item.calories !== null && !isNaN(Number(item.calories)) && (
-              <View className="items-end">
-                <Text className="text-purdueGold text-2xl font-sora-bold">
-                  {Math.trunc(Number(item.calories))}
-                </Text>
-                <Text className="text-gray-400 text-sm font-sora">calories</Text>
-              </View>
-            )}
-          </View>
+          {/* Calories */}
+          {item.calories !== undefined && item.calories !== null && !isNaN(Number(item.calories)) && (
+            <View className="items-end">
+              <Text className="text-purdueGold text-2xl font-sora-bold">
+                {Math.trunc(Number(item.calories))}
+              </Text>
+              <Text className="text-gray-400 text-sm font-sora">calories</Text>
+            </View>
+          )}
         </View>
       </View>
 
