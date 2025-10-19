@@ -10,6 +10,7 @@ import {
 import BackgroundTemplate from "../../components/BackgroundTemplate";
 import MenuItemCard from "../../components/MenuItemCard";
 import { useMenuData } from "../../lib/MenuDataContext";
+import { supabase } from "../../lib/supabase";
 import { getCurrentTimeInEST } from "../../lib/timezone-utils";
 
 interface DiningHallMenu {
@@ -101,6 +102,14 @@ export default function DiningHallPage() {
           setMeals(mealsWithExpanded);
           // Set to current meal based on time
           setCurrentMealIndex(findCurrentMealIndex(mealsWithExpanded));
+          
+          // Check collection status for all items in batch
+          const allItemIds = mealsWithExpanded.flatMap(meal => 
+            meal.stations.flatMap(station => 
+              station.items.map(item => item.id)
+            )
+          );
+          checkCollectionStatusBatch(allItemIds);
         }
       } catch (error) {
         console.error('Error loading menu data:', error);
@@ -134,6 +143,14 @@ export default function DiningHallPage() {
             // Set to current meal based on time
             setCurrentMealIndex(findCurrentMealIndex(mealsWithExpanded));
             setMenuLoading(false);
+            
+            // Check collection status for all items in batch
+            const allItemIds = mealsWithExpanded.flatMap(meal => 
+              meal.stations.flatMap(station => 
+                station.items.map(item => item.id)
+              )
+            );
+            checkCollectionStatusBatch(allItemIds);
           }
         } catch (error) {
           console.error('Error loading ready menu data:', error);
@@ -217,7 +234,51 @@ export default function DiningHallPage() {
     setMeals(updatedMeals);
   };
 
-  const handleMenuItemPress = (item: MenuItem) => {
+  const [collectionStatus, setCollectionStatus] = useState<Record<string, boolean>>({});
+
+  const checkCollectionStatus = async (itemId: string) => {
+    try {
+      const { data: itemData, error } = await supabase
+        .from('item')
+        .select('is_collection')
+        .eq('id', itemId)
+        .single();
+
+      if (!error && itemData) {
+        setCollectionStatus(prev => ({ ...prev, [itemId]: itemData.is_collection }));
+      }
+    } catch (error) {
+      console.error('Error checking if item is collection:', error);
+    }
+  };
+
+  const checkCollectionStatusBatch = async (itemIds: string[]) => {
+    try {
+      const { data: itemsData, error } = await supabase
+        .from('item')
+        .select('id, is_collection')
+        .in('id', itemIds);
+
+      if (!error && itemsData) {
+        const newStatus: Record<string, boolean> = {};
+        itemsData.forEach(item => {
+          newStatus[item.id] = item.is_collection || false;
+        });
+        setCollectionStatus(prev => ({ ...prev, ...newStatus }));
+      }
+    } catch (error) {
+      console.error('Error checking collection status batch:', error);
+    }
+  };
+
+  const handleMenuItemPress = async (item: MenuItem) => {
+    // Check if this item is a collection
+    if (collectionStatus[item.id]) {
+      // Navigate to collection page
+      router.push(`/collection/${item.id}`);
+      return;
+    }
+
     // Navigate to nutrition page if serving size exists, otherwise to missing nutrition page
     if (item.serving_size) {
       router.push(`/nutrition/${item.id}`);
@@ -403,14 +464,20 @@ export default function DiningHallPage() {
               {/* Station Items */}
               {station.isExpanded && (
                 <View className="ml-2 mt-2">
-                  {station.items.map((item) => (
-                    <TouchableOpacity
-                      key={item.id}
-                      onPress={() => handleMenuItemPress(item)}
-                    >
-                      <MenuItemCard item={item} />
-                    </TouchableOpacity>
-                  ))}
+                  {station.items.map((item) => {
+                    const isCollection = collectionStatus[item.id] || false;
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        onPress={() => handleMenuItemPress(item)}
+                      >
+                        <MenuItemCard 
+                          item={item} 
+                          isCollection={isCollection}
+                        />
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               )}
             </View>

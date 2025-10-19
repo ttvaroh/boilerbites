@@ -31,10 +31,10 @@ interface MenuItemCardProps {
   item: MenuItem;
   showDietaryTag?: boolean;
   meals?: string[];
+  isCollection?: boolean;
 }
 
-export default function MenuItemCard({ item, showDietaryTag = true, meals }: MenuItemCardProps) {
-
+export default function MenuItemCard({ item, showDietaryTag = true, meals, isCollection = false }: MenuItemCardProps) {
   const getDietaryIcons = () => {
     const icons: Array<{
       icon: string;
@@ -181,6 +181,16 @@ export default function MenuItemCard({ item, showDietaryTag = true, meals }: Men
           </View>
         )}
       </View>
+
+      {/* Collection indicator */}
+      {isCollection && (
+        <View className="flex-row">
+          <Ionicons name="albums-outline" size={16} color="#CFB991" />
+          <Text className="text-purdueGold text-sm font-sora ml-1">
+            Collection
+          </Text>
+        </View>
+      )}
     </View>
   );
 }

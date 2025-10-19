@@ -33,7 +33,7 @@ export default function RootLayout() {
 
   if (!fontsLoaded) {
     return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
         <SafeAreaProvider>
           <AuthProvider>
             <MenuDataProvider>
@@ -65,6 +65,14 @@ export default function RootLayout() {
                   options={{ headerShown: false }}
                 />
                 <Stack.Screen
+                  name="favorites"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="collection/[collectionId]"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
                   name="[...unmatched]"
                   options={{ headerShown: false }}
                 />
@@ -77,7 +85,7 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
       <SafeAreaProvider>
         <AuthProvider>
           <MenuDataProvider>
@@ -104,14 +112,22 @@ export default function RootLayout() {
                 name="signin"
                 options={{ headerShown: false }}
               />
-              <Stack.Screen
-                name="signup"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="[...unmatched]"
-                options={{ headerShown: false }}
-              />
+                <Stack.Screen
+                  name="signup"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="favorites"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="collection/[collectionId]"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="[...unmatched]"
+                  options={{ headerShown: false }}
+                />
             </Stack>
           </MenuDataProvider>
         </AuthProvider>

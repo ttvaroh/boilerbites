@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   Alert,
+  Animated,
   ScrollView,
   Text,
   TextInput,
@@ -45,6 +46,10 @@ export default function NutritionPage() {
   const [loading, setLoading] = useState(true);
   const [isFavorited, setIsFavorited] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error">("success");
+  const [toastAnimation] = useState(new Animated.Value(0));
 
   // Check if item is already favorited
   useEffect(() => {
@@ -124,6 +129,28 @@ export default function NutritionPage() {
 
   const servingCountNum = parseFloat(servingCount) || 1;
 
+  const showToast = (message: string, type: "success" | "error") => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
+    
+    Animated.sequence([
+      Animated.timing(toastAnimation, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.delay(3000),
+      Animated.timing(toastAnimation, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setToastVisible(false);
+    });
+  };
+
   const handleAddToTracker = async () => {
     if (!user) {
       Alert.alert(
@@ -149,15 +176,18 @@ export default function NutritionPage() {
       });
 
       if (error) {
-        Alert.alert("Error", "Failed to add item to tracker. Please try again.");
+        showToast("Failed to add item to tracker. Please try again.", "error");
         console.error("Add food entry error:", error);
         return;
       }
 
-      // Route to diary page after successful addition
-      router.push("/(tabs)/diary");
+      // Show success toast and route back
+      showToast("Item added to your food tracker!", "success");
+      setTimeout(() => {
+        router.back();
+      }, 1000); // Small delay to show the toast
     } catch (error) {
-      Alert.alert("Error", "Failed to add item to tracker. Please try again.");
+      showToast("Failed to add item to tracker. Please try again.", "error");
       console.error("Add food entry error:", error);
     }
   };
@@ -349,6 +379,46 @@ export default function NutritionPage() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Toast Notification */}
+      {toastVisible && (
+        <Animated.View
+          style={{
+            position: 'absolute',
+            bottom: 50,
+            left: 20,
+            right: 20,
+            backgroundColor: toastType === 'success' ? '#10B981' : '#EF4444',
+            borderRadius: 12,
+            padding: 16,
+            flexDirection: 'row',
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8,
+            transform: [
+              {
+                translateY: toastAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [100, 0],
+                }),
+              },
+            ],
+            opacity: toastAnimation,
+          }}
+        >
+          <Ionicons
+            name={toastType === 'success' ? 'checkmark-circle' : 'alert-circle'}
+            size={24}
+            color="white"
+          />
+          <Text className="text-white text-base font-sora-semibold ml-3 flex-1">
+            {toastMessage}
+          </Text>
+        </Animated.View>
+      )}
     </BackgroundTemplate>
   );
 }

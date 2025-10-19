@@ -4,12 +4,18 @@
     "slug": "boilerbites",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "",
+    "icon": "./assets/images/logos/boilerbites-logo.png",
     "scheme": "boilerbites",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.boilerbites.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app needs access to camera to scan food items",
+        "NSPhotoLibraryUsageDescription": "This app needs access to photo library to select food images"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,6 +28,11 @@
       "bundler": "metro",
       "output": "static",
       "favicon": ""
+    },
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id-here"
+      }
     },
     "plugins": [
       "expo-router",

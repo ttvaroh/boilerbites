@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { supabase } from "../lib/supabase";
 
@@ -111,16 +111,9 @@ export default function IngredientsAndAllergens({
                 Loading ingredients...
               </Text>
             ) : ingredients ? (
-              <View>
-                {ingredients.split(',').map((ingredient, index) => (
-                  <View key={index} className="flex-row items-center mb-2">
-                    <View className="w-2 h-2 rounded-full bg-green-500 mr-3" />
-                    <Text className="text-gray-300 text-sm font-sora flex-1">
-                      {ingredient.trim()}
-                    </Text>
-                  </View>
-                ))}
-              </View>
+              <Text className="text-gray-300 text-sm font-sora leading-6">
+                {ingredients}
+              </Text>
             ) : (
               <Text className="text-gray-400 text-sm font-sora text-center">
                 No ingredients available

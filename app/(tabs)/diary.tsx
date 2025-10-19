@@ -140,7 +140,6 @@ export default function DiaryPage() {
     }
   };
 
-
   // Toggle meal section
   const toggleMealSection = (mealKey: string) => {
     setExpandedMeals(prev => {
@@ -170,7 +169,6 @@ export default function DiaryPage() {
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   };
 
-
   // Calculate totals for entries
   const calculateTotals = (entries: FoodEntry[]) => {
     return entries.reduce((acc, entry) => ({
@@ -188,6 +186,41 @@ export default function DiaryPage() {
       }
     }, [user, selectedDate])
   );
+
+  // Show login prompt if user is not authenticated
+  if (!user) {
+    return (
+      <BackgroundTemplate>
+        <View className="flex-1 justify-center items-center p-6">
+          <View className="bg-gray-800 rounded-2xl p-8 items-center max-w-sm">
+            <Ionicons name="lock-closed-outline" size={64} color="#CFB991" />
+            <Text className="text-2xl font-sora-bold text-white text-center mt-4 mb-2">
+              Login Required
+            </Text>
+            <Text className="text-gray-400 text-center mb-6 font-sora">
+              You need to be logged in to view your food diary and track your nutrition.
+            </Text>
+            <TouchableOpacity
+              onPress={() => router.push("/signin")}
+              className="bg-purdueGold rounded-xl px-6 py-3 w-full"
+            >
+              <Text className="text-black font-sora-semibold text-center">
+                Sign In
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push("/signup")}
+              className="mt-3"
+            >
+              <Text className="text-purdueGold font-sora text-center">
+                Don't have an account? Sign up
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </BackgroundTemplate>
+    );
+  }
 
   return (
     <BackgroundTemplate>

@@ -158,7 +158,8 @@ export default function EditFoodEntryPage() {
         return;
       }
 
-      router.back()
+      // Navigate to diary page to reload the data
+      router.push("/(tabs)/diary");
     } catch (error) {
       Alert.alert("Error", "Failed to update food entry. Please try again.");
       console.error("Update food entry error:", error);
@@ -184,7 +185,8 @@ export default function EditFoodEntryPage() {
                 console.error("Remove food entry error:", error);
                 return;
               }
-              router.back();
+              // Navigate to diary page to reload the data
+              router.push("/(tabs)/diary");
             } catch (error) {
               Alert.alert("Error", "Failed to remove food entry. Please try again.");
               console.error("Remove food entry error:", error);

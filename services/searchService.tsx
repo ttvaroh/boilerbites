@@ -1,438 +1,356 @@
-// services/searchService.ts
-import { supabase } from '../lib/supabase'; // Your supabase client
+// dateSearchService.ts
+import { supabase } from '../lib/supabase';
 
-export interface SearchFilters {
-  timeOfDay: string;
-  diningHalls: string[];
-  dietaryPreferences: {
-    vegetarian: boolean;
-    vegan: boolean;
-    glutenFree: boolean;
-  };
-  excludeAllergens: string[];
-  mealAvailabilityOnly: boolean;
-}
-
-export interface MenuItem {
+export interface DayMenuItem {
   id: string;
   name: string;
-  vegetarian?: boolean;
-  vegan?: boolean;
-  gluten?: boolean;
-  allergens?: string[];
-  serving_size?: string;
-  calories?: number;
-  protein_g?: number;
-  carbs_g?: number;
-  fat_g?: number;
-  fiber_g?: number;
-  sugar_g?: number;
-  sodium_mg?: number;
-  protein_per_100cals?: number;
-  ingredients?: string;
-  last_verified?: string;
-  // Additional fields from joins
-  location_name?: string;
-  meal_name?: string;
-  station_name?: string;
-  // Support for multiple meals
-  meals?: string[];
+  serving_size: string | null;
+  calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  fiber_g: number | null;
+  sugar_g: number | null;
+  sodium_mg: number | null;
+  vegetarian: boolean | null;
+  vegan: boolean | null;
+  gluten: boolean | null;
+  allergens: string[];
+  ingredients: string | null;
+  protein_per_100cals: number | null;
+  is_collection: boolean | null;
+  // Additional context from the day menu
+  location_name: string;
+  meal_name: string;
+  station_name: string;
+  serve_date: string;
+  meal_start_time: string | null;
+  meal_end_time: string | null;
+  meal_is_open: boolean;
 }
 
-export interface SearchOptions {
-  sortBy?: 'calories' | 'protein_g' | 'protein/calorie' | 'carbs_g' | 'fat_g' | 'name';
+export interface DateSearchFilters {
+  locations?: string[]; // Filter by dining halls
+  meals?: string[]; // Filter by meal names (e.g., "Breakfast", "Lunch", "Dinner")
+  dietaryPreferences?: {
+    vegetarian?: boolean;
+    vegan?: boolean;
+    glutenFree?: boolean;
+  };
+  excludeAllergens?: string[];
+  searchQuery?: string; // Text search within item names
+}
+
+export interface DateSearchOptions {
+  sortBy?: 'name' | 'calories' | 'protein_g' | 'carbs_g' | 'fat_g' | 'protein_per_100cals';
   sortOrder?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
 }
 
-class SearchService {
-  private requestCache = new Map<string, { data: MenuItem[]; count: number; timestamp: number }>();
-  private activeRequests = new Map<string, AbortController>();
-  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+export interface DateSearchResult {
+  data: DayMenuItem[];
+  count: number;
+  error: any | null;
+}
 
+class DateSearchService {
   /**
-   * Main search function that builds efficient PostgreSQL queries
+   * Search menu items for a specific date
    */
-  async searchMenuItems(
-    query: string = '',
-    filters: SearchFilters,
-    options: SearchOptions = {}
-  ): Promise<{ data: MenuItem[]; count: number; error: any }> {
-    const {
-      sortBy = 'name',
-      sortOrder = 'asc',
-      limit = 50,
-      offset = 0
-    } = options;
-
-    // Create cache key
-    const cacheKey = this.createCacheKey(query, filters, options);
-    
-    // Check cache first
-    const cached = this.requestCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION) {
-      return { data: cached.data, count: cached.count, error: null };
-    }
-
-    // Cancel any existing request with the same cache key
-    const existingController = this.activeRequests.get(cacheKey);
-    if (existingController) {
-      existingController.abort();
-    }
-
-    // Create new abort controller for this request
-    const controller = new AbortController();
-    this.activeRequests.set(cacheKey, controller);
-
+  async searchMenuItemsByDate(
+    date: Date | string,
+    filters: DateSearchFilters = {},
+    options: DateSearchOptions = {}
+  ): Promise<DateSearchResult> {
     try {
-      // Start with base query - join all necessary tables
-      let queryBuilder = supabase
-        .from('item')
+      // Format date to YYYY-MM-DD
+      const formattedDate = typeof date === 'string' 
+        ? date 
+        : date.toISOString().split('T')[0];
+
+      // Start building the query
+      let query = supabase
+        .from('day_menu')
         .select(`
-          *,
-          day_station_item!inner(
-            day_station!inner(
+          id,
+          serve_date,
+          location_name,
+          day_meal!inner (
+            id,
+            meal_name,
+            meal_order,
+            open,
+            start_time,
+            end_time,
+            day_station!inner (
+              id,
               name,
-              day_meal!inner(
-                meal_name,
-                open,
-                start_time,
-                end_time,
-                day_menu!inner(
-                  location_name,
-                  serve_date,
-                  is_published
+              display_order,
+              day_station_item!inner (
+                id,
+                item!inner (
+                  id,
+                  name,
+                  serving_size,
+                  calories,
+                  protein_g,
+                  carbs_g,
+                  fat_g,
+                  fiber_g,
+                  sugar_g,
+                  sodium_mg,
+                  vegetarian,
+                  vegan,
+                  gluten,
+                  allergens,
+                  ingredients,
+                  protein_per_100cals,
+                  is_collection
                 )
               )
             )
           )
-        `, { count: 'exact' });
+        `)
+        .eq('serve_date', formattedDate)
+        .eq('is_published', true);
 
-      // Always filter by today's date
-      const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      queryBuilder = queryBuilder
-        .eq('day_station_item.day_station.day_meal.day_menu.serve_date', today)
-        .eq('day_station_item.day_station.day_meal.day_menu.is_published', true);
-
-      // Apply text search on item name (case-insensitive, partial match)
-      if (query.trim()) {
-        queryBuilder = queryBuilder.ilike('name', `%${query.trim()}%`);
+      // Apply location filters
+      if (filters.locations && filters.locations.length > 0) {
+        query = query.in('location_name', filters.locations);
       }
 
-      // Apply dietary preference filters
-      if (filters.dietaryPreferences.vegetarian) {
-        queryBuilder = queryBuilder.eq('vegetarian', true);
-      }
-      if (filters.dietaryPreferences.vegan) {
-        queryBuilder = queryBuilder.eq('vegan', true);
-      }
-      if (filters.dietaryPreferences.glutenFree) {
-        queryBuilder = queryBuilder.eq('gluten', false);
-      }
-
-      // Exclude allergens - PostgreSQL array operations
-      if (filters.excludeAllergens.length > 0) {
-        // Use PostgreSQL array overlap operator to exclude items that contain any of the specified allergens
-        // For each allergen to exclude, we want items where allergens array does NOT contain that allergen
-        
-        // Apply exclusion for each allergen individually
-        filters.excludeAllergens.forEach(allergen => {
-          queryBuilder = queryBuilder.not('allergens', 'cs', `{${allergen}}`);
-        });
-      }
-
-      // Filter by dining halls
-      if (filters.diningHalls.length > 0) {
-        queryBuilder = queryBuilder.in('day_station_item.day_station.day_meal.day_menu.location_name', filters.diningHalls);
-      }
-
-      // Filter by time of day (meal type)
-      if (filters.timeOfDay !== 'All') {
-        queryBuilder = queryBuilder.eq('day_station_item.day_station.day_meal.meal_name', filters.timeOfDay);
-      }
-
-      // Filter for meal availability only (additional time-based filtering)
-      if (filters.mealAvailabilityOnly) {
-        queryBuilder = queryBuilder.eq('day_station_item.day_station.day_meal.open', true);
-      }
-
-      // Apply sorting
-      const sortColumn = this.getSortColumn(sortBy);
-      queryBuilder = queryBuilder.order(sortColumn, { 
-        ascending: sortOrder === 'asc',
-        nullsFirst: false 
-      });
-
-      // Apply pagination
-      queryBuilder = queryBuilder.range(offset, offset + limit - 1);
-
-      const { data, error, count } = await queryBuilder;
+      // Execute the query
+      const { data, error } = await query;
 
       if (error) {
-        console.error('Search error:', error);
-        console.error('Error details:', JSON.stringify(error, null, 2));
+        console.error('Date search error:', error);
         return { data: [], count: 0, error };
       }
 
-      // Transform the nested data structure
-      const transformedData = this.transformSearchResults(data || []);
+      if (!data || data.length === 0) {
+        return { data: [], count: 0, error: null };
+      }
+
+      // Flatten the nested structure into an array of menu items
+      const items: DayMenuItem[] = [];
       
-      // Cache the results
-      this.requestCache.set(cacheKey, {
-        data: transformedData,
-        count: count || 0,
-        timestamp: Date.now()
-      });
+      for (const dayMenu of data) {
+        for (const dayMeal of dayMenu.day_meal) {
+          // Apply meal filter
+          if (filters.meals && filters.meals.length > 0) {
+            if (!filters.meals.includes(dayMeal.meal_name)) {
+              continue;
+            }
+          }
 
-      return {
-        data: transformedData,
-        count: count || 0,
-        error: null
-      };
+          for (const dayStation of dayMeal.day_station) {
+            for (const stationItem of dayStation.day_station_item) {
+              const item = stationItem.item as any;
 
-    } catch (error) {
-      console.error('Search service error:', error);
-      return { data: [], count: 0, error };
-    } finally {
-      // Clean up the abort controller
-      this.activeRequests.delete(cacheKey);
-    }
-  }
+              // Apply dietary preference filters
+              if (filters.dietaryPreferences) {
+                if (filters.dietaryPreferences.vegetarian && !item.vegetarian) {
+                  continue;
+                }
+                if (filters.dietaryPreferences.vegan && !item.vegan) {
+                  continue;
+                }
+                if (filters.dietaryPreferences.glutenFree && item.gluten) {
+                  continue;
+                }
+              }
 
-  /**
-   * Create a cache key for the search parameters
-   */
-  private createCacheKey(query: string, filters: SearchFilters, options: SearchOptions): string {
-    return JSON.stringify({
-      query: query.trim(),
-      filters,
-      options: {
-        sortBy: options.sortBy || 'name',
-        sortOrder: options.sortOrder || 'asc',
-        limit: options.limit || 50,
-        offset: options.offset || 0
-      }
-    });
-  }
+              // Apply allergen exclusions
+              if (filters.excludeAllergens && filters.excludeAllergens.length > 0) {
+                const hasExcludedAllergen = item.allergens?.some((allergen: string) =>
+                  filters.excludeAllergens!.includes(allergen)
+                );
+                if (hasExcludedAllergen) {
+                  continue;
+                }
+              }
 
-  /**
-   * Clear the request cache
-   */
-  clearCache(): void {
-    this.requestCache.clear();
-  }
+              // Apply text search filter
+              if (filters.searchQuery && filters.searchQuery.trim()) {
+                const searchLower = filters.searchQuery.toLowerCase();
+                if (!item.name.toLowerCase().includes(searchLower)) {
+                  continue;
+                }
+              }
 
-  /**
-   * Cancel all active requests
-   */
-  cancelAllRequests(): void {
-    this.activeRequests.forEach(controller => controller.abort());
-    this.activeRequests.clear();
-  }
-
-  /**
-   * Get currently available items (faster query for "what's open now")
-   */
-  async getCurrentlyAvailableItems(
-    query: string = '',
-    sortBy: string = 'name',
-    sortOrder: 'asc' | 'desc' = 'asc'
-  ): Promise<{ data: MenuItem[]; error: any }> {
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const currentTime = now.toTimeString().split(' ')[0]; // HH:MM:SS format
-
-    try {
-      let queryBuilder = supabase
-        .from('item')
-        .select(`
-          *,
-          day_station_item!inner(
-            day_station!inner(
-              name,
-              day_meal!inner(
-                meal_name,
-                open,
-                start_time,
-                end_time,
-                day_menu!inner(
-                  location_name,
-                  serve_date,
-                  is_published
-                )
-              )
-            )
-          )
-        `)
-        .eq('day_station_item.day_station.day_meal.day_menu.serve_date', today)
-        .eq('day_station_item.day_station.day_meal.day_menu.is_published', true)
-        .eq('day_station_item.day_station.day_meal.open', true)
-        .lte('day_station_item.day_station.day_meal.start_time', currentTime)
-        .gte('day_station_item.day_station.day_meal.end_time', currentTime);
-
-      if (query.trim()) {
-        queryBuilder = queryBuilder.ilike('name', `%${query.trim()}%`);
+              // Add the flattened item
+              items.push({
+                id: item.id,
+                name: item.name,
+                serving_size: item.serving_size,
+                calories: item.calories,
+                protein_g: item.protein_g,
+                carbs_g: item.carbs_g,
+                fat_g: item.fat_g,
+                fiber_g: item.fiber_g,
+                sugar_g: item.sugar_g,
+                sodium_mg: item.sodium_mg,
+                vegetarian: item.vegetarian,
+                vegan: item.vegan,
+                gluten: item.gluten,
+                allergens: item.allergens || [],
+                ingredients: item.ingredients,
+                protein_per_100cals: item.protein_per_100cals,
+                is_collection: item.is_collection,
+                location_name: dayMenu.location_name,
+                meal_name: dayMeal.meal_name,
+                station_name: dayStation.name,
+                serve_date: dayMenu.serve_date,
+                meal_start_time: dayMeal.start_time,
+                meal_end_time: dayMeal.end_time,
+                meal_is_open: dayMeal.open,
+              });
+            }
+          }
+        }
       }
 
-      const sortColumn = this.getSortColumn(sortBy);
-      queryBuilder = queryBuilder.order(sortColumn, { 
-        ascending: sortOrder === 'asc',
-        nullsFirst: false 
+      // Apply sorting
+      const sortBy = options.sortBy || 'name';
+      const sortOrder = options.sortOrder || 'asc';
+
+      items.sort((a, b) => {
+        let aVal: any = a[sortBy];
+        let bVal: any = b[sortBy];
+
+        // Handle null values
+        if (aVal === null || aVal === undefined) aVal = sortOrder === 'asc' ? Infinity : -Infinity;
+        if (bVal === null || bVal === undefined) bVal = sortOrder === 'asc' ? Infinity : -Infinity;
+
+        // Handle string comparison
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+          return sortOrder === 'asc' 
+            ? aVal.localeCompare(bVal)
+            : bVal.localeCompare(aVal);
+        }
+
+        // Handle numeric comparison
+        return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
       });
 
-      const { data, error } = await queryBuilder;
+      // Apply pagination
+      const totalCount = items.length;
+      const limit = options.limit || totalCount;
+      const offset = options.offset || 0;
+      const paginatedItems = items.slice(offset, offset + limit);
 
       return {
-        data: this.transformSearchResults(data || []),
-        error
+        data: paginatedItems,
+        count: totalCount,
+        error: null,
       };
-
-    } catch (error) {
-      console.error('Currently available items error:', error);
-      return { data: [], error };
+    } catch (err) {
+      console.error('Date search service error:', err);
+      return {
+        data: [],
+        count: 0,
+        error: err,
+      };
     }
   }
 
   /**
-   * Get popular/trending items (based on frequency in menus)
+   * Get available locations for a specific date
    */
-  async getPopularItems(limit: number = 20): Promise<{ data: MenuItem[]; error: any }> {
+  async getAvailableLocations(date: Date | string): Promise<string[]> {
     try {
-      // This query gets items that appear most frequently across different meals
+      const formattedDate = typeof date === 'string' 
+        ? date 
+        : date.toISOString().split('T')[0];
+
       const { data, error } = await supabase
-        .from('item')
-        .select(`
-          *,
-          day_station_item(count)
-        `)
-        .order('day_station_item.count', { ascending: false })
-        .limit(limit);
+        .from('day_menu')
+        .select('location_name')
+        .eq('serve_date', formattedDate)
+        .eq('is_published', true);
 
-      return {
-        data: data || [],
-        error
-      };
-
-    } catch (error) {
-      console.error('Popular items error:', error);
-      return { data: [], error };
-    }
-  }
-
-  /**
-   * Search suggestions/autocomplete
-   */
-  async getSearchSuggestions(query: string, limit: number = 10): Promise<string[]> {
-    if (!query.trim() || query.length < 2) return [];
-
-    try {
-      const { data, error } = await supabase
-        .from('item')
-        .select('name')
-        .ilike('name', `%${query.trim()}%`)
-        .limit(limit);
-
-      if (error) {
-        console.error('Search suggestions error:', error);
+      if (error || !data) {
+        console.error('Error fetching locations:', error);
         return [];
       }
 
-      return (data || []).map(item => item.name);
-
-    } catch (error) {
-      console.error('Search suggestions error:', error);
+      // Return unique location names
+      return [...new Set(data.map((item: any) => item.location_name))];
+    } catch (err) {
+      console.error('Error in getAvailableLocations:', err);
       return [];
     }
   }
 
   /**
-   * Helper method to map sort options to database columns
+   * Get available meals for a specific date (and optionally location)
    */
-  private getSortColumn(sortBy: string): string {
-    const sortMapping: Record<string, string> = {
-      'calories': 'calories',
-      'protein': 'protein_g',
-      'protein_g': 'protein_g',
-      'protein/calorie': 'protein_per_100cals',
-      'carbs': 'carbs_g',
-      'carbs_g': 'carbs_g',
-      'fat': 'fat_g',
-      'fat_g': 'fat_g',
-      'name': 'name'
-    };
+  async getAvailableMeals(
+    date: Date | string, 
+    location?: string
+  ): Promise<string[]> {
+    try {
+      const formattedDate = typeof date === 'string' 
+        ? date 
+        : date.toISOString().split('T')[0];
 
-    return sortMapping[sortBy.toLowerCase()] || 'name';
+      let query = supabase
+        .from('day_menu')
+        .select('day_meal(meal_name)')
+        .eq('serve_date', formattedDate)
+        .eq('is_published', true);
+
+      if (location) {
+        query = query.eq('location_name', location);
+      }
+
+      const { data, error } = await query;
+
+      if (error || !data) {
+        console.error('Error fetching meals:', error);
+        return [];
+      }
+
+      // Extract unique meal names
+      const mealNames = new Set<string>();
+      for (const menu of data) {
+        if (menu.day_meal) {
+          for (const meal of menu.day_meal) {
+            mealNames.add(meal.meal_name);
+          }
+        }
+      }
+
+      return Array.from(mealNames);
+    } catch (err) {
+      console.error('Error in getAvailableMeals:', err);
+      return [];
+    }
   }
 
   /**
-   * Transform nested query results into flat MenuItem objects
+   * Check if a specific date has published menus
    */
-  private transformSearchResults(data: any[]): MenuItem[] {
-    return data.map(item => {
-      // Extract nested data from joins
-      const stationItem = item.day_station_item?.[0];
-      const station = stationItem?.day_station;
-      const meal = station?.day_meal;
-      const menu = meal?.day_menu;
+  async hasPublishedMenus(date: Date | string): Promise<boolean> {
+    try {
+      const formattedDate = typeof date === 'string' 
+        ? date 
+        : date.toISOString().split('T')[0];
 
-      // Collect all unique meals for this item
-      const allMeals = new Set<string>();
-      if (item.day_station_item) {
-        item.day_station_item.forEach((stationItem: any) => {
-          const mealName = stationItem?.day_station?.day_meal?.meal_name;
-          if (mealName) {
-            allMeals.add(mealName);
-          }
-        });
-      }
+      const { data, error } = await supabase
+        .from('day_menu')
+        .select('id')
+        .eq('serve_date', formattedDate)
+        .eq('is_published', true)
+        .limit(1);
 
-      // Sort meals in the correct order: Breakfast, Lunch, Late Lunch, Dinner
-      const mealOrder = ['Breakfast', 'Lunch', 'Late Lunch', 'Dinner'];
-      const sortedMeals = Array.from(allMeals).sort((a, b) => {
-        const aIndex = mealOrder.indexOf(a);
-        const bIndex = mealOrder.indexOf(b);
-        
-        // If both meals are in the predefined order, sort by that order
-        if (aIndex !== -1 && bIndex !== -1) {
-          return aIndex - bIndex;
-        }
-        
-        // If only one meal is in the predefined order, prioritize it
-        if (aIndex !== -1) return -1;
-        if (bIndex !== -1) return 1;
-        
-        // If neither meal is in the predefined order, sort alphabetically
-        return a.localeCompare(b);
-      });
-
-      return {
-        id: item.id,
-        name: item.name,
-        vegetarian: item.vegetarian,
-        vegan: item.vegan,
-        gluten: item.gluten,
-        allergens: item.allergens || [],
-        serving_size: item.serving_size,
-        calories: item.calories,
-        protein_g: item.protein_g,
-        carbs_g: item.carbs_g,
-        fat_g: item.fat_g,
-        fiber_g: item.fiber_g,
-        sugar_g: item.sugar_g,
-        sodium_mg: item.sodium_mg,
-        protein_per_100cals: item.protein_per_100cals,
-        last_verified: item.last_verified,
-        // Additional context from joins
-        location_name: menu?.location_name,
-        meal_name: meal?.meal_name,
-        station_name: station?.name,
-        // All meals this item is available for (sorted in correct order)
-        meals: sortedMeals,
-      };
-    });
+      return !error && data && data.length > 0;
+    } catch (err) {
+      console.error('Error in hasPublishedMenus:', err);
+      return false;
+    }
   }
 }
 
-export const searchService = new SearchService();
+export const dateSearchService = new DateSearchService();
