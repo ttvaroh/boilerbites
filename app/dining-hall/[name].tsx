@@ -11,13 +11,13 @@ import BackgroundTemplate from "../../components/BackgroundTemplate";
 import MenuItemCard from "../../components/MenuItemCard";
 import { useMenuData } from "../../lib/MenuDataContext";
 import { supabase } from "../../lib/supabase";
-import { getCurrentTimeInEST } from "../../lib/timezone-utils";
+import { getCurrentTimeInEST, getDateStringFromToday, getTodayDateString } from "../../lib/timezone-utils";
 
-interface DiningHallMenu {
-  locationName: string;
-  menuId: string;
-  isPublished: boolean;
-  meals: Meal[];
+interface MealsByDate {
+  breakfast?: Meal;
+  lunch?: Meal;
+  lateLunch?: Meal;  // Only for Windsor
+  dinner?: Meal;
 }
 
 interface MenuItem {
@@ -65,107 +65,186 @@ export default function DiningHallPage() {
   const { name } = useLocalSearchParams<{ name: string }>();
   const router = useRouter();
   const {
-    getMenuForLocation,
-    isLocationLoading,
-    isMenuReady,
+    getMenuForDate,
+    switchLocation,
+    isDateLoading,
+    isDateReady,
+    currentLocation,
     loading: contextLoading,
     error: contextError,
   } = useMenuData();
 
-  const [currentMealIndex, setCurrentMealIndex] = useState(0);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [locationMenu, setLocationMenu] = useState<DiningHallMenu | null>(null);
+  const [currentDate, setCurrentDate] = useState<string>(getTodayDateString());
+  const [currentMealType, setCurrentMealType] = useState<'breakfast' | 'lunch' | 'lateLunch' | 'dinner'>('breakfast');
+  const [menusByDate, setMenusByDate] = useState<Map<string, MealsByDate>>(new Map());
+  const [stationExpandState, setStationExpandState] = useState<Record<string, boolean>>({});
   const [menuLoading, setMenuLoading] = useState(false);
+  const [collectionStatus, setCollectionStatus] = useState<Record<string, boolean>>({});
 
-  // Convert menu data to local state format with expanded/collapsed state
-  const [meals, setMeals] = useState<LocalMeal[]>([]);
+  // Date range helper functions
+  const getDateRange = (): { minDate: string; maxDate: string } => {
+    return {
+      minDate: getDateStringFromToday(-5),
+      maxDate: getDateStringFromToday(5),
+    };
+  };
 
-  // Load menu data when component mounts or location changes
+  const isDateInRange = (dateStr: string): boolean => {
+    const { minDate, maxDate } = getDateRange();
+    return dateStr >= minDate && dateStr <= maxDate;
+  };
+
+  const addDaysToDate = (dateStr: string, days: number): string => {
+    const date = new Date(dateStr + 'T00:00:00');
+    date.setDate(date.getDate() + days);
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Meal navigation functions
+  const getMealOrder = (locationName: string): readonly string[] => {
+    return locationName === 'Windsor' 
+      ? ['breakfast', 'lunch', 'lateLunch', 'dinner']
+      : ['breakfast', 'lunch', 'dinner'];
+  };
+
+  const navigateMeal = async (direction: 'prev' | 'next') => {
+    const mealOrder = getMealOrder(name || '');
+    const currentIndex = mealOrder.indexOf(currentMealType);
+    
+    if (direction === 'next') {
+      if (currentIndex < mealOrder.length - 1) {
+        // Move to next meal same day
+        setCurrentMealType(mealOrder[currentIndex + 1] as any);
+      } else {
+        // Move to first meal of next day
+        const nextDate = addDaysToDate(currentDate, 1);
+        
+        if (isDateInRange(nextDate)) {
+          setCurrentDate(nextDate);
+          setCurrentMealType('breakfast');
+          // Load next date if not already loaded
+          if (!menusByDate.has(nextDate)) {
+            await loadMenuForDate(nextDate);
+          }
+        }
+      }
+    } else {
+      if (currentIndex > 0) {
+        // Move to previous meal same day
+        setCurrentMealType(mealOrder[currentIndex - 1] as any);
+      } else {
+        // Move to last meal of previous day
+        const prevDate = addDaysToDate(currentDate, -1);
+        
+        if (isDateInRange(prevDate)) {
+          setCurrentDate(prevDate);
+          const prevDayMealOrder = getMealOrder(name || '');
+          setCurrentMealType(prevDayMealOrder[prevDayMealOrder.length - 1] as any);
+          // Load previous date if not already loaded
+          if (!menusByDate.has(prevDate)) {
+            await loadMenuForDate(prevDate);
+          }
+        }
+      }
+    }
+  };
+
+  // Menu loading function
+  const loadMenuForDate = async (date: string) => {
+    if (!name) return;
+    
+    setMenuLoading(true);
+    try {
+      const mealsData = await getMenuForDate(name, date);
+      
+      if (mealsData) {
+        setMenusByDate(prev => new Map(prev).set(date, mealsData));
+        
+        // Collect all item IDs for collection status check
+        const itemIds: string[] = [];
+        Object.values(mealsData).forEach((meal: Meal | undefined) => {
+          if (meal) {
+            meal.stations.forEach((station: Station) => {
+              station.items.forEach((item: MenuItem) => itemIds.push(item.id));
+            });
+          }
+        });
+        
+        if (itemIds.length > 0) {
+          await checkCollectionStatusBatch(itemIds);
+        }
+      }
+    } catch (error) {
+      console.error(`Error loading menu for ${date}:`, error);
+    } finally {
+      setMenuLoading(false);
+    }
+  };
+
+  // Find current meal type based on time
+  const findCurrentMealType = (mealsData: MealsByDate, locationName: string): string => {
+    const { hours, minutes } = getCurrentTimeInEST();
+    const currentTime = hours * 60 + minutes;
+    
+    const mealOrder = getMealOrder(locationName);
+    
+    // Check each meal in order
+    for (const mealType of mealOrder) {
+      const meal = mealsData[mealType as keyof MealsByDate];
+      if (meal && meal.start_time && meal.end_time) {
+        const [startHour, startMin] = meal.start_time.split(':').map(Number);
+        const [endHour, endMin] = meal.end_time.split(':').map(Number);
+        const startTime = startHour * 60 + startMin;
+        const endTime = endHour * 60 + endMin;
+        
+        if (meal.open && currentTime >= startTime && currentTime <= endTime) {
+          return mealType;
+        }
+      }
+    }
+    
+    // Find next meal if not currently in service
+    for (const mealType of mealOrder) {
+      const meal = mealsData[mealType as keyof MealsByDate];
+      if (meal && meal.start_time) {
+        const [startHour, startMin] = meal.start_time.split(':').map(Number);
+        const startTime = startHour * 60 + startMin;
+        
+        if (meal.open && startTime > currentTime) {
+          return mealType;
+        }
+      }
+    }
+    
+    // Default to breakfast
+    return 'breakfast';
+  };
+
+  // Initialize menu data when component mounts or location changes
   React.useEffect(() => {
-    const loadMenuData = async () => {
+    const initializeMenu = async () => {
       if (!name) return;
       
-      setMenuLoading(true);
-      try {
-        const menu = await getMenuForLocation(name);
-        setLocationMenu(menu);
-        
-        if (menu) {
-          const mealsWithExpanded = menu.meals.map((meal): LocalMeal => ({
-            ...meal,
-            stations: meal.stations.map((station): LocalStation => ({
-              ...station,
-              isExpanded: true, // Start with all stations collapsed
-            })),
-          }));
-          
-          setMeals(mealsWithExpanded);
-          // Set to current meal based on time
-          setCurrentMealIndex(findCurrentMealIndex(mealsWithExpanded));
-          
-          // Check collection status for all items in batch
-          const allItemIds = mealsWithExpanded.flatMap(meal => 
-            meal.stations.flatMap(station => 
-              station.items.map(item => item.id)
-            )
-          );
-          checkCollectionStatusBatch(allItemIds);
-        }
-      } catch (error) {
-        console.error('Error loading menu data:', error);
-      } finally {
-        setMenuLoading(false);
-      }
-    };
-
-    loadMenuData();
-  }, [name, getMenuForLocation]);
-
-  // Watch for when menu becomes ready (from background loading)
-  React.useEffect(() => {
-    const checkMenuReady = async () => {
-      if (!name || locationMenu) return; // Don't reload if we already have menu data
+      // Switch location in context
+      await switchLocation(name);
       
-      if (isMenuReady(name)) {
-        try {
-          const menu = await getMenuForLocation(name);
-          if (menu) {
-            setLocationMenu(menu);
-            const mealsWithExpanded = menu.meals.map((meal): LocalMeal => ({
-              ...meal,
-              stations: meal.stations.map((station): LocalStation => ({
-                ...station,
-                isExpanded: false, // Start with all stations collapsed
-              })),
-            }));
-            
-            setMeals(mealsWithExpanded);
-            // Set to current meal based on time
-            setCurrentMealIndex(findCurrentMealIndex(mealsWithExpanded));
-            setMenuLoading(false);
-            
-            // Check collection status for all items in batch
-            const allItemIds = mealsWithExpanded.flatMap(meal => 
-              meal.stations.flatMap(station => 
-                station.items.map(item => item.id)
-              )
-            );
-            checkCollectionStatusBatch(allItemIds);
-          }
-        } catch (error) {
-          console.error('Error loading ready menu data:', error);
-        }
+      // Load today's menu
+      const today = getTodayDateString();
+      await loadMenuForDate(today);
+      
+      // Determine which meal to show
+      const todayMeals = menusByDate.get(today);
+      if (todayMeals) {
+        const mealType = findCurrentMealType(todayMeals, name);
+        setCurrentMealType(mealType as any);
       }
     };
-
-    // Check immediately
-    checkMenuReady();
-
-    // Set up interval to check periodically
-    const interval = setInterval(checkMenuReady, 500);
     
-    return () => clearInterval(interval);
-  }, [name, isMenuReady, getMenuForLocation, locationMenu]);
+    initializeMenu();
+  }, [name]);
 
   // Function to format time from HH:MM:SS to H AM/PM (removes :00 minutes)
   const formatTime = (timeString: string): string => {
@@ -227,15 +306,12 @@ export default function DiningHallPage() {
     return 0;
   };
 
-  const toggleStation = (mealIndex: number, stationIndex: number) => {
-    const updatedMeals = [...meals];
-    updatedMeals[mealIndex].stations[stationIndex].isExpanded =
-      !updatedMeals[mealIndex].stations[stationIndex].isExpanded;
-    setMeals(updatedMeals);
+  const toggleStation = (stationId: string) => {
+    setStationExpandState(prev => ({
+      ...prev,
+      [stationId]: !prev[stationId]
+    }));
   };
-
-  const [collectionStatus, setCollectionStatus] = useState<Record<string, boolean>>({});
-
 
   const checkCollectionStatusBatch = async (itemIds: string[]) => {
     try {
@@ -272,18 +348,26 @@ export default function DiningHallPage() {
     }
   };
 
-  const navigateMeal = (direction: "prev" | "next") => {
-    if (direction === "prev" && currentMealIndex > 0) {
-      setCurrentMealIndex(currentMealIndex - 1);
-    } else if (direction === "next" && currentMealIndex < meals.length - 1) {
-      setCurrentMealIndex(currentMealIndex + 1);
-    }
+  // Navigation boundary functions
+  const canNavigatePrev = () => {
+    if (currentMealType !== 'breakfast') return true;
+    const prevDate = addDaysToDate(currentDate, -1);
+    return isDateInRange(prevDate);
   };
 
-  const currentMeal = meals[currentMealIndex];
+  const canNavigateNext = () => {
+    const mealOrder = getMealOrder(name || '');
+    if (currentMealType !== mealOrder[mealOrder.length - 1]) return true;
+    const nextDate = addDaysToDate(currentDate, 1);
+    return isDateInRange(nextDate);
+  };
+
+  // Get current meal from date-based structure
+  const currentMeals = menusByDate.get(currentDate);
+  const currentMeal = currentMeals?.[currentMealType];
 
   // Show loading state while context is loading or menu is loading
-  if (contextLoading || menuLoading || isLocationLoading(name || "")) {
+  if (contextLoading || menuLoading || isDateLoading(currentDate)) {
     return (
       <BackgroundTemplate>
         <View className="flex-1">
@@ -338,7 +422,7 @@ export default function DiningHallPage() {
   }
 
   // Show no menu state if no data for this location
-  if (!locationMenu || !currentMeal) {
+  if (!currentMeal) {
     return (
       <BackgroundTemplate>
         <View className="flex-1">
@@ -387,25 +471,30 @@ export default function DiningHallPage() {
         <View className="flex-row items-center justify-between py-4 border-b border-gray-600">
           <TouchableOpacity
             onPress={() => navigateMeal("prev")}
-            disabled={currentMealIndex === 0}
-            className={`p-2 ${currentMealIndex === 0 ? "opacity-30" : ""}`}
+            disabled={!canNavigatePrev()}
+            className={`p-2 ${!canNavigatePrev() ? "opacity-30" : ""}`}
           >
             <Ionicons name="chevron-back" size={24} color="white" />
           </TouchableOpacity>
 
           <View className="flex-1 items-center">
             <Text className="text-white text-lg font-sora-bold">
-              {currentMeal.name}
+              {currentMeal ? currentMeal.name : 'No Menu Available'}
             </Text>
-            <Text className="text-gray-300 text-sm font-sora">
-              {formatMealTime(currentMeal.start_time, currentMeal.end_time)}
+            {currentMeal && (
+              <Text className="text-gray-300 text-sm font-sora">
+                {formatMealTime(currentMeal.start_time, currentMeal.end_time)}
+              </Text>
+            )}
+            <Text className="text-gray-400 text-xs font-sora mt-1">
+              {new Date(currentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </Text>
           </View>
 
           <TouchableOpacity
             onPress={() => navigateMeal("next")}
-            disabled={currentMealIndex === meals.length - 1}
-            className={`p-2 ${currentMealIndex === meals.length - 1 ? "opacity-30" : ""}`}
+            disabled={!canNavigateNext()}
+            className={`p-2 ${!canNavigateNext() ? "opacity-30" : ""}`}
           >
             <Ionicons name="chevron-forward" size={24} color="white" />
           </TouchableOpacity>
@@ -417,56 +506,64 @@ export default function DiningHallPage() {
             Stations
           </Text>
 
-          {currentMeal.stations.map((station, stationIndex) => (
-            <View key={station.id}>
-              {/* Station Header */}
-              <TouchableOpacity
-                onPress={() => toggleStation(currentMealIndex, stationIndex)}
-                className="flex-row items-center justify-between py-3 px-4 bg-gray-800 rounded-lg mb-2"
-                style={{
-                  borderWidth: 1,
-                  borderColor: "rgba(207, 185, 145, 0.2)",
-                }}
-              >
-                <View className="flex-row items-center flex-1">
-                  <Text className="text-white text-base font-sora-bold flex-1">
-                    {station.name}
-                  </Text>
+          {currentMeal && currentMeal.stations.length > 0 ? (
+            currentMeal.stations.map((station, stationIndex) => (
+              <View key={station.id}>
+                {/* Station Header */}
+                <TouchableOpacity
+                  onPress={() => toggleStation(station.id)}
+                  className="flex-row items-center justify-between py-3 px-4 bg-gray-800 rounded-lg mb-2"
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "rgba(207, 185, 145, 0.2)",
+                  }}
+                >
+                  <View className="flex-row items-center flex-1">
+                    <Text className="text-white text-base font-sora-bold flex-1">
+                      {station.name}
+                    </Text>
+                    <Ionicons
+                      name="restaurant"
+                      size={20}
+                      color="#CFB991"
+                      style={{ marginRight: 8 }}
+                    />
+                  </View>
                   <Ionicons
-                    name="restaurant"
+                    name={stationExpandState[station.id] ? "chevron-down" : "chevron-forward"}
                     size={20}
                     color="#CFB991"
-                    style={{ marginRight: 8 }}
                   />
-                </View>
-                <Ionicons
-                  name={station.isExpanded ? "chevron-down" : "chevron-forward"}
-                  size={20}
-                  color="#CFB991"
-                />
-              </TouchableOpacity>
+                </TouchableOpacity>
 
-              {/* Station Items */}
-              {station.isExpanded && (
-                <View className="ml-2 mb-2">
-                  {station.items.map((item) => {
-                    const isCollection = collectionStatus[item.id] || false;
-                    return (
-                      <TouchableOpacity
-                        key={item.id}
-                        onPress={() => handleMenuItemPress(item)}
-                      >
-                        <MenuItemCard 
-                          item={item} 
-                          isCollection={isCollection}
-                        />
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
+                {/* Station Items */}
+                {stationExpandState[station.id] && (
+                  <View className="ml-2 mb-2">
+                    {station.items.map((item) => {
+                      const isCollection = collectionStatus[item.id] || false;
+                      return (
+                        <TouchableOpacity
+                          key={item.id}
+                          onPress={() => handleMenuItemPress(item)}
+                        >
+                          <MenuItemCard 
+                            item={item} 
+                            isCollection={isCollection}
+                          />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            ))
+          ) : (
+            <View className="py-8 items-center">
+              <Text className="text-gray-400 text-base font-sora">
+                No meals will be served
+              </Text>
             </View>
-          ))}
+          )}
         </View>
       </ScrollView>
       </View>

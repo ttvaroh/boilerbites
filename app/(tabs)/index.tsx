@@ -7,11 +7,11 @@ import { useMenuData } from "../../lib/MenuDataContext";
 import { getCurrentTimeInEST } from "../../lib/timezone-utils";
 
 import {
-  earhartLogo,
-  fordLogo,
-  hillenbrandLogo,
-  wileyLogo,
-  windsorLogo,
+    earhartLogo,
+    fordLogo,
+    hillenbrandLogo,
+    wileyLogo,
+    windsorLogo,
 } from "../../assets/images/logos/logos";
 
 interface MealHours {
@@ -114,10 +114,9 @@ export default function HomePage() {
       // Use real meal hours if menu data is available, otherwise use placeholders
       let mealHours: MealHours[];
       
-      const menu = menuData.get(location.name);
-      if (menu && menu.meals.length > 0) {
+      if (location.meals && location.meals.length > 0) {
         // Use real meal hours from loaded menu data
-        mealHours = menu.meals.map((meal) => ({
+        mealHours = location.meals.map((meal) => ({
           meal_name: meal.name,
           start_time: meal.start_time,
           end_time: meal.end_time,
@@ -161,7 +160,7 @@ export default function HomePage() {
         mealHours: mealHours,
       };
     });
-  }, [locations, menuData]);
+  }, [locations]);
 
   const fetchDiningHalls = async () => {
     try {
