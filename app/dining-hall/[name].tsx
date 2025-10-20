@@ -459,6 +459,17 @@ export default function DiningHallPage() {
   const currentMeals = menusByDate.get(currentDate);
   const currentMeal = currentMeals?.[currentMealType];
 
+  // Get meal display info (actual data or defaults)
+  const mealDisplayInfo = currentMeal ? {
+    name: currentMeal.name,
+    startTime: currentMeal.start_time,
+    endTime: currentMeal.end_time
+  } : {
+    name: currentMealType.charAt(0).toUpperCase() + currentMealType.slice(1).replace(/([A-Z])/g, ' $1'),
+    startTime: '-',
+    endTime: '-'
+  };
+
   // Show loading state while context is loading or menu is loading
   if (contextLoading || menuLoading || isDateLoading(currentDate)) {
     return (
@@ -514,31 +525,8 @@ export default function DiningHallPage() {
     );
   }
 
-  // Show no menu state if no data for this location
-  if (!currentMeal) {
-    return (
-      <BackgroundTemplate>
-        <View className="flex-1">
-          <View className="bg-purdueBlack-200 pt-12 pb-6 px-6">
-            <View className="flex-row items-center justify-between">
-              <TouchableOpacity
-                onPress={() => router.back()}
-                className="flex-row items-center"
-              >
-                <Ionicons name="arrow-back" size={24} color="white" />
-                <Text className="text-white text-lg font-sora ml-2">Back</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <View className="flex-1 justify-center items-center">
-            <Text className="text-white text-lg font-sora text-center">
-              No menu available for {name} today.
-            </Text>
-          </View>
-        </View>
-      </BackgroundTemplate>
-    );
-  }
+  // Remove early return for no menu data
+  // Allow navigation even when no current meal data exists
 
   return (
     <BackgroundTemplate>
@@ -572,13 +560,11 @@ export default function DiningHallPage() {
 
           <View className="flex-1 items-center">
             <Text className="text-white text-lg font-sora-bold">
-              {currentMeal ? currentMeal.name : 'No Menu Available'}
+              {mealDisplayInfo.name}
             </Text>
-            {currentMeal && (
-              <Text className="text-gray-300 text-sm font-sora">
-                {formatMealTime(currentMeal.start_time, currentMeal.end_time)}
-              </Text>
-            )}
+            <Text className="text-gray-300 text-sm font-sora">
+              {mealDisplayInfo.startTime === '-' ? '-' : formatMealTime(mealDisplayInfo.startTime, mealDisplayInfo.endTime)}
+            </Text>
             <Text className="text-gray-400 text-xs font-sora mt-1">
               {new Date(currentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </Text>
@@ -653,7 +639,7 @@ export default function DiningHallPage() {
           ) : (
             <View className="py-8 items-center">
               <Text className="text-gray-400 text-base font-sora">
-                No meals will be served
+                No {mealDisplayInfo.name.toLowerCase()} will be served
               </Text>
             </View>
           )}
