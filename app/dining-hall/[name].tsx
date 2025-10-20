@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ScrollView,
   Text,
@@ -66,6 +66,8 @@ export default function DiningHallPage() {
   const router = useRouter();
   const {
     getMenuForDate,
+    getMealBasicInfo,
+    getMealDetailedData,
     switchLocation,
     isDateLoading,
     isDateReady,
@@ -80,12 +82,15 @@ export default function DiningHallPage() {
   const [stationExpandState, setStationExpandState] = useState<Record<string, boolean>>({});
   const [menuLoading, setMenuLoading] = useState(false);
   const [collectionStatus, setCollectionStatus] = useState<Record<string, boolean>>({});
+  
+  // Track last processed location to avoid unnecessary re-initialization
+  const lastProcessedLocation = useRef<string | null>(null);
 
   // Date range helper functions
   const getDateRange = (): { minDate: string; maxDate: string } => {
     return {
-      minDate: getDateStringFromToday(-5),
-      maxDate: getDateStringFromToday(5),
+      minDate: getDateStringFromToday(-6),
+      maxDate: getDateStringFromToday(6),
     };
   };
 
@@ -117,70 +122,118 @@ export default function DiningHallPage() {
     if (direction === 'next') {
       if (currentIndex < mealOrder.length - 1) {
         // Move to next meal same day
-        setCurrentMealType(mealOrder[currentIndex + 1] as any);
+        const nextMealType = mealOrder[currentIndex + 1] as any;
+        setCurrentMealType(nextMealType);
+        // Load detailed data for the new meal
+        await loadDetailedMealData(currentDate, nextMealType);
       } else {
         // Move to first meal of next day
         const nextDate = addDaysToDate(currentDate, 1);
         
         if (isDateInRange(nextDate)) {
+          // Set both date and meal type together to avoid race conditions
           setCurrentDate(nextDate);
           setCurrentMealType('breakfast');
+          
           // Load next date if not already loaded
           if (!menusByDate.has(nextDate)) {
             await loadMenuForDate(nextDate);
+          } else {
+            // Load detailed data for breakfast on the new date
+            await loadDetailedMealData(nextDate, 'breakfast');
           }
         }
       }
     } else {
       if (currentIndex > 0) {
         // Move to previous meal same day
-        setCurrentMealType(mealOrder[currentIndex - 1] as any);
+        const prevMealType = mealOrder[currentIndex - 1] as any;
+        setCurrentMealType(prevMealType);
+        // Load detailed data for the new meal
+        await loadDetailedMealData(currentDate, prevMealType);
       } else {
         // Move to last meal of previous day
         const prevDate = addDaysToDate(currentDate, -1);
         
         if (isDateInRange(prevDate)) {
-          setCurrentDate(prevDate);
           const prevDayMealOrder = getMealOrder(name || '');
-          setCurrentMealType(prevDayMealOrder[prevDayMealOrder.length - 1] as any);
+          const lastMealType = prevDayMealOrder[prevDayMealOrder.length - 1] as any;
+          
+          // Set both date and meal type together to avoid race conditions
+          setCurrentDate(prevDate);
+          setCurrentMealType(lastMealType);
+          
           // Load previous date if not already loaded
           if (!menusByDate.has(prevDate)) {
             await loadMenuForDate(prevDate);
+          } else {
+            // Load detailed data for the last meal on the previous date
+            await loadDetailedMealData(prevDate, lastMealType);
           }
         }
       }
     }
   };
 
-  // Menu loading function
+  // Progressive loading: Load basic info first, then detailed data on demand
   const loadMenuForDate = async (date: string) => {
     if (!name) return;
     
     setMenuLoading(true);
     try {
-      const mealsData = await getMenuForDate(name, date);
+      // First, load basic meal info (fast)
+      const basicMealsData = await getMealBasicInfo(name, date);
       
-      if (mealsData) {
-        setMenusByDate(prev => new Map(prev).set(date, mealsData));
+      if (basicMealsData) {
         
-        // Collect all item IDs for collection status check
-        const itemIds: string[] = [];
-        Object.values(mealsData).forEach((meal: Meal | undefined) => {
-          if (meal) {
-            meal.stations.forEach((station: Station) => {
-              station.items.forEach((item: MenuItem) => itemIds.push(item.id));
-            });
-          }
-        });
         
-        if (itemIds.length > 0) {
-          await checkCollectionStatusBatch(itemIds);
-        }
+        // Store basic data immediately for navigation
+        setMenusByDate(prev => new Map(prev).set(date, basicMealsData));
+        
+        // Load detailed data for current meal in background
+        loadDetailedMealData(date, currentMealType);
       }
     } catch (error) {
       console.error(`Error loading menu for ${date}:`, error);
     } finally {
       setMenuLoading(false);
+    }
+  };
+
+  // Load detailed data for a specific meal
+  const loadDetailedMealData = async (date: string, mealType: string) => {
+    if (!name) return;
+    
+    try {
+      const detailedMeal = await getMealDetailedData(name, date, mealType);
+      
+      if (detailedMeal) {
+        
+        // Update the specific meal with detailed data
+        setMenusByDate(prev => {
+          const newMap = new Map(prev);
+          const existingData = newMap.get(date);
+          if (existingData) {
+            const updatedData = { ...existingData, [mealType]: detailedMeal };
+            newMap.set(date, updatedData);
+          }
+          return newMap;
+        });
+        
+        // Load collection status for current meal items in background
+        const itemIds: string[] = [];
+        detailedMeal.stations.forEach((station: Station) => {
+          station.items.forEach((item: MenuItem) => itemIds.push(item.id));
+        });
+        
+        if (itemIds.length > 0) {
+          checkCollectionStatusBatch(itemIds).catch(error => {
+            console.warn('Collection status check failed:', error);
+          });
+        }
+      }
+    } catch (error) {
+      console.error(`Error loading detailed data for ${mealType} on ${date}:`, error);
     }
   };
 
@@ -228,23 +281,44 @@ export default function DiningHallPage() {
     const initializeMenu = async () => {
       if (!name) return;
       
-      // Switch location in context
-      await switchLocation(name);
+      // Check if this is a new location or first load
+      const isNewLocation = lastProcessedLocation.current !== name;
+      const hasLocationChanged = currentLocation !== name;
+      
+      if (isNewLocation || hasLocationChanged) {
+        
+        // Reset all local state when location changes
+        setCurrentDate(getTodayDateString());
+        setCurrentMealType('breakfast');
+        setMenusByDate(new Map());
+        setStationExpandState({});
+        setCollectionStatus({});
+        setMenuLoading(false);
+        
+        // Update the ref to track this location
+        lastProcessedLocation.current = name;
+        
+        // Switch location in context (this will clear context data)
+        await switchLocation(name);
+      }
       
       // Load today's menu
       const today = getTodayDateString();
       await loadMenuForDate(today);
       
-      // Determine which meal to show
+      // Determine which meal to show - only for initial load or today's date
       const todayMeals = menusByDate.get(today);
-      if (todayMeals) {
+      if (todayMeals && (isNewLocation || hasLocationChanged)) {
         const mealType = findCurrentMealType(todayMeals, name);
         setCurrentMealType(mealType as any);
       }
     };
     
     initializeMenu();
-  }, [name]);
+  }, [name, currentLocation]);
+
+  // Remove the automatic meal type override effect
+  // Let user navigation control meal type selection
 
   // Function to format time from HH:MM:SS to H AM/PM (removes :00 minutes)
   const formatTime = (timeString: string): string => {
@@ -306,11 +380,30 @@ export default function DiningHallPage() {
     return 0;
   };
 
-  const toggleStation = (stationId: string) => {
+  const toggleStation = async (stationId: string) => {
+    const isExpanding = !stationExpandState[stationId];
+    
     setStationExpandState(prev => ({
       ...prev,
       [stationId]: !prev[stationId]
     }));
+    
+    // Load collection status for items in this station when expanding
+    if (isExpanding) {
+      const currentMeal = menusByDate.get(currentDate)?.[currentMealType];
+      if (currentMeal) {
+        const station = currentMeal.stations.find(s => s.id === stationId);
+        if (station) {
+          const itemIds = station.items.map(item => item.id);
+          if (itemIds.length > 0) {
+            // Load collection status in background
+            checkCollectionStatusBatch(itemIds).catch(error => {
+              console.warn('Collection status check failed for station:', error);
+            });
+          }
+        }
+      }
+    }
   };
 
   const checkCollectionStatusBatch = async (itemIds: string[]) => {

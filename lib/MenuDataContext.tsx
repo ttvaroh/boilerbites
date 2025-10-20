@@ -78,6 +78,8 @@ interface MenuDataContextType {
   error: string | null;
   switchLocation: (locationName: string) => Promise<void>;
   getMenuForDate: (locationName: string, date: string) => Promise<MealsByDate | null>;
+  getMealBasicInfo: (locationName: string, date: string) => Promise<MealsByDate | null>;
+  getMealDetailedData: (locationName: string, date: string, mealType: string) => Promise<Meal | null>;
   getAvailableLocations: () => Promise<string[]>;
   refreshLocations: () => Promise<void>;
   isDateLoading: (date: string) => boolean;
@@ -115,80 +117,182 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
     setError(null);
   };
 
-  // Helper function to fetch stations and items for a meal
-  const fetchMealWithStations = async (meal: any): Promise<Meal> => {
-    const { data: stationsData } = await supabase
-      .from("day_station")
-      .select(`
-        id,
-        name,
-        display_order
-      `)
-      .eq("day_meal_id", meal.id)
-      .order("display_order");
-    
-    const stationsWithItems: Station[] = [];
-    
-    for (const station of stationsData || []) {
-      const { data: itemsData } = await supabase
-        .from("day_station_item")
+
+  // Get basic meal info only (for fast loading)
+  const getMealBasicInfo = async (locationName: string, date: string): Promise<MealsByDate | null> => {
+    try {
+      const { data: menuData, error: menuError } = await supabase
+        .from("day_menu")
         .select(`
-          item_id,
-          item:item_id (
+          id,
+          is_published,
+          day_meal (
             id,
-            name,
-            vegetarian,
-            vegan,
-            gluten,
-            allergens,
-            serving_size,
-            calories,
-            protein_g,
-            carbs_g,
-            fat_g,
-            fiber_g,
-            sugar_g,
-            sodium_mg,
-            protein_per_100cals,
-            last_verified
+            meal_name,
+            meal_order,
+            start_time,
+            end_time,
+            open
           )
         `)
-        .eq("day_station_id", station.id);
+        .eq("location_name", locationName)
+        .eq("serve_date", date)
+        .maybeSingle();
       
-      const items: MenuItem[] = (itemsData || []).map((item: any) => ({
-        id: item.item.id,
-        name: item.item.name,
-        vegetarian: item.item.vegetarian,
-        vegan: item.item.vegan,
-        gluten: item.item.gluten,
-        allergens: item.item.allergens || [],
-        serving_size: item.item.serving_size,
-        calories: item.item.calories,
-        protein_g: item.item.protein_g,
-        carbs_g: item.item.carbs_g,
-        fat_g: item.item.fat_g,
-        fiber_g: item.item.fiber_g,
-        sugar_g: item.item.sugar_g,
-        sodium_mg: item.item.sodium_mg,
-        protein_per_100cals: item.item.protein_per_100cals,
-        last_verified: item.item.last_verified,
-      }));
+      if (menuError || !menuData) {
+        return null;
+      }
       
-      stationsWithItems.push({
-        id: station.id,
-        name: station.name,
-        items,
-      });
+      const mealsByDate: MealsByDate = {};
+      
+      if (menuData.day_meal && menuData.day_meal.length > 0) {
+        for (const meal of menuData.day_meal) {
+          const mealBasic: Meal = {
+            id: meal.id,
+            name: meal.meal_name,
+            start_time: meal.start_time || "",
+            end_time: meal.end_time || "",
+            open: meal.open,
+            stations: [], // Empty stations for basic info
+          };
+          
+          const mealName = meal.meal_name.toLowerCase();
+          if (mealName.includes('breakfast')) {
+            mealsByDate.breakfast = mealBasic;
+          } else if (mealName.includes('late lunch')) {
+            if (locationName === 'Windsor') {
+              mealsByDate.lateLunch = mealBasic;
+            }
+          } else if (mealName.includes('lunch')) {
+            mealsByDate.lunch = mealBasic;
+          } else if (mealName.includes('dinner')) {
+            mealsByDate.dinner = mealBasic;
+          }
+        }
+      }
+      
+      return mealsByDate;
+    } catch (error) {
+      console.error(`Error fetching basic meal info for ${locationName} on ${date}:`, error);
+      return null;
     }
-    
-    return {
-      id: meal.id,
-      name: meal.meal_name,
-      start_time: meal.start_time || "",
-      end_time: meal.end_time || "",
-      open: meal.open,
-      stations: stationsWithItems,
-    };
+  };
+
+  // Get detailed data for a specific meal only
+  const getMealDetailedData = async (locationName: string, date: string, mealType: string): Promise<Meal | null> => {
+    try {
+      const { data: menuData, error: menuError } = await supabase
+        .from("day_menu")
+        .select(`
+          id,
+          day_meal!inner (
+            id,
+            meal_name,
+            meal_order,
+            start_time,
+            end_time,
+            open,
+            day_station (
+              id,
+              name,
+              display_order,
+              day_station_item (
+                item_id,
+                item:item_id (
+                  id,
+                  name,
+                  vegetarian,
+                  vegan,
+                  gluten,
+                  allergens,
+                  serving_size,
+                  calories,
+                  protein_g,
+                  carbs_g,
+                  fat_g,
+                  fiber_g,
+                  sugar_g,
+                  sodium_mg,
+                  protein_per_100cals,
+                  last_verified
+                )
+              )
+            )
+          )
+        `)
+        .eq("location_name", locationName)
+        .eq("serve_date", date)
+        .maybeSingle();
+      
+      if (menuError || !menuData) {
+        return null;
+      }
+      
+      // Find the specific meal
+      const targetMeal = menuData.day_meal.find((meal: any) => {
+        const mealName = meal.meal_name.toLowerCase();
+        if (mealType === 'breakfast') return mealName.includes('breakfast');
+        if (mealType === 'lateLunch') return mealName.includes('late lunch');
+        if (mealType === 'lunch') return mealName.includes('lunch') && !mealName.includes('late');
+        if (mealType === 'dinner') return mealName.includes('dinner');
+        return false;
+      });
+      
+      if (!targetMeal) return null;
+      
+      // Process stations and items for this meal only
+      const stationsWithItems: Station[] = [];
+      
+      if (targetMeal.day_station && targetMeal.day_station.length > 0) {
+        for (const station of targetMeal.day_station) {
+          const items: MenuItem[] = [];
+          
+          if (station.day_station_item && station.day_station_item.length > 0) {
+            for (const stationItem of station.day_station_item) {
+              if (stationItem.item) {
+                const item = stationItem.item as any;
+                items.push({
+                  id: item.id,
+                  name: item.name,
+                  vegetarian: item.vegetarian,
+                  vegan: item.vegan,
+                  gluten: item.gluten,
+                  allergens: item.allergens || [],
+                  serving_size: item.serving_size,
+                  calories: item.calories,
+                  protein_g: item.protein_g,
+                  carbs_g: item.carbs_g,
+                  fat_g: item.fat_g,
+                  fiber_g: item.fiber_g,
+                  sugar_g: item.sugar_g,
+                  sodium_mg: item.sodium_mg,
+                  protein_per_100cals: item.protein_per_100cals,
+                  last_verified: item.last_verified,
+                });
+              }
+            }
+          }
+          
+          stationsWithItems.push({
+            id: station.id,
+            name: station.name,
+            items,
+          });
+        }
+      }
+      
+      return {
+        id: targetMeal.id,
+        name: targetMeal.meal_name,
+        start_time: targetMeal.start_time || "",
+        end_time: targetMeal.end_time || "",
+        open: targetMeal.open,
+        stations: stationsWithItems,
+      };
+    } catch (error) {
+      console.error(`Error fetching detailed meal data for ${locationName} on ${date}:`, error);
+      return null;
+    }
   };
 
   // Get menu data for a specific location and date
@@ -223,54 +327,133 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
     try {
       setLoadingDates(prev => new Set(prev).add(date));
       
-      // Fetch menu for this date
-      const { data: menu, error: menuError } = await supabase
+      // Single optimized query with joins to get all menu data at once
+      const { data: menuData, error: menuError } = await supabase
         .from("day_menu")
-        .select("id, is_published")
+        .select(`
+          id,
+          is_published,
+          day_meal (
+            id,
+            meal_name,
+            meal_order,
+            start_time,
+            end_time,
+            open,
+            day_station (
+              id,
+              name,
+              display_order,
+              day_station_item (
+                item_id,
+                item:item_id (
+                  id,
+                  name,
+                  vegetarian,
+                  vegan,
+                  gluten,
+                  allergens,
+                  serving_size,
+                  calories,
+                  protein_g,
+                  carbs_g,
+                  fat_g,
+                  fiber_g,
+                  sugar_g,
+                  sodium_mg,
+                  protein_per_100cals,
+                  last_verified
+                )
+              )
+            )
+          )
+        `)
         .eq("location_name", locationName)
         .eq("serve_date", date)
         .maybeSingle();
       
-      if (menuError || !menu) {
+      if (menuError || !menuData) {
         return null;
       }
       
-      // Fetch meals
-      const { data: mealsData, error: mealsError } = await supabase
-        .from("day_meal")
-        .select(`
-          id,
-          meal_name,
-          meal_order,
-          start_time,
-          end_time,
-          open
-        `)
-        .eq("day_menu_id", menu.id)
-        .order("meal_order");
+      console.log('🚀 Optimized query result:', {
+        hasMenu: !!menuData,
+        mealsCount: menuData.day_meal?.length || 0,
+        totalStations: menuData.day_meal?.reduce((acc, meal) => acc + (meal.day_station?.length || 0), 0) || 0,
+        totalItems: menuData.day_meal?.reduce((acc, meal) => 
+          acc + (meal.day_station?.reduce((stationAcc, station) => 
+            stationAcc + (station.day_station_item?.length || 0), 0) || 0), 0) || 0
+      });
       
-      if (mealsError || !mealsData) {
-        return null;
-      }
-      
-      // Fetch stations and items for each meal
+      // Process the joined data into the expected structure
       const mealsByDate: MealsByDate = {};
       
-      for (const meal of mealsData) {
-        const mealWithStations = await fetchMealWithStations(meal);
-        
-        // Map meal to the correct key
-        const mealName = meal.meal_name.toLowerCase();
-        if (mealName.includes('breakfast')) {
-          mealsByDate.breakfast = mealWithStations;
-        } else if (mealName.includes('late lunch')) {
-          if (locationName === 'Windsor') {
-            mealsByDate.lateLunch = mealWithStations;
+      if (menuData.day_meal && menuData.day_meal.length > 0) {
+        for (const meal of menuData.day_meal) {
+          // Process stations and items for this meal
+          const stationsWithItems: Station[] = [];
+          
+          if (meal.day_station && meal.day_station.length > 0) {
+            for (const station of meal.day_station) {
+              const items: MenuItem[] = [];
+              
+              if (station.day_station_item && station.day_station_item.length > 0) {
+                for (const stationItem of station.day_station_item) {
+                  if (stationItem.item) {
+                    const item = stationItem.item as any; // Type assertion for joined query result
+                    items.push({
+                      id: item.id,
+                      name: item.name,
+                      vegetarian: item.vegetarian,
+                      vegan: item.vegan,
+                      gluten: item.gluten,
+                      allergens: item.allergens || [],
+                      serving_size: item.serving_size,
+                      calories: item.calories,
+                      protein_g: item.protein_g,
+                      carbs_g: item.carbs_g,
+                      fat_g: item.fat_g,
+                      fiber_g: item.fiber_g,
+                      sugar_g: item.sugar_g,
+                      sodium_mg: item.sodium_mg,
+                      protein_per_100cals: item.protein_per_100cals,
+                      last_verified: item.last_verified,
+                    });
+                  }
+                }
+              }
+              
+              stationsWithItems.push({
+                id: station.id,
+                name: station.name,
+                items,
+              });
+            }
           }
-        } else if (mealName.includes('lunch')) {
-          mealsByDate.lunch = mealWithStations;
-        } else if (mealName.includes('dinner')) {
-          mealsByDate.dinner = mealWithStations;
+          
+          // Create meal object
+          const mealWithStations: Meal = {
+            id: meal.id,
+            name: meal.meal_name,
+            start_time: meal.start_time || "",
+            end_time: meal.end_time || "",
+            open: meal.open,
+            stations: stationsWithItems,
+          };
+          
+          // Map meal to the correct key
+          const mealName = meal.meal_name.toLowerCase();
+          if (mealName.includes('breakfast')) {
+            mealsByDate.breakfast = mealWithStations;
+          } else if (mealName.includes('late lunch')) {
+            if (locationName === 'Windsor') {
+              mealsByDate.lateLunch = mealWithStations;
+            }
+          } else if (mealName.includes('lunch')) {
+            mealsByDate.lunch = mealWithStations;
+          } else if (mealName.includes('dinner')) {
+            mealsByDate.dinner = mealWithStations;
+          }
         }
       }
       
@@ -368,12 +551,12 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
               .order("meal_order");
 
             if (mealsError || !mealsData) {
-              locationsList.push({
-                name: location.name,
-                hasMenu: true,
-                menuId: menu.id,
-                isPublished: menu.is_published,
-              });
+            locationsList.push({
+              name: location.name,
+              hasMenu: true,
+              menuId: menu.id,
+              isPublished: menu.is_published,
+            });
             } else {
               const meals: Meal[] = mealsData.map(meal => ({
                 id: meal.id,
@@ -443,6 +626,8 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
     error,
     switchLocation,
     getMenuForDate,
+    getMealBasicInfo,
+    getMealDetailedData,
     getAvailableLocations,
     refreshLocations,
     isDateLoading,
