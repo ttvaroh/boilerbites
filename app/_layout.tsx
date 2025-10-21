@@ -1,8 +1,8 @@
 import {
-  Sora_400Regular,
-  Sora_500Medium,
-  Sora_600SemiBold,
-  Sora_700Bold,
+    Sora_400Regular,
+    Sora_500Medium,
+    Sora_600SemiBold,
+    Sora_700Bold,
 } from "@expo-google-fonts/sora";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
@@ -126,6 +126,10 @@ export default function RootLayout() {
                 />
                 <Stack.Screen
                   name="favorites"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="about"
                   options={{ headerShown: false }}
                 />
                 <Stack.Screen

@@ -42,6 +42,10 @@ export default function ProfileScreen() {
     router.push("/custom-food");
   };
 
+  const handleAbout = () => {
+    router.push("/about");
+  };
+
   if (loading) {
     return (
       <BackgroundTemplate>
@@ -199,6 +203,7 @@ export default function ProfileScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity 
+                onPress={handleAbout}
                 className="flex-row items-center p-4"
                 activeOpacity={0.7}
               >
