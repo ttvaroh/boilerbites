@@ -13,7 +13,7 @@ import ItemSearchComponent from "../../components/ItemSearch";
 import SearchItemCard from "../../components/SearchItemCard";
 import SortBy from "../../components/SortBy";
 import { supabase } from "../../lib/supabase";
-import { DateSearchFilters, DateSearchOptions, dateSearchService, DayMenuItem } from "../../services/SearchService";
+import { DateSearchFilters, DateSearchOptions, dateSearchService, DayMenuItem } from "../../services/searchService";
 
 // Interfaces
 interface MenuItem {
