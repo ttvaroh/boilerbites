@@ -148,7 +148,7 @@ export default function SignInScreen() {
           {/* Microsoft Button */}
           <TouchableOpacity 
             onPress={handleAzureSignIn}
-            className="w-full bg-gray-800 border border-gray-700 py-4 rounded-xl flex-row items-center justify-center mb-3"
+            className="w-full bg-gray-800 border border-gray-700 py-4 rounded-xl flex-row items-center justify-center opacity-50 mb-3"
             activeOpacity={0.8}
             disabled={loading}
           >
@@ -156,15 +156,18 @@ export default function SignInScreen() {
             <Text className="text-white text-base font-sora ml-3">
               {loading ? "Connecting..." : "Continue with Purdue Email"}
             </Text>
+            <Text className="text-gray-400 text-xs font-sora ml-2">(Coming Soon)</Text>
           </TouchableOpacity>
 
-          {/* Google Button */}
+          {/* Google Button - Disabled */}
           <TouchableOpacity 
-            className="w-full bg-gray-800 border border-gray-700 py-4 rounded-xl flex-row items-center justify-center"
+            className="w-full bg-gray-800 border border-gray-700 py-4 rounded-xl flex-row items-center justify-center opacity-50"
             activeOpacity={0.8}
+            disabled={true}
           >
             <Ionicons name="logo-google" size={20} color="#FFFFFF" />
             <Text className="text-white text-base font-sora ml-3">Continue with Google</Text>
+            <Text className="text-gray-400 text-xs font-sora ml-2">(Coming Soon)</Text>
           </TouchableOpacity>
         </View>
 
