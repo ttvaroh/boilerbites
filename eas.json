@@ -12,8 +12,7 @@
     "preview": {
       "ios": {
         "simulator": false,
-        "distribution": "store",
-        "cocoapods": "1.16.2"
+        "distribution": "store"
       },
       "channel": "preview"
     },
