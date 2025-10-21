@@ -73,6 +73,14 @@ export default function RootLayout() {
                   options={{ headerShown: false }}
                 />
                 <Stack.Screen
+                  name="custom-food/index"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="custom-food/edit-custom-food"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
                   name="[...unmatched]"
                   options={{ headerShown: false }}
                 />
@@ -124,6 +132,14 @@ export default function RootLayout() {
                   name="collection/[collectionId]"
                   options={{ headerShown: false }}
                 />
+              <Stack.Screen
+                name="custom-food/index"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="custom-food/edit-custom-food"
+                options={{ headerShown: false }}
+              />
                 <Stack.Screen
                   name="[...unmatched]"
                   options={{ headerShown: false }}

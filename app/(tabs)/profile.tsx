@@ -35,13 +35,11 @@ export default function ProfileScreen() {
   };
 
   const handleFavorites = () => {
-    // TODO: Navigate to favorites page
     router.push("/favorites");
   };
 
   const handleCustomFoods = () => {
-    // TODO: Navigate to custom foods page
-    router.push("/custom-foods");
+    router.push("/custom-food");
   };
 
   if (loading) {

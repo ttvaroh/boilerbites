@@ -2,10 +2,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 import BackgroundTemplate from "../../components/BackgroundTemplate";
 import MenuItemCard from "../../components/MenuItemCard";
@@ -97,7 +97,7 @@ export default function CollectionPage() {
           return;
         }
 
-        // Transform the data to match our interface
+        // Transform the data to match our interface and sort by name
         const items: CollectionItem[] = collectionItems?.map(ci => ({
           id: ci.item.id,
           name: ci.item.name,
@@ -115,7 +115,7 @@ export default function CollectionPage() {
           sodium_mg: ci.item.sodium_mg,
           last_verified: ci.item.last_verified,
           ingredients: ci.item.ingredients,
-        })) || [];
+        })).sort((a, b) => a.name.localeCompare(b.name)) || [];
 
         setCollection({
           id: collectionData.id,
@@ -245,7 +245,7 @@ export default function CollectionPage() {
           </View>
 
           <Text className="text-white text-3xl font-sora-bold mb-2">{collection.name}</Text>
-          <Text className="text-gray-300 text-base font-sora mb-4">
+          <Text className="text-gray-300 text-base font-sora mb-0">
             {collection.items.length} item{collection.items.length !== 1 ? 's' : ''} in this collection
           </Text>
         </View>
@@ -254,12 +254,12 @@ export default function CollectionPage() {
         <ScrollView className="flex-1 px-6">
           {/* Collection Items */}
           <View className="py-4">
-            <Text className="text-white text-lg font-sora-bold mb-4">
+            <Text className="text-white text-lg font-sora-bold mb-2">
               Items
             </Text>
 
           {collection.items.length === 0 ? (
-            <View className="bg-gray-800 rounded-xl p-6 mt-4 mb-6 shadow-lg"
+            <View className="bg-gray-800 rounded-xl p-6 mt-4 mb-2 shadow-lg"
               style={{
                 shadowColor: "#CFB991",
                 shadowOffset: { width: 0, height: 0 },
@@ -279,7 +279,7 @@ export default function CollectionPage() {
               <TouchableOpacity
                 key={item.id}
                 onPress={() => handleMenuItemPress(item)}
-                className="mb-3"
+                className="mb-0"
               >
                 <MenuItemCard item={item} />
               </TouchableOpacity>

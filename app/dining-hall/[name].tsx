@@ -11,7 +11,7 @@ import BackgroundTemplate from "../../components/BackgroundTemplate";
 import MenuItemCard from "../../components/MenuItemCard";
 import { useMenuData } from "../../lib/MenuDataContext";
 import { supabase } from "../../lib/supabase";
-import { getCurrentTimeInEST, getDateStringFromToday, getTodayDateString } from "../../lib/timezone-utils";
+import { addDaysToDateString, createLocalDateFromString, getCurrentTimeInEST, getDateStringFromToday, getTodayDateString } from "../../lib/timezone-utils";
 
 interface MealsByDate {
   breakfast?: Meal;
@@ -57,20 +57,14 @@ interface LocalStation extends Station {
   isExpanded: boolean;
 }
 
-interface LocalMeal extends Meal {
-  stations: LocalStation[];
-}
-
 export default function DiningHallPage() {
   const { name } = useLocalSearchParams<{ name: string }>();
   const router = useRouter();
   const {
-    getMenuForDate,
     getMealBasicInfo,
     getMealDetailedData,
     switchLocation,
     isDateLoading,
-    isDateReady,
     currentLocation,
     loading: contextLoading,
     error: contextError,
@@ -85,6 +79,8 @@ export default function DiningHallPage() {
   
   // Track last processed location to avoid unnecessary re-initialization
   const lastProcessedLocation = useRef<string | null>(null);
+  // Track if we've already auto-determined the meal for today
+  const hasAutoDeterminedMeal = useRef(false);
 
   // Date range helper functions
   const getDateRange = (): { minDate: string; maxDate: string } => {
@@ -99,15 +95,6 @@ export default function DiningHallPage() {
     return dateStr >= minDate && dateStr <= maxDate;
   };
 
-  const addDaysToDate = (dateStr: string, days: number): string => {
-    const date = new Date(dateStr + 'T00:00:00');
-    date.setDate(date.getDate() + days);
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
   // Meal navigation functions
   const getMealOrder = (locationName: string): readonly string[] => {
     return locationName === 'Windsor' 
@@ -115,9 +102,62 @@ export default function DiningHallPage() {
       : ['breakfast', 'lunch', 'dinner'];
   };
 
+  // Find current meal type based on time
+  const findCurrentMealType = (mealsData: MealsByDate, locationName: string): string => {
+    const { hours, minutes } = getCurrentTimeInEST();
+    const currentTime = hours * 60 + minutes;
+    
+    const mealOrder = getMealOrder(locationName);
+    
+    // First, check if we're currently in any meal period
+    for (const mealType of mealOrder) {
+      const meal = mealsData[mealType as keyof MealsByDate];
+      if (meal && meal.start_time && meal.end_time && meal.open) {
+        const [startHour, startMin] = meal.start_time.split(':').map(Number);
+        const [endHour, endMin] = meal.end_time.split(':').map(Number);
+        const startTime = startHour * 60 + startMin;
+        const endTime = endHour * 60 + endMin;
+        
+        // Check if current time is within this meal's service period
+        if (currentTime >= startTime && currentTime <= endTime) {
+          return mealType;
+        }
+      }
+    }
+    
+    // If not currently in any meal, find the next upcoming meal today
+    for (const mealType of mealOrder) {
+      const meal = mealsData[mealType as keyof MealsByDate];
+      if (meal && meal.start_time && meal.open) {
+        const [startHour, startMin] = meal.start_time.split(':').map(Number);
+        const startTime = startHour * 60 + startMin;
+        
+        // Check if this meal starts after current time
+        if (startTime > currentTime) {
+          return mealType;
+        }
+      }
+    }
+    
+    // If no upcoming meals today, find the last meal that was served today
+    for (let i = mealOrder.length - 1; i >= 0; i--) {
+      const mealType = mealOrder[i];
+      const meal = mealsData[mealType as keyof MealsByDate];
+      if (meal && meal.start_time && meal.open) {
+        return mealType;
+      }
+    }
+    
+    // Fallback to breakfast if no meal data is available
+    return 'breakfast';
+  };
+
   const navigateMeal = async (direction: 'prev' | 'next') => {
     const mealOrder = getMealOrder(name || '');
     const currentIndex = mealOrder.indexOf(currentMealType);
+    
+    // Mark that user is manually navigating to prevent auto-determination
+    hasAutoDeterminedMeal.current = true;
     
     if (direction === 'next') {
       if (currentIndex < mealOrder.length - 1) {
@@ -128,7 +168,7 @@ export default function DiningHallPage() {
         await loadDetailedMealData(currentDate, nextMealType);
       } else {
         // Move to first meal of next day
-        const nextDate = addDaysToDate(currentDate, 1);
+        const nextDate = addDaysToDateString(currentDate, 1);
         
         if (isDateInRange(nextDate)) {
           // Set both date and meal type together to avoid race conditions
@@ -137,7 +177,7 @@ export default function DiningHallPage() {
           
           // Load next date if not already loaded
           if (!menusByDate.has(nextDate)) {
-            await loadMenuForDate(nextDate);
+            await loadMenuForDate(nextDate, 'breakfast');
           } else {
             // Load detailed data for breakfast on the new date
             await loadDetailedMealData(nextDate, 'breakfast');
@@ -153,7 +193,7 @@ export default function DiningHallPage() {
         await loadDetailedMealData(currentDate, prevMealType);
       } else {
         // Move to last meal of previous day
-        const prevDate = addDaysToDate(currentDate, -1);
+        const prevDate = addDaysToDateString(currentDate, -1);
         
         if (isDateInRange(prevDate)) {
           const prevDayMealOrder = getMealOrder(name || '');
@@ -165,7 +205,7 @@ export default function DiningHallPage() {
           
           // Load previous date if not already loaded
           if (!menusByDate.has(prevDate)) {
-            await loadMenuForDate(prevDate);
+            await loadMenuForDate(prevDate, lastMealType);
           } else {
             // Load detailed data for the last meal on the previous date
             await loadDetailedMealData(prevDate, lastMealType);
@@ -176,7 +216,7 @@ export default function DiningHallPage() {
   };
 
   // Progressive loading: Load basic info first, then detailed data on demand
-  const loadMenuForDate = async (date: string) => {
+  const loadMenuForDate = async (date: string, specificMealType?: string) => {
     if (!name) return;
     
     setMenuLoading(true);
@@ -185,13 +225,25 @@ export default function DiningHallPage() {
       const basicMealsData = await getMealBasicInfo(name, date);
       
       if (basicMealsData) {
-        
-        
         // Store basic data immediately for navigation
         setMenusByDate(prev => new Map(prev).set(date, basicMealsData));
         
-        // Load detailed data for current meal in background
-        loadDetailedMealData(date, currentMealType);
+        // Determine which meal to load detailed data for
+        let mealToLoad = specificMealType;
+        
+        // If no specific meal type provided AND this is for today AND we haven't auto-determined yet
+        if (!mealToLoad && date === getTodayDateString() && !hasAutoDeterminedMeal.current) {
+          mealToLoad = findCurrentMealType(basicMealsData, name);
+          // Update the current meal type state
+          setCurrentMealType(mealToLoad as any);
+          hasAutoDeterminedMeal.current = true;
+        } else if (!mealToLoad) {
+          // Use current meal type as fallback
+          mealToLoad = currentMealType;
+        }
+        
+        // Load detailed data for the determined meal
+        await loadDetailedMealData(date, mealToLoad);
       }
     } catch (error) {
       console.error(`Error loading menu for ${date}:`, error);
@@ -208,7 +260,6 @@ export default function DiningHallPage() {
       const detailedMeal = await getMealDetailedData(name, date, mealType);
       
       if (detailedMeal) {
-        
         // Update the specific meal with detailed data
         setMenusByDate(prev => {
           const newMap = new Map(prev);
@@ -219,6 +270,9 @@ export default function DiningHallPage() {
           }
           return newMap;
         });
+        
+        // Set all stations to expanded by default
+        setAllStationsExpanded(detailedMeal.stations);
         
         // Load collection status for current meal items in background
         const itemIds: string[] = [];
@@ -237,45 +291,6 @@ export default function DiningHallPage() {
     }
   };
 
-  // Find current meal type based on time
-  const findCurrentMealType = (mealsData: MealsByDate, locationName: string): string => {
-    const { hours, minutes } = getCurrentTimeInEST();
-    const currentTime = hours * 60 + minutes;
-    
-    const mealOrder = getMealOrder(locationName);
-    
-    // Check each meal in order
-    for (const mealType of mealOrder) {
-      const meal = mealsData[mealType as keyof MealsByDate];
-      if (meal && meal.start_time && meal.end_time) {
-        const [startHour, startMin] = meal.start_time.split(':').map(Number);
-        const [endHour, endMin] = meal.end_time.split(':').map(Number);
-        const startTime = startHour * 60 + startMin;
-        const endTime = endHour * 60 + endMin;
-        
-        if (meal.open && currentTime >= startTime && currentTime <= endTime) {
-          return mealType;
-        }
-      }
-    }
-    
-    // Find next meal if not currently in service
-    for (const mealType of mealOrder) {
-      const meal = mealsData[mealType as keyof MealsByDate];
-      if (meal && meal.start_time) {
-        const [startHour, startMin] = meal.start_time.split(':').map(Number);
-        const startTime = startHour * 60 + startMin;
-        
-        if (meal.open && startTime > currentTime) {
-          return mealType;
-        }
-      }
-    }
-    
-    // Default to breakfast
-    return 'breakfast';
-  };
-
   // Initialize menu data when component mounts or location changes
   React.useEffect(() => {
     const initializeMenu = async () => {
@@ -286,14 +301,16 @@ export default function DiningHallPage() {
       const hasLocationChanged = currentLocation !== name;
       
       if (isNewLocation || hasLocationChanged) {
-        
         // Reset all local state when location changes
         setCurrentDate(getTodayDateString());
-        setCurrentMealType('breakfast');
+        setCurrentMealType('breakfast'); // Set default, will be updated after data loads
         setMenusByDate(new Map());
         setStationExpandState({});
         setCollectionStatus({});
         setMenuLoading(false);
+        
+        // Reset auto-determination flag for new location
+        hasAutoDeterminedMeal.current = false;
         
         // Update the ref to track this location
         lastProcessedLocation.current = name;
@@ -302,23 +319,21 @@ export default function DiningHallPage() {
         await switchLocation(name);
       }
       
-      // Load today's menu
+      // Load today's menu (without specifying meal type - will auto-determine)
       const today = getTodayDateString();
       await loadMenuForDate(today);
-      
-      // Determine which meal to show - only for initial load or today's date
-      const todayMeals = menusByDate.get(today);
-      if (todayMeals && (isNewLocation || hasLocationChanged)) {
-        const mealType = findCurrentMealType(todayMeals, name);
-        setCurrentMealType(mealType as any);
-      }
     };
     
     initializeMenu();
   }, [name, currentLocation]);
 
-  // Remove the automatic meal type override effect
-  // Let user navigation control meal type selection
+  // Reset auto-determination flag when date changes away from today
+  React.useEffect(() => {
+    const today = getTodayDateString();
+    if (currentDate !== today) {
+      hasAutoDeterminedMeal.current = true; // Don't auto-determine for non-today dates
+    }
+  }, [currentDate]);
 
   // Function to format time from HH:MM:SS to H AM/PM (removes :00 minutes)
   const formatTime = (timeString: string): string => {
@@ -341,43 +356,13 @@ export default function DiningHallPage() {
     return `${start}-${end}`;
   };
 
-  // Function to find the current meal based on time
-  const findCurrentMealIndex = (meals: LocalMeal[]): number => {
-    if (!meals || meals.length === 0) return 0;
-
-    const { hours, minutes } = getCurrentTimeInEST();
-    const currentTime = hours * 60 + minutes;
-
-    // Find currently open meal
-    const currentMealIndex = meals.findIndex((meal) => {
-      if (!meal.start_time || !meal.end_time) return false;
-      const [startHour, startMin] = meal.start_time.split(":").map(Number);
-      const [endHour, endMin] = meal.end_time.split(":").map(Number);
-      const startTime = startHour * 60 + startMin;
-      const endTime = endHour * 60 + endMin;
-      return meal.open && currentTime >= startTime && currentTime <= endTime;
+  // Function to set all stations to expanded by default
+  const setAllStationsExpanded = (stations: Station[]) => {
+    const expandedState: Record<string, boolean> = {};
+    stations.forEach(station => {
+      expandedState[station.id] = true;
     });
-
-    // If found a currently open meal, return its index
-    if (currentMealIndex !== -1) {
-      return currentMealIndex;
-    }
-
-    // Find next meal today
-    const nextMealIndex = meals.findIndex((meal) => {
-      if (!meal.start_time) return false;
-      const [startHour, startMin] = meal.start_time.split(":").map(Number);
-      const startTime = startHour * 60 + startMin;
-      return meal.open && startTime > currentTime;
-    });
-
-    // If found next meal, return its index
-    if (nextMealIndex !== -1) {
-      return nextMealIndex;
-    }
-
-    // Default to first meal if no current or next meal found
-    return 0;
+    setStationExpandState(expandedState);
   };
 
   const toggleStation = async (stationId: string) => {
@@ -444,20 +429,24 @@ export default function DiningHallPage() {
   // Navigation boundary functions
   const canNavigatePrev = () => {
     if (currentMealType !== 'breakfast') return true;
-    const prevDate = addDaysToDate(currentDate, -1);
+    const prevDate = addDaysToDateString(currentDate, -1);
     return isDateInRange(prevDate);
   };
 
   const canNavigateNext = () => {
     const mealOrder = getMealOrder(name || '');
     if (currentMealType !== mealOrder[mealOrder.length - 1]) return true;
-    const nextDate = addDaysToDate(currentDate, 1);
+    const nextDate = addDaysToDateString(currentDate, 1);
     return isDateInRange(nextDate);
   };
 
   // Get current meal from date-based structure
   const currentMeals = menusByDate.get(currentDate);
   const currentMeal = currentMeals?.[currentMealType];
+  
+  // Check if we have data for the current date and meal
+  const hasDataForCurrentMeal = currentMeal && currentMeal.stations && currentMeal.stations.length > 0;
+  const isDataLoading = menuLoading || isDateLoading(currentDate);
 
   // Get meal display info (actual data or defaults)
   const mealDisplayInfo = currentMeal ? {
@@ -470,8 +459,8 @@ export default function DiningHallPage() {
     endTime: '-'
   };
 
-  // Show loading state while context is loading or menu is loading
-  if (contextLoading || menuLoading || isDateLoading(currentDate)) {
+  // Show loading state while context is loading or initial menu is loading
+  if (contextLoading || (menuLoading && !hasDataForCurrentMeal)) {
     return (
       <BackgroundTemplate>
         <View className="flex-1">
@@ -525,9 +514,6 @@ export default function DiningHallPage() {
     );
   }
 
-  // Remove early return for no menu data
-  // Allow navigation even when no current meal data exists
-
   return (
     <BackgroundTemplate>
       <View className="flex-1">
@@ -566,7 +552,7 @@ export default function DiningHallPage() {
               {mealDisplayInfo.startTime === '-' ? '-' : formatMealTime(mealDisplayInfo.startTime, mealDisplayInfo.endTime)}
             </Text>
             <Text className="text-gray-400 text-xs font-sora mt-1">
-              {new Date(currentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              {createLocalDateFromString(currentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </Text>
           </View>
 
@@ -585,7 +571,13 @@ export default function DiningHallPage() {
             Stations
           </Text>
 
-          {currentMeal && currentMeal.stations.length > 0 ? (
+          {isDataLoading ? (
+            <View className="py-8 items-center">
+              <Text className="text-gray-400 text-base font-sora">
+                Loading {mealDisplayInfo.name.toLowerCase()} menu...
+              </Text>
+            </View>
+          ) : hasDataForCurrentMeal ? (
             currentMeal.stations.map((station, stationIndex) => (
               <View key={station.id}>
                 {/* Station Header */}

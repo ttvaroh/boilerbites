@@ -64,67 +64,24 @@ class DateSearchService {
     options: DateSearchOptions = {}
   ): Promise<DateSearchResult> {
     try {
-      // Format date to YYYY-MM-DD
-      const formattedDate = typeof date === 'string' 
-        ? date 
-        : date.toISOString().split('T')[0];
-
-      // Start building the query
-      let query = supabase
-        .from('day_menu')
-        .select(`
-          id,
-          serve_date,
-          location_name,
-          day_meal!inner (
-            id,
-            meal_name,
-            meal_order,
-            open,
-            start_time,
-            end_time,
-            day_station!inner (
-              id,
-              name,
-              display_order,
-              day_station_item!inner (
-                id,
-                item!inner (
-                  id,
-                  name,
-                  serving_size,
-                  calories,
-                  protein_g,
-                  carbs_g,
-                  fat_g,
-                  fiber_g,
-                  sugar_g,
-                  sodium_mg,
-                  vegetarian,
-                  vegan,
-                  gluten,
-                  allergens,
-                  ingredients,
-                  protein_per_100cals,
-                  is_collection
-                )
-              )
-            )
-          )
-        `)
-        .eq('serve_date', formattedDate)
-        .eq('is_published', true);
-
-      // Apply location filters
-      if (filters.locations && filters.locations.length > 0) {
-        query = query.in('location_name', filters.locations);
-      }
-
-      // Execute the query
-      const { data, error } = await query;
+      // Use the optimized SQL function instead of complex joins
+      const { data, error } = await supabase.rpc('search_menu_items', {
+        search_query: filters.searchQuery || '',
+        filter_vegetarian: filters.dietaryPreferences?.vegetarian || null,
+        filter_vegan: filters.dietaryPreferences?.vegan || null,
+        filter_gluten_free: filters.dietaryPreferences?.glutenFree || null,
+        exclude_allergens: filters.excludeAllergens || [],
+        dining_halls: filters.locations || [],
+        meal_types: filters.meals || [],
+        available_only: false, // We want all items, not just currently available
+        sort_column: options.sortBy || 'name',
+        sort_direction: options.sortOrder || 'asc',
+        result_limit: options.limit || 50,
+        result_offset: options.offset || 0
+      });
 
       if (error) {
-        console.error('Date search error:', error);
+        console.error('Search error:', error);
         return { data: [], count: 0, error };
       }
 
@@ -132,118 +89,39 @@ class DateSearchService {
         return { data: [], count: 0, error: null };
       }
 
-      // Flatten the nested structure into an array of menu items
-      const items: DayMenuItem[] = [];
-      
-      for (const dayMenu of data) {
-        for (const dayMeal of dayMenu.day_meal) {
-          // Apply meal filter
-          if (filters.meals && filters.meals.length > 0) {
-            if (!filters.meals.includes(dayMeal.meal_name)) {
-              continue;
-            }
-          }
-
-          for (const dayStation of dayMeal.day_station) {
-            for (const stationItem of dayStation.day_station_item) {
-              const item = stationItem.item as any;
-
-              // Apply dietary preference filters
-              if (filters.dietaryPreferences) {
-                if (filters.dietaryPreferences.vegetarian && !item.vegetarian) {
-                  continue;
-                }
-                if (filters.dietaryPreferences.vegan && !item.vegan) {
-                  continue;
-                }
-                if (filters.dietaryPreferences.glutenFree && item.gluten) {
-                  continue;
-                }
-              }
-
-              // Apply allergen exclusions
-              if (filters.excludeAllergens && filters.excludeAllergens.length > 0) {
-                const hasExcludedAllergen = item.allergens?.some((allergen: string) =>
-                  filters.excludeAllergens!.includes(allergen)
-                );
-                if (hasExcludedAllergen) {
-                  continue;
-                }
-              }
-
-              // Apply text search filter
-              if (filters.searchQuery && filters.searchQuery.trim()) {
-                const searchLower = filters.searchQuery.toLowerCase();
-                if (!item.name.toLowerCase().includes(searchLower)) {
-                  continue;
-                }
-              }
-
-              // Add the flattened item
-              items.push({
-                id: item.id,
-                name: item.name,
-                serving_size: item.serving_size,
-                calories: item.calories,
-                protein_g: item.protein_g,
-                carbs_g: item.carbs_g,
-                fat_g: item.fat_g,
-                fiber_g: item.fiber_g,
-                sugar_g: item.sugar_g,
-                sodium_mg: item.sodium_mg,
-                vegetarian: item.vegetarian,
-                vegan: item.vegan,
-                gluten: item.gluten,
-                allergens: item.allergens || [],
-                ingredients: item.ingredients,
-                protein_per_100cals: item.protein_per_100cals,
-                is_collection: item.is_collection,
-                location_name: dayMenu.location_name,
-                meal_name: dayMeal.meal_name,
-                station_name: dayStation.name,
-                serve_date: dayMenu.serve_date,
-                meal_start_time: dayMeal.start_time,
-                meal_end_time: dayMeal.end_time,
-                meal_is_open: dayMeal.open,
-              });
-            }
-          }
-        }
-      }
-
-      // Apply sorting
-      const sortBy = options.sortBy || 'name';
-      const sortOrder = options.sortOrder || 'asc';
-
-      items.sort((a, b) => {
-        let aVal: any = a[sortBy];
-        let bVal: any = b[sortBy];
-
-        // Handle null values
-        if (aVal === null || aVal === undefined) aVal = sortOrder === 'asc' ? Infinity : -Infinity;
-        if (bVal === null || bVal === undefined) bVal = sortOrder === 'asc' ? Infinity : -Infinity;
-
-        // Handle string comparison
-        if (typeof aVal === 'string' && typeof bVal === 'string') {
-          return sortOrder === 'asc' 
-            ? aVal.localeCompare(bVal)
-            : bVal.localeCompare(aVal);
-        }
-
-        // Handle numeric comparison
-        return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
-      });
-
-      // Apply pagination
-      const totalCount = items.length;
-      const limit = options.limit || totalCount;
-      const offset = options.offset || 0;
-      const paginatedItems = items.slice(offset, offset + limit);
+      // Convert the SQL function results to DayMenuItem format
+      const items: DayMenuItem[] = data.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        serving_size: item.serving_size,
+        calories: item.calories,
+        protein_g: item.protein_g,
+        carbs_g: item.carbs_g,
+        fat_g: item.fat_g,
+        fiber_g: item.fiber_g,
+        sugar_g: item.sugar_g,
+        sodium_mg: item.sodium_mg,
+        vegetarian: item.vegetarian,
+        vegan: item.vegan,
+        gluten: item.gluten,
+        allergens: item.allergens || [],
+        ingredients: null, // Not returned by SQL function
+        protein_per_100cals: item.protein_per_100cals,
+        is_collection: null, // Not returned by SQL function
+        // Context from the SQL function
+        location_name: item.location_name,
+        meal_name: item.meal_name,
+        station_name: item.station_name,
+        serve_date: typeof date === 'string' ? date : date.toISOString().split('T')[0],
+        meal_start_time: null, // Not available from SQL function
+        meal_end_time: null, // Not available from SQL function
+        meal_is_open: null // Not available from SQL function
+      }));
 
       return {
-        data: paginatedItems,
-        count: totalCount,
-        error: null,
+        data: items,
+        count: items.length,
+        error: null
       };
     } catch (err) {
       console.error('Date search service error:', err);
