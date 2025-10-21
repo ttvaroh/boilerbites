@@ -49,6 +49,12 @@
         "projectId": "ca15a183-d9fe-452e-9e9b-df0768fd53a7"
       }
     },
-    "owner": "ttvaroh"
+    "owner": "ttvaroh",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ca15a183-d9fe-452e-9e9b-df0768fd53a7"
+    }
   }
 }

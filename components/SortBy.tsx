@@ -20,22 +20,27 @@ const SortBy: React.FC<SortByProps> = ({
   visible, 
   onClose, 
   onSortChange, 
-  currentSort = "Calories",
+  currentSort = "Protein/Calorie",
   currentOrder = "highest"
 }) => {
   const [selectedSort, setSelectedSort] = useState(currentSort);
   const [selectedOrder, setSelectedOrder] = useState<'highest' | 'lowest'>(currentOrder);
 
   const sortOptions = [
-    { key: "Calories", label: "Calories" },
-    { key: "Protein", label: "Protein" },
     { key: "Protein/Calorie", label: "Protein/Calorie" },
+    { key: "Protein", label: "Protein" },
     { key: "Fat", label: "Fat" },
     { key: "Carbs", label: "Carbs" },
+    { key: "Calories", label: "Calories" },
   ];
 
   const handleApply = () => {
     onSortChange(selectedSort, selectedOrder);
+    onClose();
+  };
+
+  const handleClearSort = () => {
+    onSortChange('', 'highest');
     onClose();
   };
 
@@ -127,8 +132,19 @@ const SortBy: React.FC<SortByProps> = ({
             ))}
           </View>
 
-          {/* Apply Button */}
-          <View className="mt-8">
+          {/* Action Buttons */}
+          <View className="mt-8 space-y-4">
+            {/* Clear Sort Button */}
+            <TouchableOpacity
+              onPress={handleClearSort}
+              className="bg-gray-700 rounded-xl py-4"
+            >
+              <Text className="text-white text-center font-sora-semibold text-lg">
+                Clear Sort
+              </Text>
+            </TouchableOpacity>
+            
+            {/* Apply Button */}
             <TouchableOpacity
               onPress={handleApply}
               className="bg-purdueGold rounded-xl py-4"

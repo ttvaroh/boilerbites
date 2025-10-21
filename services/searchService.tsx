@@ -67,8 +67,14 @@ class DateSearchService {
       // Get current user for custom food filtering
       const { data: { user } } = await supabase.auth.getUser();
       
-      // Use the optimized SQL function instead of complex joins
+      // Format date to YYYY-MM-DD
+      const formattedDate = typeof date === 'string' 
+        ? date 
+        : date.toISOString().split('T')[0];
+      
+      // Use the optimized SQL function with date parameter
       const { data, error } = await supabase.rpc('search_menu_items', {
+        search_date: formattedDate, // NEW: Pass the date parameter
         search_query: filters.searchQuery || '',
         filter_vegetarian: filters.dietaryPreferences?.vegetarian || null,
         filter_vegan: filters.dietaryPreferences?.vegan || null,
@@ -76,7 +82,7 @@ class DateSearchService {
         exclude_allergens: filters.excludeAllergens || [],
         dining_halls: filters.locations || [],
         meal_types: filters.meals || [],
-        available_only: false, // We want all items, not just currently available
+        available_only: false, // Set to true if you want only currently open meals
         sort_column: options.sortBy || 'name',
         sort_direction: options.sortOrder || 'asc',
         result_limit: options.limit || 50,
@@ -116,7 +122,7 @@ class DateSearchService {
         location_name: item.location_name,
         meal_name: item.meal_name,
         station_name: item.station_name,
-        serve_date: typeof date === 'string' ? date : date.toISOString().split('T')[0],
+        serve_date: formattedDate,
         meal_start_time: null, // Not available from SQL function
         meal_end_time: null, // Not available from SQL function
         meal_is_open: null // Not available from SQL function
