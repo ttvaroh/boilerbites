@@ -40,4 +40,3 @@ yarn-error.*
 
 .examples/
 .supabase-setup/
-.app.json
