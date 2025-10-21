@@ -50,9 +50,7 @@
       }
     },
     "owner": "ttvaroh",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "updates": {
       "url": "https://u.expo.dev/ca15a183-d9fe-452e-9e9b-df0768fd53a7"
     }
