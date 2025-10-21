@@ -98,24 +98,24 @@ export default function CollectionPage() {
         }
 
         // Transform the data to match our interface and sort by name
-        const items: CollectionItem[] = collectionItems?.map(ci => ({
-          id: ci.item.id,
-          name: ci.item.name,
-          vegetarian: ci.item.vegetarian,
-          vegan: ci.item.vegan,
-          gluten: ci.item.gluten,
-          allergens: ci.item.allergens,
-          serving_size: ci.item.serving_size,
-          calories: ci.item.calories,
-          protein_g: ci.item.protein_g,
-          carbs_g: ci.item.carbs_g,
-          fat_g: ci.item.fat_g,
-          fiber_g: ci.item.fiber_g,
-          sugar_g: ci.item.sugar_g,
-          sodium_mg: ci.item.sodium_mg,
-          last_verified: ci.item.last_verified,
-          ingredients: ci.item.ingredients,
-        })).sort((a, b) => a.name.localeCompare(b.name)) || [];
+        const items: CollectionItem[] = (collectionItems || []).map(ci => ({
+          id: ci.item[0].id,
+          name: ci.item[0].name,
+          vegetarian: ci.item[0].vegetarian,
+          vegan: ci.item[0].vegan,
+          gluten: ci.item[0].gluten,
+          allergens: ci.item[0].allergens,
+          serving_size: ci.item[0].serving_size,
+          calories: ci.item[0].calories,
+          protein_g: ci.item[0].protein_g,
+          carbs_g: ci.item[0].carbs_g,
+          fat_g: ci.item[0].fat_g,
+          fiber_g: ci.item[0].fiber_g,
+          sugar_g: ci.item[0].sugar_g,
+          sodium_mg: ci.item[0].sodium_mg,
+          last_verified: ci.item[0].last_verified,
+          ingredients: ci.item[0].ingredients,
+        })).sort((a, b) => a.name.localeCompare(b.name));
 
         setCollection({
           id: collectionData.id,

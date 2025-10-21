@@ -64,6 +64,9 @@ class DateSearchService {
     options: DateSearchOptions = {}
   ): Promise<DateSearchResult> {
     try {
+      // Get current user for custom food filtering
+      const { data: { user } } = await supabase.auth.getUser();
+      
       // Use the optimized SQL function instead of complex joins
       const { data, error } = await supabase.rpc('search_menu_items', {
         search_query: filters.searchQuery || '',
@@ -77,7 +80,8 @@ class DateSearchService {
         sort_column: options.sortBy || 'name',
         sort_direction: options.sortOrder || 'asc',
         result_limit: options.limit || 50,
-        result_offset: options.offset || 0
+        result_offset: options.offset || 0,
+        user_id: user?.id || null
       });
 
       if (error) {
