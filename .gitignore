@@ -40,5 +40,4 @@ yarn-error.*
 
 .examples/
 .supabase-setup/
-ADVANCED_SEARCH_IMPLEMENTATION.md
-SEARCH_ARCHITECTURE.md
+.app.json

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "boilerbites",
+    "name": "BoilerBites",
     "slug": "boilerbites",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,11 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.boilerbites.app",
+      "bundleIdentifier": "com.ttvaroh.BoilerBites",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "This app needs access to camera to scan food items",
-        "NSPhotoLibraryUsageDescription": "This app needs access to photo library to select food images"
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -22,17 +21,13 @@
         "foregroundImage": "",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.ttvaroh.BoilerBites"
     },
     "web": {
       "bundler": "metro",
       "output": "static",
       "favicon": ""
-    },
-    "extra": {
-      "eas": {
-        "projectId": "your-project-id-here"
-      }
     },
     "plugins": [
       "expo-router",
@@ -49,6 +44,12 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ca15a183-d9fe-452e-9e9b-df0768fd53a7"
+      }
+    },
+    "owner": "ttvaroh"
   }
 }
