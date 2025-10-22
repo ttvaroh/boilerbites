@@ -1,4 +1,5 @@
 import { FontAwesome6, Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
+import React from "react";
 import { Text, View } from "react-native";
 
 interface MenuItem {
@@ -34,7 +35,7 @@ interface SearchItemCardProps {
   isCollection?: boolean;
 }
 
-export default function SearchItemCard({ item, showDietaryTag = true, meals, isCollection = false }: SearchItemCardProps) {
+const SearchItemCard = React.memo(({ item, showDietaryTag = true, meals, isCollection = false }: SearchItemCardProps) => {
   const getDietaryIcons = () => {
     const icons: Array<{
       icon: string;
@@ -205,4 +206,6 @@ export default function SearchItemCard({ item, showDietaryTag = true, meals, isC
       )}
     </View>
   );
-}
+});
+
+export default SearchItemCard;

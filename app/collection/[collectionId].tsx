@@ -98,7 +98,7 @@ export default function CollectionPage() {
         }
 
         // Transform the data to match our interface and sort by name
-        const items: CollectionItem[] = (collectionItems || []).map(ci => ({
+        const items: CollectionItem[] = (collectionItems || []).map((ci: any) => ({
           id: ci.item[0].id,
           name: ci.item[0].name,
           vegetarian: ci.item[0].vegetarian,
@@ -115,7 +115,7 @@ export default function CollectionPage() {
           sodium_mg: ci.item[0].sodium_mg,
           last_verified: ci.item[0].last_verified,
           ingredients: ci.item[0].ingredients,
-        })).sort((a, b) => a.name.localeCompare(b.name));
+        })).sort((a: CollectionItem, b: CollectionItem) => a.name.localeCompare(b.name));
 
         setCollection({
           id: collectionData.id,

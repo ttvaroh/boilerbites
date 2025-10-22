@@ -1,14 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
-import { FlashList } from "@shopify/flash-list";
 import { useRouter } from "expo-router";
 import * as React from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Text,
   TouchableOpacity,
   View
 } from "react-native";
 import BackgroundTemplate from "../../components/BackgroundTemplate";
+import ErrorBoundary from "../../components/ErrorBoundary";
 import ItemSearchComponent from "../../components/ItemSearch";
 import SearchItemCard from "../../components/SearchItemCard";
 import SortBy from "../../components/SortBy";
@@ -57,6 +58,34 @@ interface SearchOptions {
   sortBy?: 'protein/calorie' | 'protein_g' | 'carbs_g' | 'fat_g' | 'calories' | 'name';
   sortOrder?: 'desc' | 'asc';
 }
+
+// Optimized SearchItemWrapper component
+const SearchItemWrapper = React.memo(({ 
+  item, 
+  index, 
+  onPress, 
+  isCollection 
+}: { 
+  item: MenuItem; 
+  index: number; 
+  onPress: (item: MenuItem) => void; 
+  isCollection: boolean; 
+}) => {
+  const handlePress = React.useCallback(() => {
+    onPress(item);
+  }, [onPress, item]);
+
+  return (
+    <TouchableOpacity onPress={handlePress}>
+      <SearchItemCard
+        item={item}
+        showDietaryTag={true}
+        meals={item.meals || []}
+        isCollection={isCollection}
+      />
+    </TouchableOpacity>
+  );
+});
 
 // Utility functions
 function useDebounce<T>(value: T, delay: number): T {
@@ -296,7 +325,7 @@ export default function SearchPage() {
 
       if (!error && itemsData) {
         const newStatus: Record<string, boolean> = {};
-        itemsData.forEach(item => {
+        itemsData.forEach((item: any) => {
           newStatus[item.id] = item.is_collection || false;
         });
         setCollectionStatus(prev => ({ ...prev, ...newStatus }));
@@ -329,19 +358,15 @@ export default function SearchPage() {
     }
   }, [searchResults]);
 
-  // Render item for FlashList
+  // Render item for FlatList - optimized with React.memo
   const renderItem = React.useCallback(({ item, index }: { item: MenuItem; index: number }) => {
     return (
-      <TouchableOpacity
-        onPress={() => handleMenuItemPress(item)}
-      >
-        <SearchItemCard
-          item={item}
-          showDietaryTag={true}
-          meals={item.meals || []}
-          isCollection={collectionStatus[item.id] || false}
-        />
-      </TouchableOpacity>
+      <SearchItemWrapper
+        item={item}
+        index={index}
+        onPress={handleMenuItemPress}
+        isCollection={collectionStatus[item.id] || false}
+      />
     );
   }, [handleMenuItemPress, collectionStatus]);
 
@@ -383,8 +408,9 @@ export default function SearchPage() {
   }, [searchResults.length, totalCount, isSearching]);
 
   return (
-    <BackgroundTemplate>
-      <View className="flex-1 px-6 pt-16">
+    <ErrorBoundary>
+      <BackgroundTemplate>
+        <View className="flex-1 px-6 pt-16">
         {/* Header */}
         <View className="flex-row items-center justify-center mb-6">
           <Text className="text-2xl font-sora-bold text-white">Search</Text>
@@ -407,18 +433,24 @@ export default function SearchPage() {
           </TouchableOpacity>
         </View>
 
-        {/* Results with FlashList for virtual scrolling */}
+        {/* Results with FlatList */}
         <View className="flex-1">
-          <FlashList
+          <FlatList
             data={searchResults}
             renderItem={renderItem}
-            keyExtractor={(item, index) => `${item.id}-${index}`}
+            keyExtractor={(item: MenuItem, index: number) => `${item.id}-${index}`}
             ListEmptyComponent={ListEmptyComponent}
             ListFooterComponent={ListFooterComponent}
             showsVerticalScrollIndicator={false}
             // Performance optimizations
-            drawDistance={500}
             removeClippedSubviews={true}
+            initialNumToRender={8}
+            maxToRenderPerBatch={5}
+            windowSize={5}
+            updateCellsBatchingPeriod={50}
+            disableVirtualization={false}
+            legacyImplementation={false}
+            // Remove getItemLayout as it can cause issues with dynamic heights
           />
         </View>
 
@@ -434,7 +466,8 @@ export default function SearchPage() {
                       sortBy === 'calories' ? 'Calories' : 'Protein/Calorie'}
           currentOrder={sortOrder === 'desc' ? 'highest' : 'lowest'}
         />
-      </View>
-    </BackgroundTemplate>
+        </View>
+      </BackgroundTemplate>
+    </ErrorBoundary>
   );
 }

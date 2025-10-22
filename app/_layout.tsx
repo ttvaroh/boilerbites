@@ -10,6 +10,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import ErrorBoundary from "../components/ErrorBoundary";
 import { AuthProvider } from "../contexts/AuthContext";
 import "../global.css";
 import { MenuDataProvider } from "../lib/MenuDataContext";
@@ -33,11 +34,12 @@ export default function RootLayout() {
 
   if (!fontsLoaded) {
     return (
-      <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
-        <SafeAreaProvider>
-          <AuthProvider>
-            <MenuDataProvider>
-              <Stack>
+      <ErrorBoundary>
+        <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
+          <SafeAreaProvider>
+            <AuthProvider>
+              <MenuDataProvider>
+                <Stack>
                 <Stack.Screen name="index" options={{ headerShown: false }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen
@@ -84,20 +86,22 @@ export default function RootLayout() {
                   name="[...unmatched]"
                   options={{ headerShown: false }}
                 />
-              </Stack>
-            </MenuDataProvider>
-          </AuthProvider>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
+                </Stack>
+              </MenuDataProvider>
+            </AuthProvider>
+          </SafeAreaProvider>
+        </GestureHandlerRootView>
+      </ErrorBoundary>
     );
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
-      <SafeAreaProvider>
-        <AuthProvider>
-          <MenuDataProvider>
-            <Stack>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
+        <SafeAreaProvider>
+          <AuthProvider>
+            <MenuDataProvider>
+              <Stack>
               <Stack.Screen name="index" options={{ headerShown: false }} />
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen
@@ -148,10 +152,11 @@ export default function RootLayout() {
                   name="[...unmatched]"
                   options={{ headerShown: false }}
                 />
-            </Stack>
-          </MenuDataProvider>
-        </AuthProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+              </Stack>
+            </MenuDataProvider>
+          </AuthProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

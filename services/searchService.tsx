@@ -164,7 +164,7 @@ class DateSearchService {
       }
 
       // Return unique location names
-      return [...new Set(data.map((item: any) => item.location_name))];
+      return [...new Set(data.map((item: any) => item.location_name as string))] as string[];
     } catch (err) {
       console.error('Error in getAvailableLocations:', err);
       return [];

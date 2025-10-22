@@ -40,3 +40,5 @@ yarn-error.*
 
 .examples/
 .supabase-setup/
+
+.ios/
