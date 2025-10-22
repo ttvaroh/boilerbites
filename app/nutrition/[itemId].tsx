@@ -140,7 +140,7 @@ export default function NutritionPage() {
         duration: 300,
         useNativeDriver: true,
       }),
-      Animated.delay(3000),
+      Animated.delay(2000),
       Animated.timing(toastAnimation, {
         toValue: 0,
         duration: 300,

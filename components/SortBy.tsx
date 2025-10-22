@@ -133,7 +133,17 @@ const SortBy: React.FC<SortByProps> = ({
           </View>
 
           {/* Action Buttons */}
-          <View className="mt-8 space-y-4">
+          <View className="mt-8">
+            {/* Apply Button */}
+            <TouchableOpacity
+              onPress={handleApply}
+              className="bg-purdueGold rounded-xl py-4 mb-4"
+            >
+              <Text className="text-black text-center font-sora-bold text-lg">
+                Apply
+              </Text>
+            </TouchableOpacity>
+            
             {/* Clear Sort Button */}
             <TouchableOpacity
               onPress={handleClearSort}
@@ -141,16 +151,6 @@ const SortBy: React.FC<SortByProps> = ({
             >
               <Text className="text-white text-center font-sora-semibold text-lg">
                 Clear Sort
-              </Text>
-            </TouchableOpacity>
-            
-            {/* Apply Button */}
-            <TouchableOpacity
-              onPress={handleApply}
-              className="bg-purdueGold rounded-xl py-4"
-            >
-              <Text className="text-black text-center font-sora-bold text-lg">
-                Apply
               </Text>
             </TouchableOpacity>
           </View>

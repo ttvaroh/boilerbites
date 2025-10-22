@@ -400,7 +400,7 @@ export default function DiningHallPage() {
 
       if (!error && itemsData) {
         const newStatus: Record<string, boolean> = {};
-        itemsData.forEach(item => {
+        itemsData.forEach((item: any) => {
           newStatus[item.id] = item.is_collection || false;
         });
         setCollectionStatus(prev => ({ ...prev, ...newStatus }));
@@ -610,20 +610,31 @@ export default function DiningHallPage() {
                 {/* Station Items */}
                 {stationExpandState[station.id] && (
                   <View className="ml-2 mb-2">
-                    {station.items.map((item) => {
-                      const isCollection = collectionStatus[item.id] || false;
-                      return (
-                        <TouchableOpacity
-                          key={item.id}
-                          onPress={() => handleMenuItemPress(item)}
-                        >
-                          <MenuItemCard 
-                            item={item} 
-                            isCollection={isCollection}
-                          />
-                        </TouchableOpacity>
-                      );
-                    })}
+                    {(() => {
+                      // Deduplicate items by id at render time
+                      const uniqueItems = station.items.reduce((acc, item) => {
+                        // Only add item if we haven't seen this id before
+                        if (!acc.find(i => i.id === item.id)) {
+                          acc.push(item);
+                        }
+                        return acc;
+                      }, [] as MenuItem[]);
+
+                      return uniqueItems.map((item) => {
+                        const isCollection = collectionStatus[item.id] || false;
+                        return (
+                          <TouchableOpacity
+                            key={item.id}
+                            onPress={() => handleMenuItemPress(item)}
+                          >
+                            <MenuItemCard 
+                              item={item} 
+                              isCollection={isCollection}
+                            />
+                          </TouchableOpacity>
+                        );
+                      });
+                    })()}
                   </View>
                 )}
               </View>
