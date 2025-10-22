@@ -41,4 +41,6 @@ yarn-error.*
 .examples/
 .supabase-setup/
 
-.ios/
+# iOS and Android build folders
+ios/
+android/

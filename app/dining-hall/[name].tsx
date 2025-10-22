@@ -164,6 +164,13 @@ export default function DiningHallPage() {
         // Move to next meal same day
         const nextMealType = mealOrder[currentIndex + 1] as any;
         setCurrentMealType(nextMealType);
+        // Pre-expand stations for the new meal if we have basic data
+        const currentMeals = menusByDate.get(currentDate);
+        const nextMealData = currentMeals?.[nextMealType as keyof MealsByDate];
+        if (nextMealData && nextMealData.stations) {
+          setAllStationsExpanded(nextMealData.stations);
+        }
+        
         // Load detailed data for the new meal
         await loadDetailedMealData(currentDate, nextMealType);
       } else {
@@ -189,6 +196,13 @@ export default function DiningHallPage() {
         // Move to previous meal same day
         const prevMealType = mealOrder[currentIndex - 1] as any;
         setCurrentMealType(prevMealType);
+        // Pre-expand stations for the new meal if we have basic data
+        const currentMeals = menusByDate.get(currentDate);
+        const prevMealData = currentMeals?.[prevMealType as keyof MealsByDate];
+        if (prevMealData && prevMealData.stations) {
+          setAllStationsExpanded(prevMealData.stations);
+        }
+        
         // Load detailed data for the new meal
         await loadDetailedMealData(currentDate, prevMealType);
       } else {
@@ -217,10 +231,10 @@ export default function DiningHallPage() {
 
   // Progressive loading: Load basic info first, then detailed data on demand
   const loadMenuForDate = async (date: string, specificMealType?: string) => {
-    if (!name) return;
-    
-    setMenuLoading(true);
-    try {
+      if (!name) return;
+      
+      setMenuLoading(true);
+      try {
       // First, load basic meal info (fast)
       const basicMealsData = await getMealBasicInfo(name, date);
       
@@ -242,15 +256,21 @@ export default function DiningHallPage() {
           mealToLoad = currentMealType;
         }
         
+        // Pre-expand stations for the meal we're about to load
+        const mealData = basicMealsData[mealToLoad as keyof MealsByDate];
+        if (mealData && mealData.stations) {
+          setAllStationsExpanded(mealData.stations);
+        }
+        
         // Load detailed data for the determined meal
         await loadDetailedMealData(date, mealToLoad);
-      }
-    } catch (error) {
+        }
+      } catch (error) {
       console.error(`Error loading menu for ${date}:`, error);
-    } finally {
-      setMenuLoading(false);
-    }
-  };
+      } finally {
+        setMenuLoading(false);
+      }
+    };
 
   // Load detailed data for a specific meal
   const loadDetailedMealData = async (date: string, mealType: string) => {
@@ -307,8 +327,8 @@ export default function DiningHallPage() {
         setMenusByDate(new Map());
         setStationExpandState({});
         setCollectionStatus({});
-        setMenuLoading(false);
-        
+            setMenuLoading(false);
+            
         // Reset auto-determination flag for new location
         hasAutoDeterminedMeal.current = false;
         
@@ -579,37 +599,37 @@ export default function DiningHallPage() {
             </View>
           ) : hasDataForCurrentMeal ? (
             currentMeal.stations.map((station, stationIndex) => (
-              <View key={station.id}>
-                {/* Station Header */}
-                <TouchableOpacity
+            <View key={station.id}>
+              {/* Station Header */}
+              <TouchableOpacity
                   onPress={() => toggleStation(station.id)}
-                  className="flex-row items-center justify-between py-3 px-4 bg-gray-800 rounded-lg mb-2"
-                  style={{
-                    borderWidth: 1,
-                    borderColor: "rgba(207, 185, 145, 0.2)",
-                  }}
-                >
-                  <View className="flex-row items-center flex-1">
-                    <Text className="text-white text-base font-sora-bold flex-1">
-                      {station.name}
-                    </Text>
-                    <Ionicons
-                      name="restaurant"
-                      size={20}
-                      color="#CFB991"
-                      style={{ marginRight: 8 }}
-                    />
-                  </View>
+                className="flex-row items-center justify-between py-3 px-4 bg-gray-800 rounded-lg mb-2"
+                style={{
+                  borderWidth: 1,
+                  borderColor: "rgba(207, 185, 145, 0.2)",
+                }}
+              >
+                <View className="flex-row items-center flex-1">
+                  <Text className="text-white text-base font-sora-bold flex-1">
+                    {station.name}
+                  </Text>
                   <Ionicons
-                    name={stationExpandState[station.id] ? "chevron-down" : "chevron-forward"}
+                    name="restaurant"
                     size={20}
                     color="#CFB991"
+                    style={{ marginRight: 8 }}
                   />
-                </TouchableOpacity>
+                </View>
+                <Ionicons
+                    name={(stationExpandState[station.id] ?? true) ? "chevron-down" : "chevron-forward"}
+                  size={20}
+                  color="#CFB991"
+                />
+              </TouchableOpacity>
 
-                {/* Station Items */}
-                {stationExpandState[station.id] && (
-                  <View className="ml-2 mb-2">
+              {/* Station Items */}
+                {(stationExpandState[station.id] ?? true) && (
+                <View className="ml-2 mb-2">
                     {(() => {
                       // Deduplicate items by id at render time
                       const uniqueItems = station.items.reduce((acc, item) => {
@@ -621,22 +641,22 @@ export default function DiningHallPage() {
                       }, [] as MenuItem[]);
 
                       return uniqueItems.map((item) => {
-                        const isCollection = collectionStatus[item.id] || false;
-                        return (
-                          <TouchableOpacity
-                            key={item.id}
-                            onPress={() => handleMenuItemPress(item)}
-                          >
-                            <MenuItemCard 
-                              item={item} 
-                              isCollection={isCollection}
-                            />
-                          </TouchableOpacity>
-                        );
+                    const isCollection = collectionStatus[item.id] || false;
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        onPress={() => handleMenuItemPress(item)}
+                      >
+                        <MenuItemCard 
+                          item={item} 
+                          isCollection={isCollection}
+                        />
+                      </TouchableOpacity>
+                    );
                       });
                     })()}
-                  </View>
-                )}
+                </View>
+              )}
               </View>
             ))
           ) : (
