@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import BackgroundTemplate from "../components/BackgroundTemplate";
 const boilerbitesLogo = require("../assets/images/logos/boilerbites-logo.png");
+const tomHeadshot = require("../assets/images/tommycancun.jpg");
 
 export default function AboutScreen() {
   const router = useRouter();
@@ -82,21 +83,25 @@ export default function AboutScreen() {
 
           {/* Developer Info */}
           <View className="mb-6">
-            <Text className="text-white text-lg font-sora-semibold mb-2">Development</Text>
+            <Text className="text-white text-lg font-sora-semibold mb-2">Developer Info</Text>
             <View className="bg-gray-800/60 backdrop-blur-xl rounded-2xl p-6 border border-gray-700/50">
-              <View className="flex-row items-center mb-4">
-                <View className="bg-purdueGold/20 rounded-full w-12 h-12 items-center justify-center mr-4">
-                  <Ionicons name="code-slash" size={24} color="#CFB991" />
+              <View className="flex-row items-start mb-4">
+                <View className="w-16 h-16 rounded-full overflow-hidden mr-4 shadow-lg">
+                  <Image 
+                    source={tomHeadshot} 
+                    className="w-full h-full"
+                    resizeMode="cover"
+                  />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-white text-base font-sora-semibold">Independent Project</Text>
-                  <Text className="text-gray-400 text-sm font-sora">Built with passion for the Purdue community</Text>
+                  <Text className="text-white text-lg font-sora-bold mb-1">Tom Tvaroh</Text>
+                  <Text className="text-purdueGold text-sm font-sora mb-1">Developer & Purdue Student</Text>
                 </View>
               </View>
               
               <Text className="text-gray-300 text-sm font-sora leading-5">
-                BoilerBites is developed as an independent project to enhance the dining experience 
-                for Purdue students. This app is created with love for the Boilermaker community.
+              Hi, I'm Tom! I created BoilerBites as an independent project to make dining at 
+              Purdue simpler and smarter. I'm always open to feedback or ideas, so feel free to reach out anytime!
               </Text>
             </View>
           </View>
@@ -107,7 +112,7 @@ export default function AboutScreen() {
             <Text className="text-white text-lg font-sora-semibold mb-2">Contact</Text>
             <View className="bg-gray-800/60 backdrop-blur-xl rounded-2xl p-6 border border-gray-700/50">
               <Text className="text-gray-300 text-sm font-sora leading-5 mb-4">
-                Have feedback, suggestions, or found a bug? We'd love to hear from you!
+                Have feedback, suggestions, or found a bug? Your input is always welcome!
               </Text>
               
               <View className="space-y-3">
@@ -137,9 +142,9 @@ export default function AboutScreen() {
           {/* Footer */}
           <View className="pb-8">
             <Text className="text-gray-500 text-xs font-sora text-center leading-4">
-              © 2024 BoilerBites. Made with ❤️ for the Purdue community.
+              © 2025 BoilerBites. Made with ❤️ for the Purdue community.
               <Text className="block mt-1">
-                This app is not officially affiliated with Purdue University.
+                {" "}This app is not officially affiliated with Purdue University.
               </Text>
             </Text>
           </View>

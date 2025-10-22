@@ -83,11 +83,11 @@ export default function FoodEntryCard({ entry, onRemove }: FoodEntryCardProps) {
   // Pan gesture for swipe-to-delete
   const panGesture = Gesture.Pan()
     .activeOffsetX([-10, 10])
-    .onUpdate((event) => {
+    .onUpdate((event: any) => {
       const newTranslateX = Math.min(0, event.translationX);
       translateX.value = Math.max(FULL_SWIPE_THRESHOLD, newTranslateX);
     })
-    .onEnd((event) => {
+    .onEnd((event: any) => {
       const velocity = event.velocityX;
       
       if (translateX.value <= FULL_SWIPE_THRESHOLD || velocity < -500) {
@@ -186,17 +186,17 @@ export default function FoodEntryCard({ entry, onRemove }: FoodEntryCardProps) {
           onLayout={handleCardLayout}
         >
           {/* Meal Icon */}
-          <View className="bg-purdueGold rounded-full w-10 h-10 items-center justify-center mr-4">
-            <Ionicons name={mealIcon as any} size={20} color="#0d0d0d" />
+          <View className="bg-purdueGold rounded-full w-9 h-9 items-center justify-center mr-4">
+            <Ionicons name={mealIcon as any} size={18} color="#0d0d0d" />
           </View>
 
           {/* Food Info */}
           <View className="flex-1">
-            <Text className="text-white text-base font-sora-semibold">
+            <Text className="text-white text-[.9rem] font-sora-semibold">
               {entry.item_name}
             </Text>
-            <Text className="text-gray-400 text-sm font-sora">
-              {mealName} • {entry.quantity} serving{entry.quantity !== 1 ? 's' : ''}
+            <Text className="text-gray-400 text-[0.75rem] font-sora">
+              {entry.quantity} serving{entry.quantity !== 1 ? 's' : ''} • P: {entry.protein_g.toFixed(1)} • C: {entry.carbs_g.toFixed(1)} • F: {entry.fat_g.toFixed(1)}
             </Text>
           </View>
 

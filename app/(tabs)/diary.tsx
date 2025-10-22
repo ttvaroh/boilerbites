@@ -36,6 +36,7 @@ export default function DiaryPage() {
   const [loading, setLoading] = React.useState(true);
   const [expandedMeals, setExpandedMeals] = React.useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = React.useState(new Date());
+  const [refreshKey, setRefreshKey] = React.useState(0);
 
   // Date navigation functions
   const goToPreviousDay = () => {
@@ -134,6 +135,8 @@ export default function DiaryPage() {
       }
       
       setFoodEntries(prev => prev.filter(entry => entry.id !== entryId));
+      // Trigger refresh of DailyProgress component
+      setRefreshKey(prev => prev + 1);
     } catch (error) {
       Alert.alert('Error', 'Failed to remove food entry. Please try again.');
       console.error('Remove food entry error:', error);
@@ -251,7 +254,7 @@ export default function DiaryPage() {
             <Text className="text-lg font-sora-semibold text-white mb-4">
               {isToday() ? "Today's Summary" : `${formatDate(selectedDate)} Summary`}
             </Text>
-            <DailyProgress selectedDate={selectedDate} />
+            <DailyProgress key={refreshKey} selectedDate={selectedDate} />
           </View>
 
           <View className="mb-6">
@@ -294,12 +297,12 @@ export default function DiaryPage() {
                                 size={18} 
                                 color={hasEntries ? "#CFB991" : "#6B7280"} 
                               />
-                              <Text className={`text-sm font-sora-semibold ml-2 ${hasEntries ? 'text-white' : 'text-gray-500'}`}>
+                              <Text className={`text-[1rem] font-sora-semibold ml-2 ${hasEntries ? 'text-white' : 'text-gray-500'}`}>
                                 {section.title}
                               </Text>
                             </View>
                             {hasEntries && (
-                              <Text className="text-xs text-gray-400 font-sora ml-6 mt-1">
+                              <Text className="text-[0.8rem] text-gray-400 font-sora ml-6 mt-1">
                                 Protein: {totals.protein_g.toFixed(1)}g • Carbs: {totals.carbs_g.toFixed(1)}g • Fat: {totals.fat_g.toFixed(1)}g
                               </Text>
                             )}
@@ -309,7 +312,7 @@ export default function DiaryPage() {
                             {hasEntries ? (
                               <>
                                 <View className="items-end mr-2">
-                                  <Text className="text-purdueGold text-sm font-sora-semibold">
+                                  <Text className="text-purdueGold text-[1rem] font-sora-semibold">
                                     {Math.round(totals.calories)}
                                   </Text>
                                   <Text className="text-xs text-gray-400 font-sora">

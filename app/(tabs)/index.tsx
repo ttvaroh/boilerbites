@@ -3,6 +3,7 @@ import * as React from "react";
 import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import BackgroundTemplate from "../../components/BackgroundTemplate";
 import DiningHallCard from "../../components/DiningHallCard";
+import { useAuth } from "../../contexts/AuthContext";
 import { useMenuData } from "../../lib/MenuDataContext";
 import { getCurrentTimeInEST } from "../../lib/timezone-utils";
 
@@ -32,6 +33,7 @@ interface DiningHall {
 
 export default function HomePage() {
   const router = useRouter();
+  const { user } = useAuth();
   const { locations, menuData, loading, error, refreshLocations } = useMenuData();
 
 
@@ -184,7 +186,10 @@ export default function HomePage() {
             <View>
               <Text className="text-white text-lg font-sora">Welcome</Text>
               <Text className="text-white text-2xl font-sora-bold">
-                Boilermaker
+                {user?.user_metadata?.full_name ? 
+                  user.user_metadata.full_name.split(' ')[0] : 
+                  'Boilermaker'
+                }
               </Text>
             </View>
           </View>

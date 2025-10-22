@@ -11,7 +11,7 @@ export default function ComingSoonPage() {
       <View className="flex-1 justify-center items-center px-6">
         {/* Header */}
         <View className="bg-transparent pt-12 pb-2 px-6 absolute top-0 left-0 right-0">
-          <View className="flex-row items-center justify-between mb-0">
+          <View className="flex-row items-center justify-between mt-6 mb-0">
             <TouchableOpacity
               onPress={() => router.back()}
               className="flex-row items-center"
@@ -43,7 +43,7 @@ export default function ComingSoonPage() {
           <View className="w-full max-w-sm">
             <TouchableOpacity
               onPress={() => router.push("/(tabs)/diary")}
-              className="bg-purdueGold rounded-lg py-4 mb-4 w-full"
+              className="bg-purdueGold rounded-lg px-4 py-4 mb-4 w-full"
               style={{
                 shadowColor: "#CFB991",
                 shadowOffset: { width: 0, height: 2 },
@@ -53,13 +53,13 @@ export default function ComingSoonPage() {
               }}
             >
               <Text className="text-black text-lg font-sora-bold text-center">
-                Go to Diary
+                Go to Stats
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => router.back()}
-              className="bg-gray-700 border border-gray-600 rounded-lg py-4"
+              className="bg-gray-700 border border-gray-600 rounded-lg px-4 py-4"
             >
               <Text className="text-white text-lg font-sora-bold text-center">
                 Go Back
