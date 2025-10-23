@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import * as React from "react";
-import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { Alert, RefreshControl, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import BackgroundTemplate from "../../components/BackgroundTemplate";
 import DiningHallCard from "../../components/DiningHallCard";
 import { useAuth } from "../../contexts/AuthContext";
@@ -8,11 +8,11 @@ import { useMenuData } from "../../lib/MenuDataContext";
 import { getCurrentTimeInEST } from "../../lib/timezone-utils";
 
 import {
-    earhartLogo,
-    fordLogo,
-    hillenbrandLogo,
-    wileyLogo,
-    windsorLogo,
+  earhartLogo,
+  fordLogo,
+  hillenbrandLogo,
+  wileyLogo,
+  windsorLogo,
 } from "../../assets/images/logos/logos";
 
 interface MealHours {
@@ -35,6 +35,7 @@ export default function HomePage() {
   const router = useRouter();
   const { user } = useAuth();
   const { locations, menuData, loading, error, refreshLocations } = useMenuData();
+  const [refreshing, setRefreshing] = React.useState(false);
 
 
   // Logo mapping
@@ -173,6 +174,18 @@ export default function HomePage() {
     }
   };
 
+  // Pull to refresh handler
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshLocations();
+    } catch (error) {
+      console.error("Error refreshing dining halls:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshLocations]);
+
   const handleDiningHallPress = (name: string) => {
     router.push(`/dining-hall/${encodeURIComponent(name)}`);
   };
@@ -197,7 +210,17 @@ export default function HomePage() {
         
 
         {/* Main Content */}
-        <ScrollView className="flex-1 px-6 pt-3">
+        <ScrollView 
+          className="flex-1 px-6 pt-3"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#CFB991"
+              colors={["#CFB991"]}
+            />
+          }
+        >
 
           {/* Dining Halls Grid */}
           {loading ? (

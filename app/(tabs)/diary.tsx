@@ -4,6 +4,7 @@ import * as React from "react";
 import { useCallback } from "react";
 import {
   Alert,
+  RefreshControl,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -37,6 +38,7 @@ export default function DiaryPage() {
   const [expandedMeals, setExpandedMeals] = React.useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = React.useState(new Date());
   const [refreshKey, setRefreshKey] = React.useState(0);
+  const [refreshing, setRefreshing] = React.useState(false);
 
   // Date navigation functions
   const goToPreviousDay = () => {
@@ -71,11 +73,13 @@ export default function DiaryPage() {
   };
 
   // Fetch food entries for selected date
-  const fetchFoodEntries = async () => {
+  const fetchFoodEntries = async (isRefresh = false) => {
     if (!user) return;
 
     try {
-      setLoading(true);
+      if (!isRefresh) {
+        setLoading(true);
+      }
       const selectedDateString = selectedDate.toISOString().split('T')[0];
       
       const { data, error } = await supabase
@@ -121,7 +125,9 @@ export default function DiaryPage() {
     } catch (error) {
       console.error('Error fetching food entries:', error);
     } finally {
-      setLoading(false);
+      if (!isRefresh) {
+        setLoading(false);
+      }
     }
   };
 
@@ -182,6 +188,14 @@ export default function DiaryPage() {
     }), { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
   };
 
+  // Pull to refresh handler
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await fetchFoodEntries(true);
+    setRefreshKey(prev => prev + 1); // Also refresh DailyProgress
+    setRefreshing(false);
+  }, [user, selectedDate]);
+
   useFocusEffect(
     useCallback(() => {
       if (user) {
@@ -227,7 +241,17 @@ export default function DiaryPage() {
 
   return (
     <BackgroundTemplate>
-      <ScrollView className="flex-1">
+      <ScrollView 
+        className="flex-1"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#CFB991"
+            colors={["#CFB991"]}
+          />
+        }
+      >
         <View className="p-6 pt-14">
           <View className="flex-row items-center justify-between mb-6">
             <TouchableOpacity onPress={goToPreviousDay} className="p-2">

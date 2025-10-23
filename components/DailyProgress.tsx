@@ -94,23 +94,7 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
     );
   };
 
-  if (loading) {
-    return (
-      <View className="bg-gray-800 rounded-xl p-6 mb-6" style={{
-        shadowColor: "#CFB991",
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 5,
-        borderWidth: 1,
-        borderColor: "rgba(207, 185, 145, 0.2)",
-      }}>
-        <View className="flex-row items-center justify-center py-8">
-          <Text className="text-white text-lg font-sora">Loading nutrition data...</Text>
-        </View>
-      </View>
-    );
-  }
+  // Remove the loading state display - keep showing existing data while loading
 
   if (!user) {
     return (

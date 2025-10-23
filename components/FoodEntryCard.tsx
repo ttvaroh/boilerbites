@@ -182,11 +182,11 @@ export default function FoodEntryCard({ entry, onRemove }: FoodEntryCardProps) {
       <GestureDetector gesture={composedGesture}>
         <Animated.View
           style={[animatedCardStyle]}
-          className="bg-gray-800 rounded-xl p-4 flex-row items-center border border-gray-700"
+          className="bg-gray-800 rounded-xl px-4 py-2 flex-row items-center border border-gray-700"
           onLayout={handleCardLayout}
         >
           {/* Meal Icon */}
-          <View className="bg-purdueGold rounded-full w-9 h-9 items-center justify-center mr-4">
+          <View className="bg-purdueGold rounded-full w-8 h-8 items-center justify-center mr-4">
             <Ionicons name={mealIcon as any} size={18} color="#0d0d0d" />
           </View>
 
