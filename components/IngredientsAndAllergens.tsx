@@ -3,6 +3,18 @@ import { useEffect, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { supabase } from "../lib/supabase";
 
+// Map database allergen names to UI-friendly names
+const mapAllergensForDisplay = (allergens: string[]): string[] => {
+  return allergens.map(allergen => {
+    switch (allergen) {
+      case 'Milk':
+        return 'Dairy';
+      default:
+        return allergen;
+    }
+  });
+};
+
 interface IngredientsAndAllergensProps {
   itemId: string;
   allergens?: string[];
@@ -78,7 +90,7 @@ export default function IngredientsAndAllergens({
             </Text>
             {allergens && allergens.length > 0 ? (
               <View className="flex-row flex-wrap">
-                {allergens.map((allergen, index) => (
+                {mapAllergensForDisplay(allergens).map((allergen, index) => (
                   <View
                     key={index}
                     className="bg-red-500 rounded-full px-3 py-1 mr-2 mb-2"

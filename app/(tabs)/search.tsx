@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   ActivityIndicator,
   FlatList,
+  RefreshControl,
   Text,
   TouchableOpacity,
   View
@@ -51,11 +52,10 @@ interface SearchFilters {
     glutenFree: boolean;
   };
   excludeAllergens: string[];
-  mealAvailabilityOnly: boolean;
 }
 
 interface SearchOptions {
-  sortBy?: 'protein/calorie' | 'protein_g' | 'carbs_g' | 'fat_g' | 'calories' | 'name';
+  sortBy?: 'protein/calorie' | 'protein_g' | 'carbs_g' | 'fat_g' | 'calories' | 'name' | null;
   sortOrder?: 'desc' | 'asc';
 }
 
@@ -151,7 +151,8 @@ function createDateFilters(filters: SearchFilters, query: string): DateSearchFil
 
 function createDateOptions(options: SearchOptions): DateSearchOptions {
   return {
-    sortBy: options.sortBy === 'protein/calorie' ? 'protein_per_100cals' : options.sortBy,
+    sortBy: options.sortBy === 'protein/calorie' ? 'protein_per_100cals' : 
+            options.sortBy === null ? undefined : options.sortBy,
     sortOrder: options.sortOrder,
     limit: 1000, // Large limit to get all items
     offset: 0
@@ -256,8 +257,9 @@ export default function SearchPage() {
   } = useSearch();
   
   const [showSortBy, setShowSortBy] = React.useState(false);
-  const [sortBy, setSortBy] = React.useState<'calories' | 'protein_g' | 'protein/calorie' | 'carbs_g' | 'fat_g' | 'name'>('name');
+  const [sortBy, setSortBy] = React.useState<'calories' | 'protein_g' | 'protein/calorie' | 'carbs_g' | 'fat_g' | 'name' | null>('protein/calorie');
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('desc');
+  const [isSortCleared, setIsSortCleared] = React.useState(false);
   
   const [currentFilters, setCurrentFilters] = React.useState<SearchFilters>({
     timeOfDay: "All",
@@ -268,8 +270,9 @@ export default function SearchPage() {
       glutenFree: false,
     },
     excludeAllergens: [],
-    mealAvailabilityOnly: false,
   });
+
+  const [refreshing, setRefreshing] = React.useState(false);
 
   // Trigger search when debounced query or filters change
   React.useEffect(() => {
@@ -294,11 +297,25 @@ export default function SearchPage() {
     setSearchQuery(query);
   }, []);
 
+  // Pull to refresh handler
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await performSearch(debouncedQuery, currentFilters, {
+        sortBy,
+        sortOrder
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [debouncedQuery, currentFilters, sortBy, sortOrder, performSearch]);
+
   const handleSortChange = React.useCallback((newSortBy: string, order: 'highest' | 'lowest') => {
     // Handle clear sort
     if (newSortBy === '') {
-      setSortBy('name');
+      setSortBy(null);
       setSortOrder('desc');
+      setIsSortCleared(true);
       return;
     }
 
@@ -310,8 +327,9 @@ export default function SearchPage() {
       'Calories': 'calories'
     };
 
-    setSortBy(sortByMap[newSortBy] || 'name');
+    setSortBy(sortByMap[newSortBy] || null);
     setSortOrder(order === 'highest' ? 'desc' : 'asc');
+    setIsSortCleared(false);
   }, []);
 
   const [collectionStatus, setCollectionStatus] = React.useState<Record<string, boolean>>({});
@@ -442,6 +460,14 @@ export default function SearchPage() {
             ListEmptyComponent={ListEmptyComponent}
             ListFooterComponent={ListFooterComponent}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor="#CFB991"
+                colors={["#CFB991"]}
+              />
+            }
             // Performance optimizations
             removeClippedSubviews={true}
             initialNumToRender={8}
@@ -459,11 +485,13 @@ export default function SearchPage() {
           visible={showSortBy}
           onClose={() => setShowSortBy(false)}
           onSortChange={handleSortChange}
-          currentSort={sortBy === 'protein/calorie' ? 'Protein/Calorie' : 
+          currentSort={isSortCleared ? undefined : 
+                      sortBy === 'protein/calorie' ? 'Protein/Calorie' : 
                       sortBy === 'protein_g' ? 'Protein' :
                       sortBy === 'carbs_g' ? 'Carbs' :
                       sortBy === 'fat_g' ? 'Fat' :
-                      sortBy === 'calories' ? 'Calories' : 'Protein/Calorie'}
+                      sortBy === 'calories' ? 'Calories' : 
+                      sortBy === null ? undefined : 'Protein/Calorie'}
           currentOrder={sortOrder === 'desc' ? 'highest' : 'lowest'}
         />
         </View>

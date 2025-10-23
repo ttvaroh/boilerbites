@@ -72,6 +72,18 @@ class DateSearchService {
         ? date 
         : date.toISOString().split('T')[0];
       
+      // Map UI allergen names to database allergen names
+      const mapAllergensForDatabase = (allergens: string[]): string[] => {
+        return allergens.map(allergen => {
+          switch (allergen) {
+            case 'Dairy':
+              return 'Milk';
+            default:
+              return allergen;
+          }
+        });
+      };
+
       // Use the optimized SQL function with date parameter
       const { data, error } = await supabase.rpc('search_menu_items', {
         search_date: formattedDate, // NEW: Pass the date parameter
@@ -79,7 +91,7 @@ class DateSearchService {
         filter_vegetarian: filters.dietaryPreferences?.vegetarian || null,
         filter_vegan: filters.dietaryPreferences?.vegan || null,
         filter_gluten_free: filters.dietaryPreferences?.glutenFree || null,
-        exclude_allergens: filters.excludeAllergens || [],
+        exclude_allergens: mapAllergensForDatabase(filters.excludeAllergens || []),
         dining_halls: filters.locations || [],
         meal_types: filters.meals || [],
         available_only: false, // Set to true if you want only currently open meals

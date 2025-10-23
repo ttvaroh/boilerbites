@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Modal,
   Text,
@@ -12,7 +12,7 @@ interface SortByProps {
   visible: boolean;
   onClose: () => void;
   onSortChange: (sortBy: string, order: 'highest' | 'lowest') => void;
-  currentSort?: string;
+  currentSort?: string | undefined;
   currentOrder?: 'highest' | 'lowest';
 }
 
@@ -20,11 +20,20 @@ const SortBy: React.FC<SortByProps> = ({
   visible, 
   onClose, 
   onSortChange, 
-  currentSort = "Protein/Calorie",
+  currentSort,
   currentOrder = "highest"
 }) => {
-  const [selectedSort, setSelectedSort] = useState(currentSort);
+  const [selectedSort, setSelectedSort] = useState(currentSort || "");
   const [selectedOrder, setSelectedOrder] = useState<'highest' | 'lowest'>(currentOrder);
+
+  // Update internal state when props change
+  useEffect(() => {
+    setSelectedSort(currentSort || "");
+  }, [currentSort]);
+
+  useEffect(() => {
+    setSelectedOrder(currentOrder);
+  }, [currentOrder]);
 
   const sortOptions = [
     { key: "Protein/Calorie", label: "Protein/Calorie" },

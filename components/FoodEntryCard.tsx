@@ -192,8 +192,8 @@ export default function FoodEntryCard({ entry, onRemove }: FoodEntryCardProps) {
 
           {/* Food Info */}
           <View className="flex-1">
-            <Text className="text-white text-[.9rem] font-sora-semibold">
-              {entry.item_name}
+            <Text className="text-white text-[.9rem] font-sora-semibold mb-1">
+              {entry.item_name.length > 30 ? `${entry.item_name.substring(0, 30)}...` : entry.item_name}
             </Text>
             <Text className="text-gray-400 text-[0.75rem] font-sora">
               {entry.quantity} serving{entry.quantity !== 1 ? 's' : ''} • P: {entry.protein_g.toFixed(1)} • C: {entry.carbs_g.toFixed(1)} • F: {entry.fat_g.toFixed(1)}

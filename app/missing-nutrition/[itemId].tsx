@@ -177,7 +177,9 @@ export default function MissingNutritionPage() {
                     <View className="flex-row items-center justify-center">
                       <Ionicons name="warning" size={16} color="#EF4444" />
                       <Text className="text-red-400 text-sm font-sora ml-2">
-                        Allergens: {item.allergens.join(", ")}
+                        Allergens: {item.allergens.map(allergen => 
+                          allergen === 'Milk' ? 'Dairy' : allergen
+                        ).join(", ")}
                       </Text>
                     </View>
                   )}
