@@ -379,9 +379,9 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
       console.log('🚀 Optimized query result:', {
         hasMenu: !!menuData,
         mealsCount: menuData.day_meal?.length || 0,
-        totalStations: menuData.day_meal?.reduce((acc, meal) => acc + (meal.day_station?.length || 0), 0) || 0,
-        totalItems: menuData.day_meal?.reduce((acc, meal) => 
-          acc + (meal.day_station?.reduce((stationAcc, station) => 
+        totalStations: menuData.day_meal?.reduce((acc: number, meal: any) => acc + (meal.day_station?.length || 0), 0) || 0,
+        totalItems: menuData.day_meal?.reduce((acc: number, meal: any) => 
+          acc + (meal.day_station?.reduce((stationAcc: number, station: any) => 
             stationAcc + (station.day_station_item?.length || 0), 0) || 0), 0) || 0
       });
       
@@ -558,7 +558,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
               isPublished: menu.is_published,
             });
             } else {
-              const meals: Meal[] = mealsData.map(meal => ({
+              const meals: Meal[] = mealsData.map((meal: any) => ({
                 id: meal.id,
                 name: meal.meal_name,
                 start_time: meal.start_time || "",

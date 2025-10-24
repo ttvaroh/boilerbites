@@ -93,6 +93,10 @@ export default function RootLayout() {
                   options={{ headerShown: false }}
                 />
                 <Stack.Screen
+                  name="nutrition-preferences"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
                   name="[...unmatched]"
                   options={{ headerShown: false }}
                 />
@@ -141,6 +145,10 @@ export default function RootLayout() {
                   options={{ headerShown: false }}
                 />
                 <Stack.Screen
+                  name="menu-settings"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
                   name="favorites"
                   options={{ headerShown: false }}
                 />
@@ -166,6 +174,10 @@ export default function RootLayout() {
                 />
                 <Stack.Screen
                   name="contact-support-screen"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="nutrition-preferences"
                   options={{ headerShown: false }}
                 />
                 <Stack.Screen
