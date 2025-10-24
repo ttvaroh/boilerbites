@@ -63,26 +63,29 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
     fetchNutritionData();
   }, [user, getDailyNutrition, selectedDate, getNutritionData, setNutritionData]);
 
+  // Get user's custom goals from user metadata
+  const userGoals = user?.user_metadata?.nutrition_goals;
+  
   // Default values if no data
   const proteinData = { 
     current: nutritionData?.consumed_protein_g || 0, 
-    goal: nutritionData?.goal_protein_g || 115, 
+    goal: userGoals?.proteinGoal || nutritionData?.goal_protein_g || 115, 
     color: '#3B82F6' 
   };
   const carbsData = { 
     current: nutritionData?.consumed_carbs_g || 0, 
-    goal: nutritionData?.goal_carbs_g || 288, 
+    goal: userGoals?.carbsGoal || nutritionData?.goal_carbs_g || 288, 
     color: '#10B981' 
   };
   const fatData = { 
     current: nutritionData?.consumed_fat_g || 0, 
-    goal: nutritionData?.goal_fat_g || 77, 
+    goal: userGoals?.fatGoal || nutritionData?.goal_fat_g || 77, 
     color: '#EF4444' 
   };
 
   const caloriesConsumed = nutritionData?.consumed_calories || 0;
   const caloriesRemaining = nutritionData?.remaining_calories || 0;
-  const caloriesGoal = nutritionData?.goal_calories || 2300;
+  const caloriesGoal = userGoals?.calorieGoal || nutritionData?.goal_calories || 2300;
   const caloriesPercentage = nutritionData?.percent_calories || 0;
 
   const getProgressPercentage = (current: number, goal: number) => {
