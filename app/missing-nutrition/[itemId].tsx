@@ -83,11 +83,19 @@ export default function MissingNutritionPage() {
   }
 
   const handleRequestNutrition = () => {
-    console.log(`Request nutrition info clicked for ${item.name}`);
+    // Navigate to contact support screen with pre-filled subject
+    const subject = `Nutrition Information Request: ${item.name}`;
+    router.push({
+      pathname: "/contact-support-screen",
+      params: { 
+        subject: subject,
+        message: `I would like to request nutrition information for the following menu item:\n\nItem: ${item.name}\n\nPlease add complete nutritional data including calories, protein, carbs, fat, and other relevant nutritional information.`
+      }
+    });
   };
 
   return (
-    <BackgroundTemplate>
+    <BackgroundTemplate paddingBottom={40}>
       <View className="flex-1">
         {/* Header */}
         <View className="bg-transparent pt-14 pb-6 px-6">
@@ -209,7 +217,7 @@ export default function MissingNutritionPage() {
               Help us improve by requesting nutrition information for this item
             </Text>
         </View>
-      </View>
+        </View>
       </View>
     </BackgroundTemplate>
   );

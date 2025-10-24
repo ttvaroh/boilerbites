@@ -15,6 +15,7 @@ import ItemSearchComponent from "../../components/ItemSearch";
 import SearchItemCard from "../../components/SearchItemCard";
 import SortBy from "../../components/SortBy";
 import { supabase } from "../../lib/supabase";
+import { getTodayDateString } from "../../lib/timezone-utils";
 import { DateSearchFilters, DateSearchOptions, dateSearchService, DayMenuItem } from "../../services/searchService";
 
 // Interfaces
@@ -191,7 +192,7 @@ function useSearch() {
       const dateOptions = createDateOptions(options);
 
       const { data, count, error } = await dateSearchService.searchMenuItemsByDate(
-        new Date(),
+        getTodayDateString(),
         dateFilters,
         dateOptions
       );

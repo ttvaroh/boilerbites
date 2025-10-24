@@ -14,7 +14,9 @@ import BackgroundTemplate from "../../components/BackgroundTemplate";
 import DailyProgress from "../../components/DailyProgress";
 import FoodEntryCard from "../../components/FoodEntryCard";
 import { useAuth } from "../../contexts/AuthContext";
+import { useNutritionCache } from "../../contexts/NutritionCacheContext";
 import { supabase } from "../../lib/supabase";
+import { getLocalDateUTCBounds, getTodayDateString } from "../../lib/timezone-utils";
 
 interface FoodEntry {
   id: string;
@@ -32,6 +34,13 @@ interface FoodEntry {
 
 export default function DiaryPage() {
   const { user, removeFoodEntry } = useAuth();
+  const { 
+    clearNutritionData, 
+    getFoodEntries, 
+    setFoodEntries: setFoodEntriesCache, 
+    clearFoodEntries, 
+    removeFoodEntry: removeFoodEntryFromCache 
+  } = useNutritionCache();
   const router = useRouter();
   const [foodEntries, setFoodEntries] = React.useState<FoodEntry[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -80,7 +89,20 @@ export default function DiaryPage() {
       if (!isRefresh) {
         setLoading(true);
       }
-      const selectedDateString = selectedDate.toISOString().split('T')[0];
+      
+      // Get date string for cache
+      const isToday = selectedDate.toDateString() === new Date().toDateString();
+      const dateString = isToday ? getTodayDateString() : selectedDate.toISOString().split('T')[0];
+      
+      // Check cache first
+      const cachedEntries = getFoodEntries(dateString);
+      if (cachedEntries && !isRefresh) {
+        setFoodEntries(cachedEntries);
+        setLoading(false);
+      }
+      
+      // Get proper UTC bounds for the selected local date
+      const { start, end } = getLocalDateUTCBounds(selectedDate);
       
       const { data, error } = await supabase
         .from('food_entry')
@@ -99,8 +121,8 @@ export default function DiaryPage() {
           )
         `)
         .eq('user_id', user.id)
-        .gte('created_at', `${selectedDateString}T00:00:00`)
-        .lte('created_at', `${selectedDateString}T23:59:59`)
+        .gte('created_at', start)
+        .lte('created_at', end)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -122,6 +144,8 @@ export default function DiaryPage() {
       })) || [];
 
       setFoodEntries(transformedEntries);
+      // Cache the entries
+      setFoodEntriesCache(dateString, transformedEntries);
     } catch (error) {
       console.error('Error fetching food entries:', error);
     } finally {
@@ -130,6 +154,13 @@ export default function DiaryPage() {
       }
     }
   };
+
+  // Refresh DailyProgress when page is focused
+  useFocusEffect(
+    useCallback(() => {
+      setRefreshKey(prev => prev + 1);
+    }, [])
+  );
 
   // Remove food entry
   const handleRemoveEntry = async (entryId: string) => {
@@ -141,6 +172,17 @@ export default function DiaryPage() {
       }
       
       setFoodEntries(prev => prev.filter(entry => entry.id !== entryId));
+      
+      // Get date string for cache operations
+      const isToday = selectedDate.toDateString() === new Date().toDateString();
+      const dateString = isToday ? getTodayDateString() : selectedDate.toISOString().split('T')[0];
+      
+      // Update cache - remove entry from cache
+      removeFoodEntryFromCache(dateString, entryId);
+      
+      // Clear nutrition cache for the current date
+      clearNutritionData(dateString);
+      
       // Trigger refresh of DailyProgress component
       setRefreshKey(prev => prev + 1);
     } catch (error) {
@@ -191,10 +233,19 @@ export default function DiaryPage() {
   // Pull to refresh handler
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
+    
+    // Get date string for cache operations
+    const isToday = selectedDate.toDateString() === new Date().toDateString();
+    const dateString = isToday ? getTodayDateString() : selectedDate.toISOString().split('T')[0];
+    
+    // Clear both caches for the current date
+    clearNutritionData(dateString);
+    clearFoodEntries(dateString);
+    
     await fetchFoodEntries(true);
     setRefreshKey(prev => prev + 1); // Also refresh DailyProgress
     setRefreshing(false);
-  }, [user, selectedDate]);
+  }, [user, selectedDate, clearNutritionData, clearFoodEntries]);
 
   useFocusEffect(
     useCallback(() => {

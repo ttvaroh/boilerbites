@@ -16,6 +16,37 @@ export function getTodayDateString(): string {
 }
 
 /**
+ * Convert a local date to UTC date string for database queries
+ * This handles the timezone conversion properly for database operations
+ * @param date Date object in local timezone
+ * @returns String in YYYY-MM-DD format in UTC
+ */
+export function getUTCDateString(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
+/**
+ * Get the start and end of a local date in UTC for database queries
+ * This ensures we capture all entries for a local date regardless of timezone
+ * @param localDate Date object in local timezone
+ * @returns Object with start and end UTC timestamps
+ */
+export function getLocalDateUTCBounds(localDate: Date): { start: string; end: string } {
+  // Get the start of the day in local timezone
+  const startOfDay = new Date(localDate);
+  startOfDay.setHours(0, 0, 0, 0);
+  
+  // Get the end of the day in local timezone
+  const endOfDay = new Date(localDate);
+  endOfDay.setHours(23, 59, 59, 999);
+  
+  return {
+    start: startOfDay.toISOString(),
+    end: endOfDay.toISOString()
+  };
+}
+
+/**
  * Get a date N days from today in YYYY-MM-DD format (local timezone)
  * @param days Number of days to add (can be negative)
  * @returns String in YYYY-MM-DD format

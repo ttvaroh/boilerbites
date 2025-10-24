@@ -46,6 +46,14 @@ export default function ProfileScreen() {
     router.push("/about");
   };
 
+  const handleEditProfile = () => {
+    router.push("/edit-profile");
+  };
+
+  const handleContactSupport = () => {
+    router.push("/contact-support-screen");
+  };
+
   if (loading) {
     return (
       <BackgroundTemplate>
@@ -156,6 +164,7 @@ export default function ProfileScreen() {
             </Text>
             <View className="bg-gray-800/60 backdrop-blur-xl rounded-2xl border border-gray-700/50 overflow-hidden">
               <TouchableOpacity 
+                onPress={handleEditProfile}
                 className="flex-row items-center p-4 border-b border-gray-700/50"
                 activeOpacity={0.7}
               >
@@ -190,6 +199,7 @@ export default function ProfileScreen() {
             </Text>
             <View className="bg-gray-800/60 backdrop-blur-xl rounded-2xl border border-gray-700/50 overflow-hidden">
               <TouchableOpacity 
+                onPress={handleContactSupport}
                 className="flex-row items-center p-4 border-b border-gray-700/50"
                 activeOpacity={0.7}
               >

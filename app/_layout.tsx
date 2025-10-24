@@ -12,6 +12,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import ErrorBoundary from "../components/ErrorBoundary";
 import { AuthProvider } from "../contexts/AuthContext";
+import { NutritionCacheProvider } from "../contexts/NutritionCacheContext";
 import "../global.css";
 import { MenuDataProvider } from "../lib/MenuDataContext";
 
@@ -38,7 +39,8 @@ export default function RootLayout() {
         <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
           <SafeAreaProvider>
             <AuthProvider>
-              <MenuDataProvider>
+              <NutritionCacheProvider>
+                <MenuDataProvider>
                 <Stack>
                 <Stack.Screen name="index" options={{ headerShown: false }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -83,11 +85,20 @@ export default function RootLayout() {
                   options={{ headerShown: false }}
                 />
                 <Stack.Screen
+                  name="edit-profile"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="contact-support-screen"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
                   name="[...unmatched]"
                   options={{ headerShown: false }}
                 />
                 </Stack>
-              </MenuDataProvider>
+                </MenuDataProvider>
+              </NutritionCacheProvider>
             </AuthProvider>
           </SafeAreaProvider>
         </GestureHandlerRootView>
@@ -100,7 +111,8 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
         <SafeAreaProvider>
           <AuthProvider>
-            <MenuDataProvider>
+            <NutritionCacheProvider>
+              <MenuDataProvider>
               <Stack>
               <Stack.Screen name="index" options={{ headerShown: false }} />
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -140,20 +152,29 @@ export default function RootLayout() {
                   name="collection/[collectionId]"
                   options={{ headerShown: false }}
                 />
-              <Stack.Screen
-                name="custom-food/index"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="custom-food/edit-custom-food"
-                options={{ headerShown: false }}
-              />
+                <Stack.Screen
+                  name="custom-food/index"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="custom-food/edit-custom-food"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="edit-profile"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="contact-support-screen"
+                  options={{ headerShown: false }}
+                />
                 <Stack.Screen
                   name="[...unmatched]"
                   options={{ headerShown: false }}
                 />
               </Stack>
-            </MenuDataProvider>
+              </MenuDataProvider>
+            </NutritionCacheProvider>
           </AuthProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>

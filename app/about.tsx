@@ -9,7 +9,7 @@ export default function AboutScreen() {
   const router = useRouter();
 
   return (
-    <BackgroundTemplate>
+    <BackgroundTemplate paddingBottom={0}>
       <View className="flex-1">
         {/* Header */}
         <View className="bg-transparent pt-14 pb-2 px-6">

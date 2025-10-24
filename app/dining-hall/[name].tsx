@@ -76,6 +76,7 @@ export default function DiningHallPage() {
   const [stationExpandState, setStationExpandState] = useState<Record<string, boolean>>({});
   const [menuLoading, setMenuLoading] = useState(false);
   const [collectionStatus, setCollectionStatus] = useState<Record<string, boolean>>({});
+  const [allStationsExpanded, setAllStationsExpanded] = useState(true);
   
   // Track last processed location to avoid unnecessary re-initialization
   const lastProcessedLocation = useRef<string | null>(null);
@@ -168,7 +169,7 @@ export default function DiningHallPage() {
         const currentMeals = menusByDate.get(currentDate);
         const nextMealData = currentMeals?.[nextMealType as keyof MealsByDate];
         if (nextMealData && nextMealData.stations) {
-          setAllStationsExpanded(nextMealData.stations);
+          initializeAllStationsExpanded(nextMealData.stations);
         }
         
         // Load detailed data for the new meal
@@ -200,7 +201,7 @@ export default function DiningHallPage() {
         const currentMeals = menusByDate.get(currentDate);
         const prevMealData = currentMeals?.[prevMealType as keyof MealsByDate];
         if (prevMealData && prevMealData.stations) {
-          setAllStationsExpanded(prevMealData.stations);
+          initializeAllStationsExpanded(prevMealData.stations);
         }
         
         // Load detailed data for the new meal
@@ -259,7 +260,7 @@ export default function DiningHallPage() {
         // Pre-expand stations for the meal we're about to load
         const mealData = basicMealsData[mealToLoad as keyof MealsByDate];
         if (mealData && mealData.stations) {
-          setAllStationsExpanded(mealData.stations);
+          initializeAllStationsExpanded(mealData.stations);
         }
         
         // Load detailed data for the determined meal
@@ -292,7 +293,7 @@ export default function DiningHallPage() {
         });
         
         // Set all stations to expanded by default
-        setAllStationsExpanded(detailedMeal.stations);
+        initializeAllStationsExpanded(detailedMeal.stations);
         
         // Load collection status for current meal items in background
         const itemIds: string[] = [];
@@ -377,12 +378,13 @@ export default function DiningHallPage() {
   };
 
   // Function to set all stations to expanded by default
-  const setAllStationsExpanded = (stations: Station[]) => {
+  const initializeAllStationsExpanded = (stations: Station[]) => {
     const expandedState: Record<string, boolean> = {};
     stations.forEach(station => {
       expandedState[station.id] = true;
     });
     setStationExpandState(expandedState);
+    setAllStationsExpanded(true);
   };
 
   const toggleStation = async (stationId: string) => {
@@ -393,9 +395,16 @@ export default function DiningHallPage() {
       [stationId]: !prev[stationId]
     }));
     
+    // Update allStationsExpanded state based on individual station toggles
+    const currentMeal = menusByDate.get(currentDate)?.[currentMealType];
+    if (currentMeal) {
+      const updatedState = { ...stationExpandState, [stationId]: !stationExpandState[stationId] };
+      const allExpanded = currentMeal.stations.every(station => updatedState[station.id] ?? true);
+      setAllStationsExpanded(allExpanded);
+    }
+    
     // Load collection status for items in this station when expanding
     if (isExpanding) {
-      const currentMeal = menusByDate.get(currentDate)?.[currentMealType];
       if (currentMeal) {
         const station = currentMeal.stations.find(s => s.id === stationId);
         if (station) {
@@ -407,6 +416,33 @@ export default function DiningHallPage() {
             });
           }
         }
+      }
+    }
+  };
+
+  const toggleAllStations = async () => {
+    const currentMeal = menusByDate.get(currentDate)?.[currentMealType];
+    if (!currentMeal) return;
+
+    const newExpandedState = !allStationsExpanded;
+    setAllStationsExpanded(newExpandedState);
+
+    // Update all stations to the new state
+    const updatedState: Record<string, boolean> = {};
+    currentMeal.stations.forEach(station => {
+      updatedState[station.id] = newExpandedState;
+    });
+    setStationExpandState(updatedState);
+
+    // Load collection status for all items if expanding
+    if (newExpandedState) {
+      const allItemIds = currentMeal.stations.flatMap(station => 
+        station.items.map(item => item.id)
+      );
+      if (allItemIds.length > 0) {
+        checkCollectionStatusBatch(allItemIds).catch(error => {
+          console.warn('Collection status check failed for all stations:', error);
+        });
       }
     }
   };
@@ -482,7 +518,7 @@ export default function DiningHallPage() {
   // Show loading state while context is loading or initial menu is loading
   if (contextLoading || (menuLoading && !hasDataForCurrentMeal)) {
     return (
-      <BackgroundTemplate>
+      <BackgroundTemplate paddingBottom={0}>
         <View className="flex-1">
           <View className="bg-purdueBlack-200 pt-12 pb-6 px-6">
             <View className="flex-row items-center justify-between">
@@ -535,7 +571,7 @@ export default function DiningHallPage() {
   }
 
   return (
-    <BackgroundTemplate>
+    <BackgroundTemplate paddingBottom={0}>
       <View className="flex-1">
       {/* Header */}
       <View className="bg-transparent pt-14 pb-2 px-6">
@@ -587,9 +623,19 @@ export default function DiningHallPage() {
 
         {/* Stations */}
         <View className="py-4">
-          <Text className="text-white text-xl font-sora-bold mb-4">
-            Stations
-          </Text>
+          <View className="flex-row items-center justify-between mb-4">
+            <Text className="text-white text-xl font-sora-bold">
+              Stations
+            </Text>
+            <TouchableOpacity
+              onPress={toggleAllStations}
+              className="bg-gray-700 rounded-lg px-3 py-2"
+            >
+              <Text className="text-white text-sm font-sora">
+                {allStationsExpanded ? "Close All" : "Open All"}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           {isDataLoading ? (
             <View className="py-8 items-center">

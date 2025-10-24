@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { useNutritionCache } from '../contexts/NutritionCacheContext';
+import { getTodayDateString } from '../lib/timezone-utils';
 
 interface DailyProgressProps {
   selectedDate?: Date;
@@ -8,7 +10,8 @@ interface DailyProgressProps {
 
 const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
   const { user, getDailyNutrition } = useAuth();
-  const [nutritionData, setNutritionData] = useState<any>(null);
+  const { getNutritionData, setNutritionData } = useNutritionCache();
+  const [nutritionData, setNutritionDataState] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -19,12 +22,36 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
       }
 
       try {
-        const dateString = selectedDate.toISOString().split('T')[0];
+        // Use proper local date string for consistent timezone handling
+        const isToday = selectedDate.toDateString() === new Date().toDateString();
+        let dateString;
+        
+        if (isToday) {
+          dateString = getTodayDateString();
+        } else {
+          // For non-today dates, calculate the correct local date string
+          const year = selectedDate.getFullYear();
+          const month = (selectedDate.getMonth() + 1).toString().padStart(2, "0");
+          const day = selectedDate.getDate().toString().padStart(2, "0");
+          dateString = `${year}-${month}-${day}`;
+        }
+
+        // Check cache first
+        const cachedData = getNutritionData(dateString);
+        if (cachedData) {
+          setNutritionDataState(cachedData);
+          setLoading(false);
+        }
+        
         const { data, error } = await getDailyNutrition(dateString);
         if (error) {
           console.error('Error fetching daily nutrition:', error);
         } else {
-          setNutritionData(data);
+          setNutritionDataState(data);
+          // Cache the data for future use
+          if (data) {
+            setNutritionData(dateString, data);
+          }
         }
       } catch (error) {
         console.error('Error fetching daily nutrition:', error);
@@ -34,7 +61,7 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
     };
 
     fetchNutritionData();
-  }, [user, getDailyNutrition, selectedDate]);
+  }, [user, getDailyNutrition, selectedDate, getNutritionData, setNutritionData]);
 
   // Default values if no data
   const proteinData = { 
