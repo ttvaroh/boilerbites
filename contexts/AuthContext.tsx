@@ -1,4 +1,3 @@
-import { Session, User } from '@supabase/supabase-js';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
@@ -285,7 +284,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { error: new Error('User not authenticated') };
     }
 
-    // First, try to update existing record
+    // Update the user's global nutrition goals first
+    if (goals.calories || goals.protein || goals.carbs || goals.fat) {
+      try {
+        const { upsertNutritionGoals } = await import('../lib/nutritionGoalsService');
+        await upsertNutritionGoals(user.id, {
+          calories: goals.calories || 2000,
+          protein: goals.protein || 115,
+          carbs: goals.carbs || 288,
+          fat: goals.fat || 67,
+        });
+      } catch (error) {
+        console.error('Error updating nutrition goals:', error);
+        return { error: error as Error };
+      }
+    }
+
+    // Update the daily nutrition record for the specific date
     const { error: updateError } = await supabase
       .from('user_daily_nutrition')
       .update({

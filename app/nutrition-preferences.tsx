@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import BackgroundTemplate from "../components/BackgroundTemplate";
 import { useAuth } from "../contexts/AuthContext";
+import { useNutritionGoals } from "../contexts/NutritionGoalsContext";
+import { calculateSuggestedMacros } from "../lib/nutritionGoalsService";
 import { supabase } from "../lib/supabase";
 
 type AllergenItem = {
@@ -36,6 +38,7 @@ type GoalItem = {
 
 export default function NutritionPreferencesScreen() {
   const { user } = useAuth();
+  const { goals: nutritionGoals, updateGoals } = useNutritionGoals();
   const router = useRouter();
   
   // Allergen preferences
@@ -46,11 +49,11 @@ export default function NutritionPreferencesScreen() {
   const [eggsAllergy, setEggsAllergy] = useState(false);
   const [shellfishAllergy, setShellfishAllergy] = useState(false);
   
-  // Daily goals
-  const [calorieGoal, setCalorieGoal] = useState(2000);
-  const [proteinGoal, setProteinGoal] = useState(115);
-  const [carbsGoal, setCarbsGoal] = useState(288);
-  const [fatGoal, setFatGoal] = useState(67);
+  // Daily goals - initialize from context or use defaults
+  const [calorieGoal, setCalorieGoal] = useState(nutritionGoals?.calories || 2000);
+  const [proteinGoal, setProteinGoal] = useState(nutritionGoals?.protein || 115);
+  const [carbsGoal, setCarbsGoal] = useState(nutritionGoals?.carbs || 288);
+  const [fatGoal, setFatGoal] = useState(nutritionGoals?.fat || 67);
 
   // Modal state
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -59,19 +62,7 @@ export default function NutritionPreferencesScreen() {
   const [tempCarbs, setTempCarbs] = useState("");
   const [tempFat, setTempFat] = useState("");
 
-  // Calculate suggested macros based on calories
-  const calculateSuggestedMacros = (calories: number) => {
-    // Standard macro split: 30% protein, 40% carbs, 30% fat
-    const proteinCalories = calories * 0.30;
-    const carbsCalories = calories * 0.40;
-    const fatCalories = calories * 0.30;
-
-    return {
-      protein: Math.round(proteinCalories / 4), // 4 cal per gram of protein
-      carbs: Math.round(carbsCalories / 4),     // 4 cal per gram of carbs
-      fat: Math.round(fatCalories / 9),         // 9 cal per gram of fat
-    };
-  };
+  // Use the imported calculateSuggestedMacros function
 
   // Get dynamic placeholders based on calorie input
   const getPlaceholders = (calories: number, currentProtein: number, currentCarbs: number, currentFat: number) => {
@@ -145,13 +136,19 @@ export default function NutritionPreferencesScreen() {
     saveGoals(calories, protein, carbs, fat);
   };
 
-  const saveGoals = (calories: number, protein: number, carbs: number, fat: number) => {
-    setCalorieGoal(calories);
-    setProteinGoal(protein);
-    setCarbsGoal(carbs);
-    setFatGoal(fat);
-    setIsModalVisible(false);
-    Alert.alert("Success", "Your daily goals have been updated!");
+  const saveGoals = async (calories: number, protein: number, carbs: number, fat: number) => {
+    try {
+      await updateGoals({ calories, protein, carbs, fat });
+      setCalorieGoal(calories);
+      setProteinGoal(protein);
+      setCarbsGoal(carbs);
+      setFatGoal(fat);
+      setIsModalVisible(false);
+      Alert.alert("Success", "Your daily goals have been updated!");
+    } catch (error) {
+      console.error('Error saving nutrition goals:', error);
+      Alert.alert("Error", "Failed to save your goals. Please try again.");
+    }
   };
 
   // Get current placeholders
@@ -254,28 +251,30 @@ export default function NutritionPreferencesScreen() {
     if (!user) return;
 
     try {
-      // Save preferences to user metadata
+      // Save nutrition goals using the service
+      await updateGoals({
+        calories: calorieGoal,
+        protein: proteinGoal,
+        carbs: carbsGoal,
+        fat: fatGoal,
+      });
+
+      // Save allergen preferences to user metadata
       const { error } = await supabase.auth.updateUser({
         data: {
-            nutrition_goals: {
-                calorieGoal,
-                proteinGoal,
-                carbsGoal,
-                fatGoal,
-            },
-            allergen_preferences: {
-                dairyAllergy,
-                glutenAllergy,
-                nutsAllergy,
-                soyAllergy,
-                eggsAllergy,
-                shellfishAllergy,
-            },
+          allergen_preferences: {
+            dairyAllergy,
+            glutenAllergy,
+            nutsAllergy,
+            soyAllergy,
+            eggsAllergy,
+            shellfishAllergy,
+          },
         },
       });
 
       if (error) {
-        Alert.alert("Error", "Failed to save preferences. Please try again.");
+        Alert.alert("Error", "Failed to save allergen preferences. Please try again.");
         return;
       }
 

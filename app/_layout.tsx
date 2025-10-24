@@ -7,14 +7,25 @@ import {
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { ReactNode, useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import ErrorBoundary from "../components/ErrorBoundary";
-import { AuthProvider } from "../contexts/AuthContext";
+import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { NutritionCacheProvider } from "../contexts/NutritionCacheContext";
+import { NutritionGoalsProvider } from "../contexts/NutritionGoalsContext";
 import "../global.css";
 import { MenuDataProvider } from "../lib/MenuDataContext";
+
+// Wrapper component to provide user ID to NutritionGoalsProvider
+const AppWithNutritionGoals = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
+  return (
+    <NutritionGoalsProvider userId={user?.id || null}>
+      {children}
+    </NutritionGoalsProvider>
+  );
+};
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -39,70 +50,72 @@ export default function RootLayout() {
         <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
           <SafeAreaProvider>
             <AuthProvider>
-              <NutritionCacheProvider>
-                <MenuDataProvider>
-                <Stack>
-                <Stack.Screen name="index" options={{ headerShown: false }} />
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="dining-hall/[name]"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="nutrition/[itemId]"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="missing-nutrition/[itemId]"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="edit-food-entry/[entryId]"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="signin"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="signup"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="favorites"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="collection/[collectionId]"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="custom-food/index"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="custom-food/edit-custom-food"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="edit-profile"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="contact-support-screen"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="nutrition-preferences"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="[...unmatched]"
-                  options={{ headerShown: false }}
-                />
-                </Stack>
-                </MenuDataProvider>
-              </NutritionCacheProvider>
+              <AppWithNutritionGoals>
+                <NutritionCacheProvider>
+                  <MenuDataProvider>
+                    <Stack>
+                      <Stack.Screen name="index" options={{ headerShown: false }} />
+                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                      <Stack.Screen
+                        name="dining-hall/[name]"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="nutrition/[itemId]"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="missing-nutrition/[itemId]"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="edit-food-entry/[entryId]"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="signin"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="signup"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="favorites"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="collection/[collectionId]"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="custom-food/index"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="custom-food/edit-custom-food"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="edit-profile"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="contact-support-screen"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="nutrition-preferences"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="[...unmatched]"
+                        options={{ headerShown: false }}
+                      />
+                    </Stack>
+                  </MenuDataProvider>
+                </NutritionCacheProvider>
+              </AppWithNutritionGoals>
             </AuthProvider>
           </SafeAreaProvider>
         </GestureHandlerRootView>
@@ -115,78 +128,72 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
         <SafeAreaProvider>
           <AuthProvider>
-            <NutritionCacheProvider>
-              <MenuDataProvider>
-              <Stack>
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="dining-hall/[name]"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="nutrition/[itemId]"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="missing-nutrition/[itemId]"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="edit-food-entry/[entryId]"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="signin"
-                options={{ headerShown: false }}
-              />
-                <Stack.Screen
-                  name="signup"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="menu-settings"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="favorites"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="about"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="collection/[collectionId]"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="custom-food/index"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="custom-food/edit-custom-food"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="edit-profile"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="contact-support-screen"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="nutrition-preferences"
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="[...unmatched]"
-                  options={{ headerShown: false }}
-                />
-              </Stack>
-              </MenuDataProvider>
-            </NutritionCacheProvider>
+            <AppWithNutritionGoals>
+              <NutritionCacheProvider>
+                <MenuDataProvider>
+                  <Stack>
+                    <Stack.Screen name="index" options={{ headerShown: false }} />
+                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    <Stack.Screen
+                      name="dining-hall/[name]"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="nutrition/[itemId]"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="missing-nutrition/[itemId]"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="edit-food-entry/[entryId]"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="signin"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="signup"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="favorites"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="collection/[collectionId]"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="custom-food/index"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="custom-food/edit-custom-food"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="edit-profile"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="contact-support-screen"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="nutrition-preferences"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="[...unmatched]"
+                      options={{ headerShown: false }}
+                    />
+                  </Stack>
+                </MenuDataProvider>
+              </NutritionCacheProvider>
+            </AppWithNutritionGoals>
           </AuthProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>
