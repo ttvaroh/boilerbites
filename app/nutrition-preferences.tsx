@@ -48,6 +48,8 @@ export default function NutritionPreferencesScreen() {
   const [soyAllergy, setSoyAllergy] = useState(nutritionGoals?.soy_allergy || false);
   const [eggsAllergy, setEggsAllergy] = useState(nutritionGoals?.eggs_allergy || false);
   const [shellfishAllergy, setShellfishAllergy] = useState(nutritionGoals?.shellfish_allergy || false);
+  const [fishAllergy, setFishAllergy] = useState(nutritionGoals?.fish_allergy || false);
+  const [peanutAllergy, setPeanutAllergy] = useState(nutritionGoals?.peanut_allergy || false);
   
   // Daily goals - initialize from context or use defaults
   const [calorieGoal, setCalorieGoal] = useState(nutritionGoals?.calories || 2000);
@@ -196,6 +198,15 @@ export default function NutritionPreferencesScreen() {
       color: "#8B5CF6",
     },
     {
+      id: "peanut",
+      icon: "nutrition",
+      title: "Peanuts",
+      subtitle: "Peanuts, peanut butter, peanut oil",
+      value: peanutAllergy,
+      onToggle: setPeanutAllergy,
+      color: "#F59E0B",
+    },
+    {
       id: "soy",
       icon: "leaf",
       title: "Soy",
@@ -212,6 +223,15 @@ export default function NutritionPreferencesScreen() {
       value: eggsAllergy,
       onToggle: setEggsAllergy,
       color: "#F97316",
+    },
+    {
+      id: "fish",
+      icon: "fish",
+      title: "Fish",
+      subtitle: "Salmon, tuna, cod, bass",
+      value: fishAllergy,
+      onToggle: setFishAllergy,
+      color: "#06B6D4",
     },
     {
       id: "shellfish",
@@ -276,6 +296,8 @@ export default function NutritionPreferencesScreen() {
         soy_allergy: soyAllergy,
         eggs_allergy: eggsAllergy,
         shellfish_allergy: shellfishAllergy,
+        fish_allergy: fishAllergy,
+        peanut_allergy: peanutAllergy,
       });
 
       showToast("Your nutrition preferences have been saved successfully!");

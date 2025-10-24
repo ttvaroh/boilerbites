@@ -45,86 +45,7 @@ export default function RootLayout() {
   }, [fontsLoaded]);
 
   if (!fontsLoaded) {
-    return (
-      <ErrorBoundary>
-        <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
-          <SafeAreaProvider>
-            <AuthProvider>
-              <AppWithNutritionGoals>
-                <NutritionCacheProvider>
-                  <MenuDataProvider>
-                    <Stack>
-                      <Stack.Screen name="index" options={{ headerShown: false }} />
-                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                      <Stack.Screen
-                        name="dining-hall/[name]"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="nutrition/[itemId]"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="missing-nutrition/[itemId]"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="edit-food-entry/[entryId]"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="signin"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="signup"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="favorites"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="collection/[collectionId]"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="custom-food/index"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="custom-food/edit-custom-food"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="edit-profile"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="contact-support-screen"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="nutrition-preferences"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="menu-settings"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="[...unmatched]"
-                        options={{ headerShown: false }}
-                      />
-                    </Stack>
-                  </MenuDataProvider>
-                </NutritionCacheProvider>
-              </AppWithNutritionGoals>
-            </AuthProvider>
-          </SafeAreaProvider>
-        </GestureHandlerRootView>
-      </ErrorBoundary>
-    );
+    return null;
   }
 
   return (
@@ -192,6 +113,10 @@ export default function RootLayout() {
                     />
                     <Stack.Screen
                       name="menu-settings"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="about"
                       options={{ headerShown: false }}
                     />
                     <Stack.Screen

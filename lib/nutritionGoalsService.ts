@@ -13,6 +13,8 @@ export interface NutritionGoals {
   soy_allergy?: boolean;
   eggs_allergy?: boolean;
   shellfish_allergy?: boolean;
+  fish_allergy?: boolean;
+  peanut_allergy?: boolean;
   created_at?: string;
   updated_at?: string;
 }

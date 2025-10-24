@@ -14,6 +14,7 @@ import ErrorBoundary from "../../components/ErrorBoundary";
 import ItemSearchComponent from "../../components/ItemSearch";
 import SearchItemCard from "../../components/SearchItemCard";
 import SortBy from "../../components/SortBy";
+import { useNutritionGoals } from "../../contexts/NutritionGoalsContext";
 import { supabase } from "../../lib/supabase";
 import { getTodayDateString } from "../../lib/timezone-utils";
 import { DateSearchFilters, DateSearchOptions, dateSearchService, DayMenuItem } from "../../services/searchService";
@@ -243,6 +244,25 @@ function useSearch() {
 
 export default function SearchPage() {
   const router = useRouter();
+  const { goals: nutritionGoals } = useNutritionGoals();
+  
+  // Map nutrition preferences to allergen names for filtering
+  const getUserAllergens = () => {
+    if (!nutritionGoals) return [];
+    
+    const allergens: string[] = [];
+    if (nutritionGoals.dairy_allergy) allergens.push('Dairy');
+    if (nutritionGoals.eggs_allergy) allergens.push('Eggs');
+    if (nutritionGoals.shellfish_allergy) allergens.push('Shellfish');
+    if (nutritionGoals.nuts_allergy) allergens.push('Tree Nuts');
+    if (nutritionGoals.gluten_allergy) allergens.push('Wheat');
+    if (nutritionGoals.soy_allergy) allergens.push('Soy');
+    if (nutritionGoals.fish_allergy) allergens.push('Fish');
+    if (nutritionGoals.peanut_allergy) allergens.push('Peanuts');
+    
+    return allergens;
+  };
+  
   const {
     searchQuery,
     setSearchQuery,
@@ -270,10 +290,21 @@ export default function SearchPage() {
       vegan: false,
       glutenFree: false,
     },
-    excludeAllergens: [],
+    excludeAllergens: getUserAllergens(),
   });
 
   const [refreshing, setRefreshing] = React.useState(false);
+
+  // Update filters when nutrition goals change
+  React.useEffect(() => {
+    if (nutritionGoals) {
+      const userAllergens = getUserAllergens();
+      setCurrentFilters(prev => ({
+        ...prev,
+        excludeAllergens: userAllergens,
+      }));
+    }
+  }, [nutritionGoals]);
 
   // Trigger search when debounced query or filters change
   React.useEffect(() => {
@@ -440,6 +471,7 @@ export default function SearchPage() {
           onSearch={handleSearch}
           searchQuery={searchQuery}
           onSearchQueryChange={setSearchQuery}
+          initialFilters={currentFilters}
         />
 
         {/* Results Header */}

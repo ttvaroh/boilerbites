@@ -16,6 +16,8 @@ interface NutritionGoalsContextType {
     soy_allergy?: boolean;
     eggs_allergy?: boolean;
     shellfish_allergy?: boolean;
+    fish_allergy?: boolean;
+    peanut_allergy?: boolean;
   }) => Promise<void>;
   refreshGoals: () => Promise<void>;
 }

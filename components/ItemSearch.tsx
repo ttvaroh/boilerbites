@@ -25,12 +25,14 @@ interface ItemSearchProps {
   onSearch: (query: string, filters: SearchFilters) => void;
   searchQuery?: string;
   onSearchQueryChange?: (query: string) => void;
+  initialFilters?: SearchFilters;
 }
 
 const ItemSearchComponent: React.FC<ItemSearchProps> = ({ 
   onSearch, 
   searchQuery: externalSearchQuery, 
-  onSearchQueryChange 
+  onSearchQueryChange,
+  initialFilters
 }) => {
   const [internalSearchQuery, setInternalSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -39,7 +41,7 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
   const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery;
   const setSearchQuery = onSearchQueryChange || setInternalSearchQuery;
   
-  const [filters, setFilters] = useState<SearchFilters>({
+  const [filters, setFilters] = useState<SearchFilters>(initialFilters || {
     timeOfDay: "All",
     diningHalls: [],
     dietaryPreferences: {
@@ -54,6 +56,12 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
   const diningHallOptions = ["Wiley", "Earhart", "Ford", "Windsor", "Hillenbrand"];
   const allergenOptions = ["Dairy", "Eggs", "Fish", "Shellfish", "Tree Nuts", "Peanuts", "Wheat", "Soy"];
 
+  // Update filters when initialFilters change
+  React.useEffect(() => {
+    if (initialFilters) {
+      setFilters(initialFilters);
+    }
+  }, [initialFilters]);
 
   const handleSearch = () => {
     onSearch(searchQuery, filters);
