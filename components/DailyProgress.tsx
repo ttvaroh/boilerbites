@@ -65,27 +65,27 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
     fetchNutritionData();
   }, [user, getDailyNutrition, selectedDate, getNutritionData, setNutritionData]);
 
-  // Use nutrition goals from context, fallback to database goals, then defaults
+  // Use only nutrition goals from nutrition_preferences table
   const proteinData = { 
     current: nutritionData?.consumed_protein_g || 0, 
-    goal: nutritionGoals?.protein || nutritionData?.goal_protein_g || 115, 
+    goal: nutritionGoals?.protein || 115, 
     color: '#3B82F6' 
   };
   const carbsData = { 
     current: nutritionData?.consumed_carbs_g || 0, 
-    goal: nutritionGoals?.carbs || nutritionData?.goal_carbs_g || 288, 
+    goal: nutritionGoals?.carbs || 288, 
     color: '#10B981' 
   };
   const fatData = { 
     current: nutritionData?.consumed_fat_g || 0, 
-    goal: nutritionGoals?.fat || nutritionData?.goal_fat_g || 77, 
+    goal: nutritionGoals?.fat || 77, 
     color: '#EF4444' 
   };
 
   const caloriesConsumed = nutritionData?.consumed_calories || 0;
-  const caloriesRemaining = nutritionData?.remaining_calories || 0;
-  const caloriesGoal = nutritionGoals?.calories || nutritionData?.goal_calories || 2300;
-  const caloriesPercentage = nutritionData?.percent_calories || 0;
+  const caloriesGoal = nutritionGoals?.calories || 2300;
+  const caloriesRemaining = caloriesGoal - caloriesConsumed;
+  const caloriesPercentage = (caloriesConsumed / caloriesGoal) * 100;
 
   const getProgressPercentage = (current: number, goal: number) => {
     return Math.min((current / goal) * 100, 100);
