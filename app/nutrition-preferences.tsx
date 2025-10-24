@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
     Alert,
+    Animated,
     Modal,
     ScrollView,
     Switch,
@@ -15,7 +16,6 @@ import BackgroundTemplate from "../components/BackgroundTemplate";
 import { useAuth } from "../contexts/AuthContext";
 import { useNutritionGoals } from "../contexts/NutritionGoalsContext";
 import { calculateSuggestedMacros } from "../lib/nutritionGoalsService";
-import { supabase } from "../lib/supabase";
 
 type AllergenItem = {
   id: string;
@@ -41,13 +41,13 @@ export default function NutritionPreferencesScreen() {
   const { goals: nutritionGoals, updateGoals } = useNutritionGoals();
   const router = useRouter();
   
-  // Allergen preferences
-  const [dairyAllergy, setDairyAllergy] = useState(false);
-  const [glutenAllergy, setGlutenAllergy] = useState(false);
-  const [nutsAllergy, setNutsAllergy] = useState(false);
-  const [soyAllergy, setSoyAllergy] = useState(false);
-  const [eggsAllergy, setEggsAllergy] = useState(false);
-  const [shellfishAllergy, setShellfishAllergy] = useState(false);
+  // Allergen preferences - initialize from context or use defaults
+  const [dairyAllergy, setDairyAllergy] = useState(nutritionGoals?.dairy_allergy || false);
+  const [glutenAllergy, setGlutenAllergy] = useState(nutritionGoals?.gluten_allergy || false);
+  const [nutsAllergy, setNutsAllergy] = useState(nutritionGoals?.nuts_allergy || false);
+  const [soyAllergy, setSoyAllergy] = useState(nutritionGoals?.soy_allergy || false);
+  const [eggsAllergy, setEggsAllergy] = useState(nutritionGoals?.eggs_allergy || false);
+  const [shellfishAllergy, setShellfishAllergy] = useState(nutritionGoals?.shellfish_allergy || false);
   
   // Daily goals - initialize from context or use defaults
   const [calorieGoal, setCalorieGoal] = useState(nutritionGoals?.calories || 2000);
@@ -62,17 +62,33 @@ export default function NutritionPreferencesScreen() {
   const [tempCarbs, setTempCarbs] = useState("");
   const [tempFat, setTempFat] = useState("");
 
-  // Use the imported calculateSuggestedMacros function
+  // Toast state
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error">("success");
+  const [toastAnimation] = useState(new Animated.Value(0));
 
-  // Get dynamic placeholders based on calorie input
-  const getPlaceholders = (calories: number, currentProtein: number, currentCarbs: number, currentFat: number) => {
-    const suggested = calculateSuggestedMacros(calories);
+  // Show toast function
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
     
-    return {
-      protein: tempProtein === "" ? `${currentProtein}g` : `${suggested.protein}g`,
-      carbs: tempCarbs === "" ? `${currentCarbs}g` : `${suggested.carbs}g`,
-      fat: tempFat === "" ? `${currentFat}g` : `${suggested.fat}g`,
-    };
+    Animated.sequence([
+      Animated.timing(toastAnimation, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.delay(2000),
+      Animated.timing(toastAnimation, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setToastVisible(false);
+    });
   };
 
   const openEditModal = () => {
@@ -144,16 +160,12 @@ export default function NutritionPreferencesScreen() {
       setCarbsGoal(carbs);
       setFatGoal(fat);
       setIsModalVisible(false);
-      Alert.alert("Success", "Your daily goals have been updated!");
+      showToast("Your daily goals have been updated successfully!");
     } catch (error) {
       console.error('Error saving nutrition goals:', error);
       Alert.alert("Error", "Failed to save your goals. Please try again.");
     }
   };
-
-  // Get current placeholders
-  const currentCalories = parseInt(tempCalories) || calorieGoal;
-  const placeholders = getPlaceholders(currentCalories, proteinGoal, carbsGoal, fatGoal);
 
   const allergenItems: AllergenItem[] = [
     {
@@ -251,40 +263,27 @@ export default function NutritionPreferencesScreen() {
     if (!user) return;
 
     try {
-      // Save nutrition goals using the service
+      // Save nutrition goals and allergen preferences together
       await updateGoals({
         calories: calorieGoal,
         protein: proteinGoal,
         carbs: carbsGoal,
         fat: fatGoal,
+        // Include allergen preferences
+        dairy_allergy: dairyAllergy,
+        gluten_allergy: glutenAllergy,
+        nuts_allergy: nutsAllergy,
+        soy_allergy: soyAllergy,
+        eggs_allergy: eggsAllergy,
+        shellfish_allergy: shellfishAllergy,
       });
 
-      // Save allergen preferences to user metadata
-      const { error } = await supabase.auth.updateUser({
-        data: {
-          allergen_preferences: {
-            dairyAllergy,
-            glutenAllergy,
-            nutsAllergy,
-            soyAllergy,
-            eggsAllergy,
-            shellfishAllergy,
-          },
-        },
-      });
-
-      if (error) {
-        Alert.alert("Error", "Failed to save allergen preferences. Please try again.");
-        return;
-      }
-
-      Alert.alert("Success", "Your preferences have been saved!");
+      showToast("Your nutrition preferences have been saved successfully!");
     } catch (error) {
       console.error("Error saving preferences:", error);
       Alert.alert("Error", "Failed to save preferences. Please try again.");
     }
   };
-
 
   return (
     <BackgroundTemplate paddingBottom={0}>
@@ -476,6 +475,7 @@ export default function NutritionPreferencesScreen() {
                 <View className="bg-gray-800 rounded-xl border border-gray-700 flex-row items-center px-4">
                   <Ionicons name="flame" size={20} color="#F59E0B" />
                   <TextInput
+                    value={tempCalories}
                     onChangeText={setTempCalories}
                     placeholder={`${calorieGoal}`}
                     placeholderTextColor="#6B7280"
@@ -488,14 +488,22 @@ export default function NutritionPreferencesScreen() {
 
               {/* Protein */}
               <View className="mb-5">
-                <Text className="text-white text-sm font-sora-semibold mb-2">
-                  Protein
-                </Text>
+                <View className="flex-row items-center justify-between mb-2">
+                  <Text className="text-white text-sm font-sora-semibold">
+                    Protein
+                  </Text>
+                  {tempProtein === "" && (
+                    <Text className="text-blue-400 text-xs font-sora">
+                      Suggested: {calculateSuggestedMacros(parseInt(tempCalories) || calorieGoal).protein}g
+                    </Text>
+                  )}
+                </View>
                 <View className="bg-gray-800 rounded-xl border border-gray-700 flex-row items-center px-4">
                   <Ionicons name="fitness" size={20} color="#3B82F6" />
                    <TextInput
+                     value={tempProtein}
                      onChangeText={setTempProtein}
-                     placeholder={placeholders.protein}
+                     placeholder={`${proteinGoal}g`}
                      placeholderTextColor="#6B7280"
                      keyboardType="numeric"
                      className="flex-1 text-white text-base font-sora py-4 ml-3"
@@ -506,14 +514,22 @@ export default function NutritionPreferencesScreen() {
 
               {/* Carbohydrates */}
               <View className="mb-5">
-                <Text className="text-white text-sm font-sora-semibold mb-2">
-                  Carbohydrates
-                </Text>
+                <View className="flex-row items-center justify-between mb-2">
+                  <Text className="text-white text-sm font-sora-semibold">
+                    Carbohydrates
+                  </Text>
+                  {tempCarbs === "" && (
+                    <Text className="text-green-400 text-xs font-sora">
+                      Suggested: {calculateSuggestedMacros(parseInt(tempCalories) || calorieGoal).carbs}g
+                    </Text>
+                  )}
+                </View>
                 <View className="bg-gray-800 rounded-xl border border-gray-700 flex-row items-center px-4">
                   <Ionicons name="leaf" size={20} color="#10B981" />
                    <TextInput
+                     value={tempCarbs}
                      onChangeText={setTempCarbs}
-                     placeholder={placeholders.carbs}
+                     placeholder={`${carbsGoal}g`}
                      placeholderTextColor="#6B7280"
                      keyboardType="numeric"
                      className="flex-1 text-white text-base font-sora py-4 ml-3"
@@ -524,14 +540,22 @@ export default function NutritionPreferencesScreen() {
 
               {/* Fat */}
               <View className="mb-5">
-                <Text className="text-white text-sm font-sora-semibold mb-2">
-                  Fat
-                </Text>
+                <View className="flex-row items-center justify-between mb-2">
+                  <Text className="text-white text-sm font-sora-semibold">
+                    Fat
+                  </Text>
+                  {tempFat === "" && (
+                    <Text className="text-purple-400 text-xs font-sora">
+                      Suggested: {calculateSuggestedMacros(parseInt(tempCalories) || calorieGoal).fat}g
+                    </Text>
+                  )}
+                </View>
                 <View className="bg-gray-800 rounded-xl border border-gray-700 flex-row items-center px-4">
                   <Ionicons name="water" size={20} color="#8B5CF6" />
                    <TextInput
+                     value={tempFat}
                      onChangeText={setTempFat}
-                     placeholder={placeholders.fat}
+                     placeholder={`${fatGoal}g`}
                      placeholderTextColor="#6B7280"
                      keyboardType="numeric"
                      className="flex-1 text-white text-base font-sora py-4 ml-3"
@@ -549,7 +573,7 @@ export default function NutritionPreferencesScreen() {
                       Smart Suggestions
                     </Text>
                     <Text className="text-yellow-200 text-xs font-sora leading-5">
-                      Placeholders update based on your calorie goal using a balanced 30/40/30 macro split (protein/carbs/fat).
+                      Suggestions update based on your calorie goal using a balanced 30/40/30 macro split (protein/carbs/fat).
                     </Text>
                   </View>
                 </View>
@@ -580,6 +604,46 @@ export default function NutritionPreferencesScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Toast Notification */}
+      {toastVisible && (
+        <Animated.View
+          style={{
+            position: 'absolute',
+            bottom: 50,
+            left: 20,
+            right: 20,
+            backgroundColor: toastType === 'success' ? '#10B981' : '#EF4444',
+            borderRadius: 12,
+            padding: 16,
+            flexDirection: 'row',
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8,
+            transform: [
+              {
+                translateY: toastAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [100, 0],
+                }),
+              },
+            ],
+            opacity: toastAnimation,
+          }}
+        >
+          <Ionicons
+            name={toastType === 'success' ? 'checkmark-circle' : 'alert-circle'}
+            size={24}
+            color="white"
+          />
+          <Text className="text-white text-base font-sora-semibold ml-3 flex-1">
+            {toastMessage}
+          </Text>
+        </Animated.View>
+      )}
     </BackgroundTemplate>
   );
 }

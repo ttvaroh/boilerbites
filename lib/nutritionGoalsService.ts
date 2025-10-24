@@ -7,6 +7,12 @@ export interface NutritionGoals {
   protein: number;
   carbs: number;
   fat: number;
+  dairy_allergy?: boolean;
+  gluten_allergy?: boolean;
+  nuts_allergy?: boolean;
+  soy_allergy?: boolean;
+  eggs_allergy?: boolean;
+  shellfish_allergy?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -22,7 +28,7 @@ const DEFAULT_GOALS = {
 // Fetch user's nutrition goals
 export const fetchNutritionGoals = async (userId: string): Promise<NutritionGoals | null> => {
   const { data, error } = await supabase
-    .from('nutrition_goals')
+    .from('nutrition_preferences')
     .select('*')
     .eq('user_id', userId)
     .single();
@@ -41,10 +47,16 @@ export const saveNutritionGoals = async (userId: string, goals: {
   protein: number;
   carbs: number;
   fat: number;
+  dairy_allergy?: boolean;
+  gluten_allergy?: boolean;
+  nuts_allergy?: boolean;
+  soy_allergy?: boolean;
+  eggs_allergy?: boolean;
+  shellfish_allergy?: boolean;
 }): Promise<NutritionGoals> => {
   // Try to update first
   const { data: existing } = await supabase
-    .from('nutrition_goals')
+    .from('nutrition_preferences')
     .select('id')
     .eq('user_id', userId)
     .single();
@@ -52,12 +64,18 @@ export const saveNutritionGoals = async (userId: string, goals: {
   if (existing) {
     // Update existing
     const { data, error } = await supabase
-      .from('nutrition_goals')
+      .from('nutrition_preferences')
       .update({
         calories: goals.calories,
         protein: goals.protein,
         carbs: goals.carbs,
         fat: goals.fat,
+        dairy_allergy: goals.dairy_allergy,
+        gluten_allergy: goals.gluten_allergy,
+        nuts_allergy: goals.nuts_allergy,
+        soy_allergy: goals.soy_allergy,
+        eggs_allergy: goals.eggs_allergy,
+        shellfish_allergy: goals.shellfish_allergy,
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId)
@@ -69,13 +87,19 @@ export const saveNutritionGoals = async (userId: string, goals: {
   } else {
     // Insert new
     const { data, error } = await supabase
-      .from('nutrition_goals')
+      .from('nutrition_preferences')
       .insert({ 
         user_id: userId, 
         calories: goals.calories,
         protein: goals.protein,
         carbs: goals.carbs,
         fat: goals.fat,
+        dairy_allergy: goals.dairy_allergy,
+        gluten_allergy: goals.gluten_allergy,
+        nuts_allergy: goals.nuts_allergy,
+        soy_allergy: goals.soy_allergy,
+        eggs_allergy: goals.eggs_allergy,
+        shellfish_allergy: goals.shellfish_allergy,
       })
       .select()
       .single();
@@ -91,9 +115,15 @@ export const upsertNutritionGoals = async (userId: string, goals: {
   protein: number;
   carbs: number;
   fat: number;
+  dairy_allergy?: boolean;
+  gluten_allergy?: boolean;
+  nuts_allergy?: boolean;
+  soy_allergy?: boolean;
+  eggs_allergy?: boolean;
+  shellfish_allergy?: boolean;
 }): Promise<NutritionGoals> => {
   const { data, error } = await supabase
-    .from('nutrition_goals')
+    .from('nutrition_preferences')
     .upsert(
       { 
         user_id: userId, 
@@ -101,6 +131,12 @@ export const upsertNutritionGoals = async (userId: string, goals: {
         protein: goals.protein,
         carbs: goals.carbs,
         fat: goals.fat,
+        dairy_allergy: goals.dairy_allergy,
+        gluten_allergy: goals.gluten_allergy,
+        nuts_allergy: goals.nuts_allergy,
+        soy_allergy: goals.soy_allergy,
+        eggs_allergy: goals.eggs_allergy,
+        shellfish_allergy: goals.shellfish_allergy,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'user_id' }

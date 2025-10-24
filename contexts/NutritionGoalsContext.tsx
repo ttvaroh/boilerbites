@@ -5,7 +5,18 @@ interface NutritionGoalsContextType {
   goals: NutritionGoals | null;
   loading: boolean;
   error: string | null;
-  updateGoals: (goals: { calories: number; protein: number; carbs: number; fat: number }) => Promise<void>;
+  updateGoals: (goals: { 
+    calories: number; 
+    protein: number; 
+    carbs: number; 
+    fat: number;
+    dairy_allergy?: boolean;
+    gluten_allergy?: boolean;
+    nuts_allergy?: boolean;
+    soy_allergy?: boolean;
+    eggs_allergy?: boolean;
+    shellfish_allergy?: boolean;
+  }) => Promise<void>;
   refreshGoals: () => Promise<void>;
 }
 
