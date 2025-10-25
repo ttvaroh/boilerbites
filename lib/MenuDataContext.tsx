@@ -84,6 +84,7 @@ interface MenuDataContextType {
   getMealDetailedData: (locationName: string, date: string, mealType: string) => Promise<Meal | null>;
   getAvailableLocations: () => Promise<string[]>;
   refreshLocations: () => Promise<void>;
+  refreshAllData: () => Promise<void>;
   isDateLoading: (date: string) => boolean;
   isDateReady: (date: string) => boolean;
 }
@@ -585,13 +586,65 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
         }
       }
 
-      setLocations(locationsList);
-      console.log(`✅ Loaded ${locationsList.length} locations`);
+      // Sort dining halls in the desired order: Ford, Wiley, Windsor, Earhart, Hillenbrand
+      const diningHallOrder = ['Ford', 'Wiley', 'Windsor', 'Earhart', 'Hillenbrand'];
+      
+      const sortedLocations = locationsList.sort((a, b) => {
+        // Only sort dining halls (type 0)
+        if (a.type !== 0 || b.type !== 0) {
+          return 0; // Keep non-dining halls in their original order
+        }
+        
+        const aIndex = diningHallOrder.indexOf(a.name);
+        const bIndex = diningHallOrder.indexOf(b.name);
+        
+        // If both are in the order list, sort by their position
+        if (aIndex !== -1 && bIndex !== -1) {
+          return aIndex - bIndex;
+        }
+        
+        // If only one is in the order list, prioritize it
+        if (aIndex !== -1) return -1;
+        if (bIndex !== -1) return 1;
+        
+        // If neither is in the order list, maintain original order
+        return 0;
+      });
+
+      setLocations(sortedLocations);
     } catch (error) {
       console.error("Error fetching locations:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred";
       setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Refresh all data when app returns from background
+  const refreshAllData = async (): Promise<void> => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Clear cached menu data
+      setMenuData(prev => prev ? {
+        ...prev,
+        menusByDate: new Map()
+      } : null);
+      
+      // Reload locations
+      await refreshLocations();
+      
+      // If we have a current location, reload today's menu
+      if (currentLocation) {
+        const today = getTodayDateString();
+        await getMenuForDate(currentLocation, today);
+      }
+    } catch (error) {
+      console.error('Error refreshing all data:', error);
+      setError('Failed to refresh data');
     } finally {
       setLoading(false);
     }
@@ -630,6 +683,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
     getMealDetailedData,
     getAvailableLocations,
     refreshLocations,
+    refreshAllData,
     isDateLoading,
     isDateReady,
   };

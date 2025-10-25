@@ -49,6 +49,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
   signInWithAzure: () => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  refreshSession: () => Promise<void>;
   addFoodEntry: (foodEntry: FoodEntry) => Promise<{ error: any }>;
   removeFoodEntry: (entryId: string) => Promise<{ error: any }>;
   toggleFavorite: (itemId: string) => Promise<{ error: any; isFavorited: boolean }>;
@@ -65,6 +66,7 @@ const AuthContext = createContext<AuthContextType>({
   signUp: async () => ({ error: null }),
   signInWithAzure: async () => ({ error: null }),
   signOut: async () => {},
+  refreshSession: async () => {},
   addFoodEntry: async () => ({ error: null }),
   removeFoodEntry: async () => ({ error: null }),
   toggleFavorite: async () => ({ error: null, isFavorited: false }),
@@ -137,6 +139,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     await supabase.auth.signOut();
+  };
+
+  const refreshSession = async (): Promise<void> => {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('Error refreshing session:', error);
+        return;
+      }
+      setSession(session);
+      setUser(session?.user ?? null);
+    } catch (error) {
+      console.error('Error in refreshSession:', error);
+    }
   };
 
   const addFoodEntry = async (foodEntry: FoodEntry) => {
@@ -402,6 +418,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signUp,
     signInWithAzure,
     signOut,
+    refreshSession,
     addFoodEntry,
     removeFoodEntry,
     toggleFavorite,

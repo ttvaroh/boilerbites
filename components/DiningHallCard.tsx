@@ -104,7 +104,11 @@ export default function DiningHallCard({
         {/* Hours */}
         <View className="items-center">
           <Text className="text-gray-400 text-[10px] font-sora text-center">
-            {hours}
+            { hours && hours.split(": ").length > 1 ? (
+              hours.split(": ")[0] + ":" + "\n" + hours.split(": ")[1]
+            ) : (
+              hours || "Closed Today"
+            )}
           </Text>
         </View>
       </View>
