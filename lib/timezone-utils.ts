@@ -4,6 +4,44 @@
  */
 
 /**
+ * Format time from HH:MM:SS to H AM/PM (removes :00 minutes)
+ */
+export function formatTime(timeString: string): string {
+  if (!timeString) return "";
+  
+  const [hours, minutes] = timeString.split(":");
+  if (!hours || !minutes) return timeString;
+  
+  const hour = parseInt(hours, 10);
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  
+  if (minutes === "00") {
+    return `${displayHour} ${ampm}`;
+  }
+  return `${displayHour}:${minutes} ${ampm}`;
+}
+
+/**
+ * Format meal time range
+ */
+export function formatMealTime(startTime: string, endTime: string): string {
+  const start = formatTime(startTime);
+  const end = formatTime(endTime);
+  return `${start}-${end}`;
+}
+
+/**
+ * Format date for display (e.g., "Oct 25")
+ */
+export function formatDateDisplay(dateString: string): string {
+  return createLocalDateFromString(dateString).toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric' 
+  });
+}
+
+/**
  * Get today's date in YYYY-MM-DD format (local timezone)
  * @returns String in YYYY-MM-DD format
  */
