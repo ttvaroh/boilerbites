@@ -359,9 +359,9 @@ export default function HomePage() {
                   <Text className="text-white text-2xl font-sora-semibold mb-2">
                     Dining Halls
                   </Text>
-                  <View className="flex-row flex-wrap justify-between">
+                  <View className="flex-row flex-wrap justify-start gap-2">
                     {diningHalls.map((hall) => (
-                      <View key={hall.id} className="w-[48%]">
+                      <View key={hall.id} className="w-[31%]">
                         <DiningHallCard
                           name={hall.name}
                           hours={hall.hours}
@@ -381,9 +381,9 @@ export default function HomePage() {
                   <Text className="text-white text-2xl font-sora-semibold mb-2 mt-2">
                     Quick Bites
                   </Text>
-                  <View className="flex-row flex-wrap justify-between">
+                  <View className="flex-row flex-wrap justify-start gap-2">
                     {quickBites.map((hall) => (
-                      <View key={hall.id} className="w-[48%]">
+                      <View key={hall.id} className="w-[31%]">
                         <DiningHallCard
                           name={hall.name}
                           hours={hall.hours}
@@ -403,9 +403,9 @@ export default function HomePage() {
                   <Text className="text-white text-2xl font-sora-semibold mb-2 mt-2">
                     On-The-GO!
                   </Text>
-                  <View className="flex-row flex-wrap justify-between">
+                  <View className="flex-row flex-wrap justify-start gap-2">
                     {onTheGo.map((hall) => (
-                      <View key={hall.id} className="w-[48%]">
+                      <View key={hall.id} className="w-[31%]">
                         <DiningHallCard
                           name={hall.name}
                           hours={hall.hours}
