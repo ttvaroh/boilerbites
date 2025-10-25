@@ -36,6 +36,33 @@ interface SearchItemCardProps {
 }
 
 const SearchItemCard = React.memo(({ item, showDietaryTag = true, meals, isCollection = false }: SearchItemCardProps) => {
+  // Check if location is one of the 5 main dining halls
+  const isMainDiningHall = (locationName: string): boolean => {
+    const mainDiningHalls = ['Ford', 'Wiley', 'Windsor', 'Earhart', 'Hillenbrand'];
+    return mainDiningHalls.includes(locationName);
+  };
+
+  // Sort meals in the correct order
+  const sortMeals = (meals: string[]): string[] => {
+    const mealOrder = ['breakfast', 'brunch', 'lunch', 'late lunch', 'dinner'];
+    return meals.sort((a, b) => {
+      const aIndex = mealOrder.indexOf(a.toLowerCase());
+      const bIndex = mealOrder.indexOf(b.toLowerCase());
+      
+      // If both meals are in the order list, sort by their position
+      if (aIndex !== -1 && bIndex !== -1) {
+        return aIndex - bIndex;
+      }
+      
+      // If only one is in the order list, prioritize it
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      
+      // If neither is in the order list, maintain original order
+      return 0;
+    });
+  };
+
   const getDietaryIcons = () => {
     const icons: Array<{
       icon: string;
@@ -104,13 +131,15 @@ const SearchItemCard = React.memo(({ item, showDietaryTag = true, meals, isColle
                   <Text className="text-purdueGold text-sm font-sora">
                     📍 {item.location_name}
                   </Text>
-                  <Text className="text-gray-400 text-sm font-sora">  •  </Text>
                 </>
               )}
-              {meals && meals.length > 0 && (
+              {meals && meals.length > 0 && isMainDiningHall(item.location_name || '') && (
+                <>
+                  <Text className="text-gray-400 text-sm font-sora">  •  </Text>
                 <Text className="text-gray-400 text-sm font-sora">
-                  {meals.join(", ")}
-                </Text>
+                    {sortMeals(meals.filter(meal => meal && meal.trim() !== "")).join(", ")}
+                  </Text>
+                </>
               )}
             </View>
           )}
