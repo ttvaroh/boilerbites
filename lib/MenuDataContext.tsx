@@ -5,6 +5,7 @@ import {
   useEffect,
   useState
 } from "react";
+import { mapMealNameToType } from "./mealConfig";
 import { supabase } from "./supabase";
 import { getTodayDateString } from "./timezone-utils";
 
@@ -157,17 +158,12 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
             stations: [], // Empty stations for basic info
           };
           
-          const mealName = meal.meal_name.toLowerCase();
-          if (mealName.includes('breakfast')) {
-            mealsByDate.breakfast = mealBasic;
-          } else if (mealName.includes('late lunch')) {
-            if (locationName === 'Windsor') {
-              mealsByDate.lateLunch = mealBasic;
-            }
-          } else if (mealName.includes('lunch')) {
-            mealsByDate.lunch = mealBasic;
-          } else if (mealName.includes('dinner')) {
-            mealsByDate.dinner = mealBasic;
+          const mealName = meal.meal_name.toLowerCase().trim();
+
+          // Use location-specific meal mapping
+          const mealType = mapMealNameToType(locationName, mealName);
+          if (mealType) {
+            mealsByDate[mealType] = mealBasic;
           }
         }
       }
@@ -224,22 +220,21 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
         .eq("location_name", locationName)
         .eq("serve_date", date)
         .maybeSingle();
+
       
       if (menuError || !menuData) {
         return null;
       }
       
-      // Find the specific meal
+      // Find the specific meal using location-specific mapping
       const targetMeal = menuData.day_meal.find((meal: any) => {
-        const mealName = meal.meal_name.toLowerCase();
-        if (mealType === 'breakfast') return mealName.includes('breakfast');
-        if (mealType === 'lateLunch') return mealName.includes('late lunch');
-        if (mealType === 'lunch') return mealName.includes('lunch') && !mealName.includes('late');
-        if (mealType === 'dinner') return mealName.includes('dinner');
-        return false;
+        const mappedType = mapMealNameToType(locationName, meal.meal_name);
+        return mappedType === mealType;
       });
       
-      if (!targetMeal) return null;
+      if (!targetMeal) {
+        return null;
+      }
       
       // Process stations and items for this meal only
       const stationsWithItems: Station[] = [];
