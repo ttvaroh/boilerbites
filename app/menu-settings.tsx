@@ -141,12 +141,12 @@ export default function SettingsScreen() {
           {user && (
             <View className="bg-gradient-to-br from-purdueGold/20 to-yellow-600/10 rounded-2xl p-5 mb-6 border border-purdueGold/30">
               <View className="flex-row items-center">
-                <View className="w-16 h-16 bg-gradient-to-br from-purdueGold to-yellow-600 rounded-full items-center justify-center shadow-lg mr-4">
+                <View className="w-16 h-16 bg-purdueGold rounded-full items-center justify-center shadow-lg mr-4">
                   <Text className="text-black text-2xl font-sora-bold">
-                    {user?.user_metadata?.full_name?.[0]?.toUpperCase() || 
-                     user?.email?.[0]?.toUpperCase() || "U"}
+                    {user?.user_metadata?.full_name[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"}
                   </Text>
                 </View>
+
                 <View className="flex-1">
                   <Text className="text-white text-lg font-sora-bold">
                     {user?.user_metadata?.full_name || "User"}
@@ -161,7 +161,7 @@ export default function SettingsScreen() {
 
           {/* Settings Sections */}
           {settingsSections.map((section, sectionIndex) => (
-            <View key={section.title} className="mb-6">
+            <View key={section.title} className="mb-5">
               <Text className="text-gray-400 text-xs font-sora-semibold uppercase tracking-wider mb-3 px-1">
                 {section.title}
               </Text>
@@ -216,7 +216,7 @@ export default function SettingsScreen() {
           ))}
 
           {/* Footer Info */}
-          <View className="items-center mt-4 mb-6">
+          <View className="items-center mb-6">
             <Text className="text-gray-500 text-xs font-sora">
               Made with ❤️ for Purdue
             </Text>

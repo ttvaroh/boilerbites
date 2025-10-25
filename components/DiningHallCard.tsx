@@ -71,13 +71,13 @@ export default function DiningHallCard({
             >
               <Image
                 source={image}
-                className="w-full h-full"
+                className="w-full h-full rounded-full"
                 resizeMode="cover"
               />
             </View>
           ) : (
             <View
-              className="w-[140px] h-[140px] rounded-2xl items-center justify-center"
+              className="w-[140px] h-[140px] rounded-full items-center justify-center"
               style={{
                 backgroundColor: "rgba(207, 185, 145, 0.1)",
                 borderWidth: 1,

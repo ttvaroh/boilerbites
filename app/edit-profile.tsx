@@ -184,7 +184,7 @@ export default function EditProfileScreen() {
           <View className="items-center mb-8">
             <View className="relative">
                 <View className="w-24 h-24 bg-purdueGold rounded-full items-center justify-center shadow-lg mb-4">
-                    <Text className="text-black text-3xl font-sora-bold">
+                    <Text className="text-black text-4xl font-sora-bold">
                         {fullName[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U"}
                     </Text>
                 </View>

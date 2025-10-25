@@ -64,6 +64,7 @@ interface DiningHallMenu {
 
 interface LocationInfo {
   name: string;
+  type: number; // 0 = Dining Hall, 1 = Quick Bites, 2 = On-The-GO!
   hasMenu: boolean;
   menuId?: string;
   isPublished?: boolean;
@@ -512,7 +513,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
       // Fetch all locations
       const { data: locationsData, error: locationsError } = await supabase
         .from("location")
-        .select("name");
+        .select("name, type");
 
       if (locationsError) {
         throw new Error(`Failed to fetch locations: ${locationsError.message}`);
@@ -533,6 +534,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
           if (menuError || !menu) {
             locationsList.push({
               name: location.name,
+              type: location.type,
               hasMenu: false,
             });
           } else {
@@ -553,6 +555,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
             if (mealsError || !mealsData) {
             locationsList.push({
               name: location.name,
+              type: location.type,
               hasMenu: true,
               menuId: menu.id,
               isPublished: menu.is_published,
@@ -569,6 +572,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
 
               locationsList.push({
                 name: location.name,
+                type: location.type,
                 hasMenu: true,
                 menuId: menu.id,
                 isPublished: menu.is_published,
@@ -580,6 +584,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
           console.warn(`Error checking menu for ${location.name}:`, locationError);
           locationsList.push({
             name: location.name,
+            type: location.type,
             hasMenu: false,
           });
         }

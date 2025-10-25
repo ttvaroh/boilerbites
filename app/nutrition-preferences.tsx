@@ -105,6 +105,94 @@ export default function NutritionPreferencesScreen() {
     setIsModalVisible(false);
   };
 
+  // Calculate remaining calories for suggestions
+  const calculateRemainingCalories = () => {
+    const calories = parseInt(tempCalories) || calorieGoal;
+    const protein = parseInt(tempProtein) || 0;
+    const carbs = parseInt(tempCarbs) || 0;
+    const fat = parseInt(tempFat) || 0;
+    
+    const usedCalories = (protein * 4) + (carbs * 4) + (fat * 9);
+    return calories - usedCalories;
+  };
+
+  // Calculate dynamic suggestions based on what's already entered
+  const getDynamicSuggestions = () => {
+    const calories = parseInt(tempCalories) || calorieGoal;
+    const remainingCalories = calculateRemainingCalories();
+    
+    const hasProtein = tempProtein !== "";
+    const hasCarbs = tempCarbs !== "";
+    const hasFat = tempFat !== "";
+    
+    // Count how many macros are empty
+    const emptyCount = [hasProtein, hasCarbs, hasFat].filter(x => !x).length;
+    
+    if (emptyCount === 0) return { protein: 0, carbs: 0, fat: 0 };
+    if (emptyCount === 3) return calculateSuggestedMacros(calories);
+    
+    // Distribute remaining calories among empty macros
+    if (emptyCount === 2) {
+      if (hasProtein) {
+        // Split remaining between carbs and fat (40/30 ratio)
+        const carbCalories = remainingCalories * 0.57; // 40/(40+30)
+        const fatCalories = remainingCalories * 0.43; // 30/(40+30)
+        return {
+          protein: 0,
+          carbs: Math.round(carbCalories / 4),
+          fat: Math.round(fatCalories / 9),
+        };
+      } else if (hasCarbs) {
+        // Split remaining between protein and fat (30/30 ratio)
+        const proteinCalories = remainingCalories * 0.5;
+        const fatCalories = remainingCalories * 0.5;
+        return {
+          protein: Math.round(proteinCalories / 4),
+          carbs: 0,
+          fat: Math.round(fatCalories / 9),
+        };
+      } else if (hasFat) {
+        // Split remaining between protein and carbs (30/40 ratio)
+        const proteinCalories = remainingCalories * 0.43; // 30/(30+40)
+        const carbCalories = remainingCalories * 0.57; // 40/(30+40)
+        return {
+          protein: Math.round(proteinCalories / 4),
+          carbs: Math.round(carbCalories / 4),
+          fat: 0,
+        };
+      }
+    }
+    
+    // Only one macro is empty
+    if (!hasProtein) {
+      return {
+        protein: Math.max(0, Math.round(remainingCalories / 4)),
+        carbs: 0,
+        fat: 0,
+      };
+    } else if (!hasCarbs) {
+      return {
+        protein: 0,
+        carbs: Math.max(0, Math.round(remainingCalories / 4)),
+        fat: 0,
+      };
+    } else {
+      return {
+        protein: 0,
+        carbs: 0,
+        fat: Math.max(0, Math.round(remainingCalories / 9)),
+      };
+    }
+  };
+
+  // Calculate total calories from entered macros
+  const calculateEnteredCalories = () => {
+    const protein = parseInt(tempProtein) || 0;
+    const carbs = parseInt(tempCarbs) || 0;
+    const fat = parseInt(tempFat) || 0;
+    return (protein * 4) + (carbs * 4) + (fat * 9);
+  };
+
   const handleSubmitGoals = () => {
     const calories = parseInt(tempCalories);
     const protein = parseInt(tempProtein);
@@ -473,9 +561,9 @@ export default function NutritionPreferencesScreen() {
         onRequestClose={closeModal}
       >
         <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-gray-900 rounded-t-3xl px-6 pt-6 pb-8 max-h-[85%]">
+          <View className="bg-gray-900 rounded-t-3xl px-6 pb-10 pt-6 max-h-[85%]">
             {/* Modal Header */}
-            <View className="flex-row items-center justify-between mb-6">
+            <View className="flex-row items-center justify-between mb-2">
               <Text className="text-white text-2xl font-sora-bold">
                 Edit Daily Goals
               </Text>
@@ -514,9 +602,9 @@ export default function NutritionPreferencesScreen() {
                   <Text className="text-white text-sm font-sora-semibold">
                     Protein
                   </Text>
-                  {tempProtein === "" && (
+                  {tempProtein === "" && getDynamicSuggestions().protein > 0 && (
                     <Text className="text-blue-400 text-xs font-sora">
-                      Suggested: {calculateSuggestedMacros(parseInt(tempCalories) || calorieGoal).protein}g
+                      Suggested: {getDynamicSuggestions().protein}g
                     </Text>
                   )}
                 </View>
@@ -540,9 +628,9 @@ export default function NutritionPreferencesScreen() {
                   <Text className="text-white text-sm font-sora-semibold">
                     Carbohydrates
                   </Text>
-                  {tempCarbs === "" && (
+                  {tempCarbs === "" && getDynamicSuggestions().carbs > 0 && (
                     <Text className="text-green-400 text-xs font-sora">
-                      Suggested: {calculateSuggestedMacros(parseInt(tempCalories) || calorieGoal).carbs}g
+                      Suggested: {getDynamicSuggestions().carbs}g
                     </Text>
                   )}
                 </View>
@@ -566,9 +654,9 @@ export default function NutritionPreferencesScreen() {
                   <Text className="text-white text-sm font-sora-semibold">
                     Fat
                   </Text>
-                  {tempFat === "" && (
+                  {tempFat === "" && getDynamicSuggestions().fat > 0 && (
                     <Text className="text-purple-400 text-xs font-sora">
-                      Suggested: {calculateSuggestedMacros(parseInt(tempCalories) || calorieGoal).fat}g
+                      Suggested: {getDynamicSuggestions().fat}g
                     </Text>
                   )}
                 </View>
@@ -586,8 +674,54 @@ export default function NutritionPreferencesScreen() {
                 </View>
               </View>
 
+              {/* Current Macros Calorie Display */}
+              {(tempProtein !== "" || tempCarbs !== "" || tempFat !== "") && (
+                <View className={`rounded-xl p-4 border mt-2 ${
+                  Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) <= (parseInt(tempCalories) || calorieGoal) * 0.05
+                    ? "bg-green-500/10 border-green-500/30"
+                    : Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) > (parseInt(tempCalories) || calorieGoal) * 0.15
+                    ? "bg-red-500/10 border-red-500/30"
+                    : "bg-yellow-500/10 border-yellow-500/30"
+                }`}>
+                  <View className="flex-row items-center justify-between">
+                    <Text className={`text-sm font-sora-semibold ${
+                      Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) <= (parseInt(tempCalories) || calorieGoal) * 0.05
+                        ? "text-green-300"
+                        : Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) > (parseInt(tempCalories) || calorieGoal) * 0.15
+                        ? "text-red-300"
+                        : "text-yellow-300"
+                    }`}>
+                      Current Macros
+                    </Text>
+                    <Text className={`text-base font-sora-bold ${
+                      Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) <= (parseInt(tempCalories) || calorieGoal) * 0.05
+                        ? "text-green-200"
+                        : Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) > (parseInt(tempCalories) || calorieGoal) * 0.15
+                        ? "text-red-200"
+                        : "text-yellow-200"
+                    }`}>
+                      {calculateEnteredCalories()} cal
+                    </Text>
+                  </View>
+                  <Text className={`text-xs font-sora mt-1 ${
+                    Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) <= (parseInt(tempCalories) || calorieGoal) * 0.05
+                      ? "text-green-400"
+                      : Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) > (parseInt(tempCalories) || calorieGoal) * 0.15
+                      ? "text-red-400"
+                      : "text-yellow-400"
+                  }`}>
+                    {calculateEnteredCalories() < (parseInt(tempCalories) || calorieGoal)
+                      ? `${(parseInt(tempCalories) || calorieGoal) - calculateEnteredCalories()} cal remaining`
+                      : calculateEnteredCalories() > (parseInt(tempCalories) || calorieGoal)
+                      ? `${calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)} cal over target`
+                      : "Perfect match!"
+                    }
+                  </Text>
+                </View>
+              )}
+
               {/* Helper Info */}
-              <View className="bg-purdueGold/10 rounded-xl p-4 border border-purdueGold/30 mt-5 mb-6">
+              <View className="bg-purdueGold/10 rounded-xl p-4 border border-purdueGold/30 mt-2 mb-6">
                 <View className="flex-row items-start">
                   <Ionicons name="bulb" size={18} color="#CFB991" />
                   <View className="flex-1 ml-3">

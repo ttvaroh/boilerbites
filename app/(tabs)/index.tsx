@@ -9,10 +9,17 @@ import { getCurrentTimeInEST } from "../../lib/timezone-utils";
 
 import {
   earhartLogo,
+  earhartOtgLogo,
   fordLogo,
+  fordOtgLogo,
   hillenbrandLogo,
+  lawsonOtgLogo,
+  oneBowlLogo,
+  petesZaLogo,
+  sushiBossLogo,
   wileyLogo,
   windsorLogo,
+  windsorOtgLogo,
 } from "../../assets/images/logos/logos";
 
 interface MealHours {
@@ -25,6 +32,7 @@ interface MealHours {
 interface DiningHall {
   id: number;
   name: string;
+  type: number; // 0 = Dining Hall, 1 = Quick Bites, 2 = On-The-GO!
   hours: string;
   status: "open" | "closed";
   image: any;
@@ -38,13 +46,32 @@ export default function HomePage() {
   const [refreshing, setRefreshing] = React.useState(false);
 
 
-  // Logo mapping
-  const logoMap: { [key: string]: any } = {
-    Wiley: wileyLogo,
-    Ford: fordLogo,
-    Windsor: windsorLogo,
-    Earhart: earhartLogo,
-    Hillenbrand: hillenbrandLogo,
+  // Logo mapping based on location type
+  const getLocationLogo = (name: string, type: number) => {
+    // On-The-GO! locations (type 2) use SVG logos
+    if (type === 2) {
+      const otgLogoMap: { [key: string]: any } = {
+        'Earhart On-the-GO!': earhartOtgLogo,
+        'Ford On-the-GO!': fordOtgLogo,
+        'Windsor On-the-GO!': windsorOtgLogo,
+        'Lawson On-the-GO!': lawsonOtgLogo,
+      };
+      return otgLogoMap[name] || fordOtgLogo; // fallback to ford
+    }
+    
+    // Dining Halls and Quick Bites (type 0, 1) use PNG logos
+    const regularLogoMap: { [key: string]: any } = {
+      'Wiley': wileyLogo,
+      'Ford': fordLogo,
+      'Windsor': windsorLogo,
+      'Earhart': earhartLogo,
+      'Hillenbrand': hillenbrandLogo,
+      // Quick Bites logos
+      "Pete's Za at Tarkington Hall": petesZaLogo,
+      'Sushi Boss at Meredith Hall': sushiBossLogo,
+      '1bowl at Meredith Hall': oneBowlLogo,
+    };
+    return regularLogoMap[name] || wileyLogo; // fallback to wiley
   };
 
   // Function to format time from HH:MM:SS to H AM/PM (removes :00 minutes)
@@ -59,6 +86,55 @@ export default function HomePage() {
       return `${displayHour} ${ampm}`;
     }
     return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  // Function to get meal hours from database for specific locations
+  const getMealHoursFromDatabase = async (locationName: string, locationType: number): Promise<MealHours[] | null> => {
+    try {
+      // Import supabase client
+      const { supabase } = await import('../../lib/supabase');
+      
+      // Get today's date in YYYY-MM-DD format
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Query the database for today's meal data
+      const { data: dayMenu, error: dayMenuError } = await supabase
+        .from('day_menu')
+        .select(`
+          id,
+          day_meal (
+            meal_name,
+            start_time,
+            end_time,
+            open,
+            meal_order
+          )
+        `)
+        .eq('location_name', locationName)
+        .eq('serve_date', today)
+        .eq('is_published', true)
+        .single();
+
+      if (dayMenuError || !dayMenu) {
+        console.log(`No menu data found for ${locationName} on ${today}`);
+        return null;
+      }
+
+      // Transform the data to match our MealHours interface
+      const mealHours: MealHours[] = dayMenu.day_meal
+        .sort((a: any, b: any) => a.meal_order - b.meal_order)
+        .map((meal: any) => ({
+          meal_name: meal.meal_name,
+          start_time: meal.start_time,
+          end_time: meal.end_time,
+          open: meal.open,
+        }));
+
+      return mealHours;
+    } catch (error) {
+      console.error(`Error fetching meal hours for ${locationName}:`, error);
+      return null;
+    }
   };
 
   // Function to format hours for display
@@ -108,62 +184,93 @@ export default function HomePage() {
     return "Closed Today";
   };
 
-  // Convert locations to dining hall format
-  const diningHalls: DiningHall[] = React.useMemo(() => {
-    const { hours, minutes } = getCurrentTimeInEST();
-    const currentTime = hours * 60 + minutes;
+  // State for processed locations with database meal hours
+  const [processedLocations, setProcessedLocations] = React.useState<{
+    diningHalls: any[];
+    quickBites: any[];
+    onTheGo: any[];
+  }>({ diningHalls: [], quickBites: [], onTheGo: [] });
 
-    return locations.map((location, index) => {
-      // Use real meal hours if menu data is available, otherwise use placeholders
-      let mealHours: MealHours[];
-      
-      if (location.meals && location.meals.length > 0) {
-        // Use real meal hours from loaded menu data
-        mealHours = location.meals.map((meal) => ({
-          meal_name: meal.name,
-          start_time: meal.start_time,
-          end_time: meal.end_time,
-          open: meal.open,
-        }));
-      } else {
-        // Use placeholder meal hours until real data loads
-        mealHours = [
-          { meal_name: "Breakfast", start_time: "07:00", end_time: "10:00", open: true },
-          { meal_name: "Lunch", start_time: "11:00", end_time: "14:00", open: true },
-          { meal_name: "Dinner", start_time: "17:00", end_time: "20:00", open: true },
-        ];
-      }
+  // Process locations with database meal hours
+  React.useEffect(() => {
+    const processLocations = async () => {
+      const { hours, minutes } = getCurrentTimeInEST();
+      const currentTime = hours * 60 + minutes;
 
-      // Determine if dining hall is currently open based on EST time and meal hours
-      const isCurrentlyOpen = (() => {
-        if (!mealHours || mealHours.length === 0) return false;
-        
-        const openMeals = mealHours.filter((meal) => meal.open);
-        if (openMeals.length === 0) return false;
+      const processedLocations = await Promise.all(
+        locations.map(async (location, index) => {
+          let mealHours: MealHours[] = [];
+          
+          // Try to get meal hours from database first
+          const dbMealHours = await getMealHoursFromDatabase(location.name, location.type);
+          
+          if (dbMealHours) {
+            // Use database meal hours
+            mealHours = dbMealHours;
+          } else if (location.meals && location.meals.length > 0) {
+            // Use real meal hours from loaded menu data for Dining Halls
+            mealHours = location.meals.map((meal) => ({
+              meal_name: meal.name,
+              start_time: meal.start_time,
+              end_time: meal.end_time,
+              open: meal.open,
+            }));
+          } else {
+            // Use placeholder meal hours until real data loads (for Dining Halls)
+            mealHours = [
+              { meal_name: "Breakfast", start_time: "07:00", end_time: "10:00", open: true },
+              { meal_name: "Lunch", start_time: "11:00", end_time: "14:00", open: true },
+              { meal_name: "Dinner", start_time: "17:00", end_time: "20:00", open: true },
+            ];
+          }
 
-        // Check if any meal is currently open
-        return openMeals.some((meal) => {
-          if (!meal.start_time || !meal.end_time) return false;
-          const [startHour, startMin] = meal.start_time.split(":").map(Number);
-          const [endHour, endMin] = meal.end_time.split(":").map(Number);
-          const startTime = startHour * 60 + startMin;
-          const endTime = endHour * 60 + endMin;
-          return currentTime >= startTime && currentTime <= endTime;
-        });
-      })();
+          // Determine if dining hall is currently open based on EST time and meal hours
+          const isCurrentlyOpen = (() => {
+            if (!mealHours || mealHours.length === 0) return false;
+            
+            const openMeals = mealHours.filter((meal) => meal.open);
+            if (openMeals.length === 0) return false;
 
-      const formattedHours = formatHours(mealHours);
+            // Check if any meal is currently open
+            return openMeals.some((meal) => {
+              if (!meal.start_time || !meal.end_time) return false;
+              const [startHour, startMin] = meal.start_time.split(":").map(Number);
+              const [endHour, endMin] = meal.end_time.split(":").map(Number);
+              const startTime = startHour * 60 + startMin;
+              const endTime = endHour * 60 + endMin;
+              return currentTime >= startTime && currentTime <= endTime;
+            });
+          })();
 
-      return {
-        id: index + 1,
-        name: location.name,
-        hours: formattedHours,
-        status: (isCurrentlyOpen ? "open" : "closed") as "open" | "closed",
-        image: logoMap[location.name] || wileyLogo,
-        mealHours: mealHours,
-      };
-    });
+          const formattedHours = formatHours(mealHours);
+
+          return {
+            id: index + 1,
+            name: location.name,
+            type: location.type,
+            hours: formattedHours,
+            status: (isCurrentlyOpen ? "open" : "closed") as "open" | "closed",
+            image: getLocationLogo(location.name, location.type),
+            mealHours: mealHours,
+          };
+        })
+      );
+
+      // Section locations by type
+      const diningHalls = processedLocations.filter(location => location.type === 0);
+      const quickBites = processedLocations.filter(location => location.type === 1);
+      const onTheGo = processedLocations.filter(location => location.type === 2);
+
+      setProcessedLocations({ diningHalls, quickBites, onTheGo });
+    };
+
+    if (locations.length > 0) {
+      processLocations();
+    }
   }, [locations]);
+
+  // Use processed locations
+  const { diningHalls, quickBites, onTheGo } = processedLocations;
 
   const fetchDiningHalls = async () => {
     try {
@@ -211,7 +318,7 @@ export default function HomePage() {
 
         {/* Main Content */}
         <ScrollView 
-          className="flex-1 px-6 pt-3"
+          className="flex-1 px-6"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -245,18 +352,72 @@ export default function HomePage() {
               </TouchableOpacity>
             </View>
           ) : (
-            <View className="flex-row flex-wrap justify-between">
-              {diningHalls.map((hall) => (
-                <View key={hall.id} className="w-[48%]">
-                  <DiningHallCard
-                    name={hall.name}
-                    hours={hall.hours}
-                    status={hall.status}
-                    image={hall.image}
-                    onPress={() => handleDiningHallPress(hall.name)}
-                  />
+            <View>
+              {/* Dining Halls Section */}
+              {diningHalls.length > 0 && (
+                <View>
+                  <Text className="text-white text-2xl font-sora-semibold mb-2">
+                    Dining Halls
+                  </Text>
+                  <View className="flex-row flex-wrap justify-between">
+                    {diningHalls.map((hall) => (
+                      <View key={hall.id} className="w-[48%]">
+                        <DiningHallCard
+                          name={hall.name}
+                          hours={hall.hours}
+                          status={hall.status}
+                          image={hall.image}
+                          onPress={() => handleDiningHallPress(hall.name)}
+                        />
+                      </View>
+                    ))}
+                  </View>
                 </View>
-              ))}
+              )}
+
+              {/* Quick Bites Section */}
+              {quickBites.length > 0 && (
+                <View>
+                  <Text className="text-white text-2xl font-sora-semibold mb-2 mt-2">
+                    Quick Bites
+                  </Text>
+                  <View className="flex-row flex-wrap justify-between">
+                    {quickBites.map((hall) => (
+                      <View key={hall.id} className="w-[48%]">
+                        <DiningHallCard
+                          name={hall.name}
+                          hours={hall.hours}
+                          status={hall.status}
+                          image={hall.image}
+                          onPress={() => handleDiningHallPress(hall.name)}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* On-The-GO! Section */}
+              {onTheGo.length > 0 && (
+                <View>
+                  <Text className="text-white text-2xl font-sora-semibold mb-2 mt-2">
+                    On-The-GO!
+                  </Text>
+                  <View className="flex-row flex-wrap justify-between">
+                    {onTheGo.map((hall) => (
+                      <View key={hall.id} className="w-[48%]">
+                        <DiningHallCard
+                          name={hall.name}
+                          hours={hall.hours}
+                          status={hall.status}
+                          image={hall.image}
+                          onPress={() => handleDiningHallPress(hall.name)}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
             </View>
           )}
         </ScrollView>
