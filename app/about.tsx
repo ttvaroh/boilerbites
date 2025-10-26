@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { Image, Linking, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import BackgroundTemplate from "../components/BackgroundTemplate";
 const boilerbitesLogo = require("../assets/images/logos/boilerbites-logo.png");
 const tomHeadshot = require("../assets/images/tommycancun.jpg");
@@ -81,28 +81,52 @@ export default function AboutScreen() {
             </View>
           </View>
 
-          {/* Developer Info */}
+          {/* What's New & Feedback */}
           <View className="mb-6">
-            <Text className="text-white text-lg font-sora-semibold mb-2">Developer Info</Text>
+            <Text className="text-white text-lg font-sora-semibold mb-2">What's New</Text>
             <View className="bg-gray-800/60 backdrop-blur-xl rounded-2xl p-6 border border-gray-700/50">
-              <View className="flex-row items-start mb-4">
-                <View className="w-16 h-16 rounded-full overflow-hidden mr-4 shadow-lg">
-                  <Image 
-                    source={tomHeadshot} 
-                    className="w-full h-full"
-                    resizeMode="cover"
-                  />
+              {/* Updates Section */}
+              <View className="mb-4">
+                <View className="flex-row items-center mb-3">
+                  <Ionicons name="sparkles" size={20} color="#CFB991" />
+                  <Text className="text-purdueGold text-sm font-sora-semibold ml-2">Latest Updates</Text>
                 </View>
-                <View className="flex-1">
-                  <Text className="text-white text-lg font-sora-bold mb-1">Tom Tvaroh</Text>
-                  <Text className="text-purdueGold text-sm font-sora mb-1">Developer & Purdue Student</Text>
+                <View className="ml-7">
+                  <View className="flex-row items-start">
+                    <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
+                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
+                      New dining locations added: Quick Bites and On-the-GO!
+                    </Text>
+                  </View>
+                  <View className="flex-row items-start">
+                    <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
+                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
+                      Optimized home screen loading for faster performance
+                    </Text>
+                  </View>
                 </View>
               </View>
-              
-              <Text className="text-gray-300 text-sm font-sora leading-5">
-              Hi, I'm Tom! I created BoilerBites as an independent project to make dining at 
-              Purdue simpler and smarter. I'm always open to feedback or ideas, so feel free to reach out anytime!
-              </Text>
+
+              {/* Divider */}
+              <View className="h-px bg-gray-700/50 my-2" />
+
+              {/* Feedback Section */}
+              <View>
+                <View className="flex-row items-center mb-3">
+                  <Ionicons name="chatbubbles" size={20} color="#CFB991" />
+                  <Text className="text-purdueGold text-sm font-sora-semibold ml-2">Feedback & Support</Text>
+                </View>
+                <Text className="text-gray-300 text-sm font-sora leading-5 mb-6">
+                  Have suggestions or found a bug? Join our Discord community to share feedback and connect with other users!
+                </Text>
+                <TouchableOpacity 
+                  onPress={() => Linking.openURL("https://discord.gg/FdebEjfF")}
+                  className="bg-[#5865F2] rounded-xl py-3 px-4 flex-row items-center justify-center"
+                >
+                  <Ionicons name="logo-discord" size={20} color="white" />
+                  <Text className="text-white text-sm font-sora-semibold ml-2">Join Discord Community</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
 
