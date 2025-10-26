@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { getMealOrder, MealType } from '../lib/mealConfig';
 import {
-    addDaysToDateString,
-    getCurrentTimeInEST,
-    getDateStringFromToday,
-    getTodayDateString
+  addDaysToDateString,
+  getCurrentTimeInEST,
+  getDateStringFromToday,
+  getTodayDateString
 } from '../lib/timezone-utils';
 import { Meal, MealsByDate, ViewAction, ViewState } from '../types/menu';
 
@@ -111,7 +111,7 @@ function findCurrentMealType(mealsData: MealsByDate, locationName: string): Meal
     }
   }
   
-  return locationMealOrder[0] || 'breakfast';
+  return locationMealOrder[0] || 'Breakfast';
 }
 
 // ============================================================================
