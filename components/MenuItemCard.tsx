@@ -32,9 +32,10 @@ interface MenuItemCardProps {
   showDietaryTag?: boolean;
   meals?: string[];
   isCollection?: boolean;
+  date?: string;
 }
 
-export default function MenuItemCard({ item, showDietaryTag = true, meals, isCollection = false }: MenuItemCardProps) {
+export default function MenuItemCard({ item, showDietaryTag = true, meals, isCollection = false, date }: MenuItemCardProps) {
   // Check if location is one of the 5 main dining halls
   const isMainDiningHall = (locationName: string): boolean => {
     const mainDiningHalls = ['Ford', 'Wiley', 'Windsor', 'Earhart', 'Hillenbrand'];

@@ -165,6 +165,10 @@ export default function RootLayout() {
                         options={{ headerShown: false }}
                       />
                       <Stack.Screen
+                        name="search-by-date"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
                         name="[...unmatched]"
                         options={{ headerShown: false }}
                       />

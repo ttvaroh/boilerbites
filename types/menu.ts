@@ -62,13 +62,16 @@ export interface ProcessedLocation {
 // View State Machine for menu display
 export type ViewState =
   | { status: 'initializing'; autoDetectMeal: boolean }
-  | { status: 'loading'; date: string; mealType: string; autoDetectMeal: boolean }
+  | { status: 'loading'; date: string; mealType: string; autoDetectMeal: boolean; mealName?: string }
+  | { status: 'cached'; date: string; mealType: string; mealName: string }
   | { status: 'loaded'; date: string; mealType: string; data: Meal }
   | { status: 'empty'; date: string; mealType: string; mealName: string }
   | { status: 'error'; date: string; mealType: string; error: string };
 
 export type ViewAction =
-  | { type: 'START_LOADING'; date: string; mealType: string }
+  | { type: 'START_LOADING'; date: string; mealType: string; mealName?: string }
+  | { type: 'AUTO_DETECT_LOADING'; date: string; mealType: string; mealName?: string }
+  | { type: 'SHOW_CACHED'; date: string; mealType: string; mealName: string }
   | { type: 'LOAD_SUCCESS'; date: string; mealType: string; data: Meal }
   | { type: 'LOAD_EMPTY'; date: string; mealType: string; mealName: string }
   | { type: 'LOAD_ERROR'; date: string; mealType: string; error: string }

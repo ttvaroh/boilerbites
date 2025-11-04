@@ -338,7 +338,14 @@ export default function DiaryPage() {
                 Log Your Intake
               </Text>
               <TouchableOpacity
-                onPress={() => router.push("/(tabs)/search")}
+                onPress={() => {
+                  // Format date in local timezone (YYYY-MM-DD) to avoid UTC issues
+                  const year = selectedDate.getFullYear();
+                  const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                  const day = String(selectedDate.getDate()).padStart(2, '0');
+                  const dateString = `${year}-${month}-${day}`;
+                  router.push(`/search-by-date?date=${dateString}`);
+                }}
                 className="bg-purdueGold rounded-full w-8 h-8 items-center justify-center"
               >
                 <Ionicons name="add" size={20} color="#0d0d0d" />

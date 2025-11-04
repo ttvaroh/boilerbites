@@ -29,6 +29,7 @@ interface StationListProps {
   onToggleStation: (stationId: string) => void;
   onToggleAll: () => void;
   onItemPress: (item: MenuItem) => void;
+  date?: string;
 }
 
 export default function StationList({
@@ -38,7 +39,8 @@ export default function StationList({
   allExpanded,
   onToggleStation,
   onToggleAll,
-  onItemPress
+  onItemPress,
+  date
 }: StationListProps) {
   return (
     <View className="py-4">
@@ -103,7 +105,7 @@ export default function StationList({
                       key={item.id}
                       onPress={() => onItemPress(item)}
                     >
-                      <MenuItemCard item={item} isCollection={isCollection} />
+                      <MenuItemCard item={item} isCollection={isCollection} date={date} />
                     </TouchableOpacity>
                   );
                 })}

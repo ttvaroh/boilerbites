@@ -76,14 +76,15 @@ export default function DiningHallPage() {
   }, [menuView]);
 
   const handleMenuItemPress = useCallback((item: MenuItem) => {
+    const dateForNavigation = currentDate;
     if (collectionStatus[item.id]) {
-      router.push(`/collection/${item.id}`);
+      router.push(`/collection/${item.id}?date=${dateForNavigation}`);
     } else if (item.serving_size) {
-      router.push(`/nutrition/${item.id}`);
+      router.push(`/nutrition/${item.id}?date=${dateForNavigation}`);
     } else {
-      router.push(`/missing-nutrition/${item.id}`);
+      router.push(`/missing-nutrition/${item.id}?date=${dateForNavigation}`);
     }
-  }, [collectionStatus, router]);
+  }, [collectionStatus, router, currentDate]);
 
   const handleToggleStation = useCallback((stationId: string) => {
     expansion.toggleStation(stationId);
@@ -104,25 +105,40 @@ export default function DiningHallPage() {
     const initialize = async () => {
       if (!name) return;
 
-      const isNewLocation = initializedLocationRef.current !== name || currentLocation !== name;
+      const isNewLocation = initializedLocationRef.current !== name;
       
       if (isNewLocation) {
-        // Reset all state
-        menuView.resetView(true);
+        // Reset non-view state
         expansion.reset();
         setCollectionStatus({});
         initializedLocationRef.current = name;
         
-        // Switch location in context
+        // Switch location in context (this will clear cache for new location)
         await switchLocation(name);
         
-        // Load today's menu with auto-detection
-        await menuView.initializeToday();
+        // Check if we have cached data before resetting view
+        try {
+          const today = getTodayDateString();
+          const basicData = await getMealBasicInfo(name, today);
+          
+          if (basicData) {
+            // We have cached data - don't reset view state, go straight to cached flow
+            await menuView.initializeToday();
+          } else {
+            // No cached data - reset view state and use normal loading
+            menuView.resetView(true);
+            await menuView.initializeToday();
+          }
+        } catch (error) {
+          // Error checking cache - use normal loading flow
+          menuView.resetView(true);
+          await menuView.initializeToday();
+        }
       }
     };
 
     initialize();
-  }, [name, currentLocation]);
+  }, [name, getMealBasicInfo, menuView, expansion, switchLocation]);
 
   // Load collection status when meal data loads
   useEffect(() => {
@@ -166,10 +182,28 @@ export default function DiningHallPage() {
       };
     }
     
-    if (state.status === 'loading' || state.status === 'error') {
-      const mealType = state.mealType;
+    if (state.status === 'loading') {
+      // Use the actual meal name if available, otherwise show blank
+      const mealName = state.mealName || '';
       return {
-        name: mealType.charAt(0).toUpperCase() + mealType.slice(1).replace(/([A-Z])/g, ' $1'),
+        name: mealName,
+        startTime: '-',
+        endTime: '-'
+      };
+    }
+    
+    if (state.status === 'cached') {
+      // Show cached meal name immediately
+      return {
+        name: state.mealName,
+        startTime: '-',
+        endTime: '-'
+      };
+    }
+    
+    if (state.status === 'error') {
+      return {
+        name: '',
         startTime: '-',
         endTime: '-'
       };
@@ -286,6 +320,14 @@ export default function DiningHallPage() {
             </View>
           )}
 
+          {menuView.viewState.status === 'cached' && (
+            <View className="py-8 items-center">
+              <Text className="text-gray-400 text-base font-sora">
+                Loading {mealDisplayInfo.name.toLowerCase()} menu...
+              </Text>
+            </View>
+          )}
+
           {menuView.viewState.status === 'error' && (
             <View className="py-8 items-center">
               <Text className="text-red-400 text-base font-sora text-center">
@@ -311,6 +353,7 @@ export default function DiningHallPage() {
               onToggleStation={handleToggleStation}
               onToggleAll={handleToggleAll}
               onItemPress={handleMenuItemPress}
+              date={currentDate}
             />
           )}
         </ScrollView>

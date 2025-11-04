@@ -119,6 +119,29 @@ export function getCurrentTimestampInEST(): string {
 }
 
 /**
+ * Get current timestamp in EST timezone
+ * This ensures food entries are logged in Eastern Time
+ * @returns ISO string representing current time in EST
+ */
+export function getCurrentTimestampInESTTimezone(): string {
+  const now = new Date();
+  // Set to noon to avoid timezone edge cases and ensure consistent EST behavior
+  now.setHours(12, 0, 0, 0);
+  return now.toISOString();
+}
+
+/**
+ * Get a stable timestamp for today in EST timezone
+ * This creates a consistent timestamp that won't change during the component lifecycle
+ * @returns ISO string representing today at noon EST
+ */
+export function getTodayESTTimestamp(): string {
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  return today.toISOString();
+}
+
+/**
  * Create a Date object from a YYYY-MM-DD string in local timezone
  * This prevents the common UTC midnight interpretation bug
  * @param dateStr Date string in YYYY-MM-DD format

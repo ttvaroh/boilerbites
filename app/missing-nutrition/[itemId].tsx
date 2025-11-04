@@ -25,7 +25,7 @@ interface MenuItem {
 }
 
 export default function MissingNutritionPage() {
-  const { itemId } = useLocalSearchParams<{ itemId: string }>();
+  const { itemId, date } = useLocalSearchParams<{ itemId: string; date?: string }>();
   const router = useRouter();
   const [item, setItem] = useState<MenuItem | null>(null);
   const [loading, setLoading] = useState(true);

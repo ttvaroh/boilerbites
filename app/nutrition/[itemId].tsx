@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Animated,
@@ -16,6 +16,7 @@ import MacroBreakdown from "../../components/MacroBreakdown";
 import NutritionFacts from "../../components/NutritionFacts";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabase";
+import { createLocalDateFromString } from "../../lib/timezone-utils";
 
 interface MenuItem {
   id: string;
@@ -37,7 +38,7 @@ interface MenuItem {
 }
 
 export default function NutritionPage() {
-  const { itemId } = useLocalSearchParams<{ itemId: string }>();
+  const { itemId, date: initialDateParam } = useLocalSearchParams<{ itemId: string; date?: string }>();
   const router = useRouter();
   const { user, toggleFavorite, addFoodEntry } = useAuth();
   const [servingCount, setServingCount] = useState("1");
@@ -50,6 +51,69 @@ export default function NutritionPage() {
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState<"success" | "error">("success");
   const [toastAnimation] = useState(new Animated.Value(0));
+  
+  // Parse initial date parameter
+  const initialDate = React.useMemo(() => {
+    if (initialDateParam) {
+      try {
+        return createLocalDateFromString(initialDateParam);
+      } catch {
+        return new Date();
+      }
+    }
+    return new Date();
+  }, [initialDateParam]);
+  
+  // Internal date state for navigation
+  const [selectedDate, setSelectedDate] = useState(initialDate);
+  
+  // Update selectedDate when the date param changes
+  useEffect(() => {
+    setSelectedDate(initialDate);
+  }, [initialDate]);
+  
+  // Date navigation functions
+  const goToPreviousDay = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() - 1);
+    setSelectedDate(newDate);
+  };
+
+  const goToNextDay = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() + 1);
+    setSelectedDate(newDate);
+  };
+
+  const goToToday = () => {
+    setSelectedDate(new Date());
+  };
+
+  // Check if selected date is today
+  const isToday = () => {
+    const today = new Date();
+    return selectedDate.toDateString() === today.toDateString();
+  };
+
+  // Format date for display
+  const formatDate = (date: Date) => {
+    const today = new Date();
+    if (date.toDateString() === today.toDateString()) {
+      return "Today";
+    }
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+  
+  // Convert selectedDate to ISO string for food entry (at noon to avoid timezone issues)
+  const entryDate = React.useMemo(() => {
+    const dateForEntry = new Date(selectedDate);
+    dateForEntry.setHours(12, 0, 0, 0);
+    return dateForEntry.toISOString();
+  }, [selectedDate]);
 
   // Check if item is already favorited
   useEffect(() => {
@@ -129,6 +193,19 @@ export default function NutritionPage() {
 
   const servingCountNum = parseFloat(servingCount) || 1;
 
+  // Format date for display in the add button
+  const formatDateForDisplay = () => {
+    if (isToday()) {
+      return 'Adding to Today';
+    } else {
+      return `Adding to ${selectedDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: selectedDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+      })}`;
+    }
+  };
+
   const showToast = (message: string, type: "success" | "error") => {
     setToastMessage(message);
     setToastType(type);
@@ -171,7 +248,7 @@ export default function NutritionPage() {
       const { error } = await addFoodEntry({
         item_id: item.id,
         quantity: servingCountNum,
-        created_at: new Date().toISOString(),
+        created_at: entryDate, // Use the date from search or today
         meal_name: selectedMeal,
       });
 
@@ -251,6 +328,41 @@ export default function NutritionPage() {
           <Text className="text-white text-2xl font-sora-bold text-center">
             Nutrition Facts
           </Text>
+        </View>
+
+        {/* Date Selector */}
+        <View className="px-6 pb-4">
+          <View className="bg-gray-800 rounded-lg px-4 py-3 border border-purdueGold/30">
+            <View className="flex-row items-center justify-between">
+              <TouchableOpacity onPress={goToPreviousDay} className="p-2 -ml-2">
+                <Ionicons name="chevron-back" size={20} color="white" />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                onPress={goToToday} 
+                className="flex-1 items-center justify-center"
+                style={{ alignItems: "center", justifyContent: "center" }}
+              >
+                <View className="items-center justify-center">
+                  <Text className="text-purdueGold text-base font-sora-semibold text-center">
+                    Adding to Diary for
+                  </Text>
+                  <Text className="text-purdueGold text-base font-sora-semibold text-center">
+                    {isToday() ? "Today" : formatDate(selectedDate)}
+                  </Text>
+                </View>
+                {!isToday() && (
+                  <Text className="text-xs text-gray-400 mt-1 text-center">
+                    Tap to go to today
+                  </Text>
+                )}
+              </TouchableOpacity>
+              
+              <TouchableOpacity onPress={goToNextDay} className="p-2 -mr-2">
+                <Ionicons name="chevron-forward" size={20} color="white" />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
         {/* Main Content */}
@@ -375,7 +487,7 @@ export default function NutritionPage() {
           }}
         >
           <Text className="text-white text-lg font-sora-bold text-center">
-            Add to Tracker
+            {formatDateForDisplay()}
           </Text>
         </TouchableOpacity>
       </View>

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { getCurrentTimestampInESTTimezone } from '../lib/timezone-utils';
 
 type User = any;
 type Session = any;
@@ -166,7 +167,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user_id: user.id,
         item_id: foodEntry.item_id,
         quantity: foodEntry.quantity,
-        created_at: foodEntry.created_at || new Date().toISOString(),
+        created_at: foodEntry.created_at || getCurrentTimestampInESTTimezone(),
         location_name: foodEntry.location_name,
         meal_name: foodEntry.meal_name || 0, // Default to uncategorized
       });

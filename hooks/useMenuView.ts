@@ -19,7 +19,15 @@ function viewStateReducer(state: ViewState, action: ViewAction): ViewState {
         status: 'loading',
         date: action.date,
         mealType: action.mealType,
-        autoDetectMeal: state.status === 'initializing' ? state.autoDetectMeal : false
+        autoDetectMeal: state.status === 'initializing' ? state.autoDetectMeal : false,
+        mealName: action.mealName
+      };
+    case 'SHOW_CACHED':
+      return {
+        status: 'cached',
+        date: action.date,
+        mealType: action.mealType,
+        mealName: action.mealName
       };
     case 'LOAD_SUCCESS':
       return {
@@ -275,9 +283,61 @@ export function useMenuView({
 
   const initializeToday = useCallback(async () => {
     const today = getTodayDateString();
+    
+    // Pre-check cache before any state changes
+    try {
+      const basicData = await getMealBasicInfo(locationName, today);
+      if (basicData) {
+        const detectedMealType = findCurrentMealType(basicData, locationName);
+        const detectedMeal = basicData[detectedMealType as keyof MealsByDate];
+        
+        if (detectedMeal && detectedMeal.name) {
+          // We have cached basic data - show meal name immediately without any loading state
+          dispatch({ 
+            type: 'SHOW_CACHED', 
+            date: today, 
+            mealType: detectedMealType,
+            mealName: detectedMeal.name 
+          });
+          
+          // Load detailed data in background without changing the display
+          try {
+            const detailedData = await getMealDetailedData(locationName, today, detectedMealType);
+            if (detailedData && detailedData.stations && detailedData.stations.length > 0) {
+              dispatch({
+                type: 'LOAD_SUCCESS',
+                date: today,
+                mealType: detectedMealType,
+                data: detailedData
+              });
+            } else {
+              dispatch({
+                type: 'LOAD_EMPTY',
+                date: today,
+                mealType: detectedMealType,
+                mealName: detectedMeal.name
+              });
+            }
+          } catch (error) {
+            // Keep showing the meal name even if detailed data fails
+            dispatch({
+              type: 'LOAD_EMPTY',
+              date: today,
+              mealType: detectedMealType,
+              mealName: detectedMeal.name
+            });
+          }
+          return; // Skip the normal loading flow entirely
+        }
+      }
+    } catch (error) {
+      // Basic data not cached, fall through to loading
+    }
+    
+    // No cached data available - use normal loading flow
     const defaultMeal = getMealOrder(locationName)[0];
     await loadMealView(today, defaultMeal, true);
-  }, [locationName, loadMealView]);
+  }, [locationName, getMealBasicInfo, getMealDetailedData, loadMealView]);
 
   // Cleanup on unmount
   useEffect(() => {

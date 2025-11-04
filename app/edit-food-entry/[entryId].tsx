@@ -14,7 +14,9 @@ import IngredientsAndAllergens from "../../components/IngredientsAndAllergens";
 import MacroBreakdown from "../../components/MacroBreakdown";
 import NutritionFacts from "../../components/NutritionFacts";
 import { useAuth } from "../../contexts/AuthContext";
+import { useNutritionCache } from "../../contexts/NutritionCacheContext";
 import { supabase } from "../../lib/supabase";
+import { getTodayDateString } from "../../lib/timezone-utils";
 
 interface MenuItem {
   id: string;
@@ -47,6 +49,7 @@ export default function EditFoodEntryPage() {
   const { entryId } = useLocalSearchParams<{ entryId: string }>();
   const router = useRouter();
   const { user, removeFoodEntry, toggleFavorite } = useAuth();
+  const { clearNutritionData, clearFoodEntries } = useNutritionCache();
   const [servingCount, setServingCount] = useState("1");
   const [selectedMeal, setSelectedMeal] = useState(0);
   const [item, setItem] = useState<MenuItem | null>(null);
@@ -121,23 +124,25 @@ export default function EditFoodEntryPage() {
     fetchData();
   }, [entryId, user, router]);
 
-  // Show loading state
-  if (loading) {
-    return (
-      <BackgroundTemplate paddingBottom={40}>
-        <View className="flex-1 justify-center items-center">
-          <Text className="text-white text-lg font-sora">Loading food entry...</Text>
-        </View>
-      </BackgroundTemplate>
-    );
-  }
-
-  // If no data found, return null (navigation handled in useEffect)
-  if (!item || !foodEntry) {
-    return null;
-  }
-
-  const servingCountNum = parseFloat(servingCount) || 1;
+  // Helper function to get date string for cache clearing
+  const getDateStringForEntry = (createdAt: string) => {
+    // Parse the entry's created_at timestamp
+    const entryDate = new Date(createdAt);
+    const today = new Date();
+    
+    // Check if entry is from today
+    const isToday = entryDate.toDateString() === today.toDateString();
+    
+    if (isToday) {
+      return getTodayDateString();
+    } else {
+      // For past dates, get the local date string
+      const year = entryDate.getFullYear();
+      const month = String(entryDate.getMonth() + 1).padStart(2, '0');
+      const day = String(entryDate.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+  };
 
   const handleUpdateEntry = async () => {
     if (!user || !foodEntry) return;
@@ -158,8 +163,13 @@ export default function EditFoodEntryPage() {
         return;
       }
 
-      // Navigate to diary page to reload the data
-      router.push("/(tabs)/diary");
+      // Clear cache for the entry's date to force refetch
+      const dateString = getDateStringForEntry(foodEntry.created_at);
+      clearNutritionData(dateString);
+      clearFoodEntries(dateString);
+
+      // Navigate back - useFocusEffect in DiaryPage will trigger refetch
+      router.back();
     } catch (error) {
       Alert.alert("Error", "Failed to update food entry. Please try again.");
       console.error("Update food entry error:", error);
@@ -185,8 +195,14 @@ export default function EditFoodEntryPage() {
                 console.error("Remove food entry error:", error);
                 return;
               }
-              // Navigate to diary page to reload the data
-              router.push("/(tabs)/diary");
+
+              // Clear cache for the entry's date to force refetch
+              const dateString = getDateStringForEntry(foodEntry.created_at);
+              clearNutritionData(dateString);
+              clearFoodEntries(dateString);
+
+              // Navigate back - useFocusEffect in DiaryPage will trigger refetch
+              router.back();
             } catch (error) {
               Alert.alert("Error", "Failed to remove food entry. Please try again.");
               console.error("Remove food entry error:", error);
@@ -239,6 +255,24 @@ export default function EditFoodEntryPage() {
       setFavoriteLoading(false);
     }
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <BackgroundTemplate paddingBottom={40}>
+        <View className="flex-1 justify-center items-center">
+          <Text className="text-white text-lg font-sora">Loading food entry...</Text>
+        </View>
+      </BackgroundTemplate>
+    );
+  }
+
+  // If no data found, return null (navigation handled in useEffect)
+  if (!item || !foodEntry) {
+    return null;
+  }
+
+  const servingCountNum = parseFloat(servingCount) || 1;
 
   return (
     <BackgroundTemplate paddingBottom={40}>

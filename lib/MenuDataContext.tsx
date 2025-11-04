@@ -87,6 +87,7 @@ interface MenuDataContextType {
   refreshAllData: () => Promise<void>;
   isDateLoading: (date: string) => boolean;
   isDateReady: (date: string) => boolean;
+  clearBasicMealCache: () => void;
 }
 
 const MenuDataContext = createContext<MenuDataContextType | undefined>(
@@ -104,12 +105,16 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingDates, setLoadingDates] = useState<Set<string>>(new Set());
+  const [basicMealCache, setBasicMealCache] = useState<Map<string, MealsByDate>>(new Map());
 
   // Switch to a new location and clear existing data
   const switchLocation = async (locationName: string): Promise<void> => {
     if (currentLocation === locationName && menuData) {
       return; // Already on this location
     }
+    
+    // Clear cache when switching locations
+    setBasicMealCache(new Map());
     
     // Clear existing data and switch
     setCurrentLocation(locationName);
@@ -123,6 +128,16 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
 
   // Get basic meal info only (for fast loading)
   const getMealBasicInfo = async (locationName: string, date: string): Promise<MealsByDate | null> => {
+    // Check cache first
+    const cacheKey = `${locationName}:${date}`;
+    if (basicMealCache.has(cacheKey)) {
+      console.log(`📦 Cache hit for ${cacheKey}`);
+      return basicMealCache.get(cacheKey)!;
+    }
+    
+    console.log(`🔄 Cache miss for ${cacheKey}, fetching and caching entire day...`);
+    
+    // Fetch from database if not cached
     try {
       const { data: menuData, error: menuError } = await supabase
         .from("day_menu")
@@ -167,6 +182,12 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
             mealsByDate[mealType] = mealBasic;
           }
         }
+      }
+      
+      // Cache the entire day (all meals for this date)
+      if (Object.keys(mealsByDate).length > 0) {
+        setBasicMealCache(prev => new Map(prev).set(cacheKey, mealsByDate));
+        console.log(`✅ Cached entire day for ${cacheKey} with ${Object.keys(mealsByDate).length} meals`);
       }
       
       return mealsByDate;
@@ -502,88 +523,118 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
     try {
       setLoading(true);
       setError(null);
-  
+      
+      // Clear cache on manual refresh
+      setBasicMealCache(new Map());
+
+      // Get today's date in EST
       const today = getTodayDateString();
-  
-      // Single query that fetches everything at once using joins
+
+      // Fetch all locations
       const { data: locationsData, error: locationsError } = await supabase
         .from("location")
-        .select(`
-          name,
-          type,
-          day_menu!day_menu_location_name_fkey(
-            id,
-            is_published,
-            serve_date,
-            day_meal(
-              id,
-              meal_name,
-              meal_order,
-              start_time,
-              end_time,
-              open
-            )
-          )
-        `)
-        .order("type");
-  
+        .select("name, type");
+
       if (locationsError) {
         throw new Error(`Failed to fetch locations: ${locationsError.message}`);
       }
-  
-      // Process the nested data client-side
-      const locationsList: LocationInfo[] = (locationsData || []).map((location: any) => {
-        // Filter for today's menu
-        const todayMenu = location.day_menu?.find(
-          (menu: any) => menu.serve_date === today
-        );
-  
-        if (!todayMenu) {
-          return {
+
+      const locationsList: LocationInfo[] = [];
+
+      // Check which locations have menus for today and get basic meal info
+      for (const location of locationsData || []) {
+        try {
+          const { data: menu, error: menuError } = await supabase
+            .from("day_menu")
+            .select("id, is_published")
+            .eq("location_name", location.name)
+            .eq("serve_date", today)
+            .maybeSingle();
+
+          if (menuError || !menu) {
+            locationsList.push({
+              name: location.name,
+              type: location.type,
+              hasMenu: false,
+            });
+          } else {
+            // Get basic meal info for this location
+            const { data: mealsData, error: mealsError } = await supabase
+              .from("day_meal")
+              .select(`
+                id,
+                meal_name,
+                meal_order,
+                start_time,
+                end_time,
+                open
+              `)
+              .eq("day_menu_id", menu.id)
+              .order("meal_order");
+
+            if (mealsError || !mealsData) {
+            locationsList.push({
+              name: location.name,
+              type: location.type,
+              hasMenu: true,
+              menuId: menu.id,
+              isPublished: menu.is_published,
+            });
+            } else {
+              const meals: Meal[] = mealsData.map((meal: any) => ({
+                id: meal.id,
+                name: meal.meal_name,
+                start_time: meal.start_time || "",
+                end_time: meal.end_time || "",
+                open: meal.open,
+                stations: [], // Empty for basic info
+              }));
+
+              locationsList.push({
+                name: location.name,
+                type: location.type,
+                hasMenu: true,
+                menuId: menu.id,
+                isPublished: menu.is_published,
+                meals: meals,
+              });
+            }
+          }
+        } catch (locationError) {
+          console.warn(`Error checking menu for ${location.name}:`, locationError);
+          locationsList.push({
             name: location.name,
             type: location.type,
             hasMenu: false,
-          };
+          });
         }
-  
-        // Sort meals by meal_order
-        const meals: Meal[] = (todayMenu.day_meal || [])
-          .sort((a: any, b: any) => a.meal_order - b.meal_order)
-          .map((meal: any) => ({
-            id: meal.id,
-            name: meal.meal_name,
-            start_time: meal.start_time || "",
-            end_time: meal.end_time || "",
-            open: meal.open,
-            stations: [],
-          }));
-  
-        return {
-          name: location.name,
-          type: location.type,
-          hasMenu: true,
-          menuId: todayMenu.id,
-          isPublished: todayMenu.is_published,
-          meals: meals.length > 0 ? meals : undefined,
-        };
-      });
-  
-      // Custom sort for dining halls
+      }
+
+      // Sort dining halls in the desired order: Ford, Wiley, Windsor, Earhart, Hillenbrand
       const diningHallOrder = ['Ford', 'Wiley', 'Windsor', 'Earhart', 'Hillenbrand'];
       
       const sortedLocations = locationsList.sort((a, b) => {
-        if (a.type !== 0 || b.type !== 0) return 0;
+        // Only sort dining halls (type 0)
+        if (a.type !== 0 || b.type !== 0) {
+          return 0; // Keep non-dining halls in their original order
+        }
         
         const aIndex = diningHallOrder.indexOf(a.name);
         const bIndex = diningHallOrder.indexOf(b.name);
         
-        if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+        // If both are in the order list, sort by their position
+        if (aIndex !== -1 && bIndex !== -1) {
+          return aIndex - bIndex;
+        }
+        
+        // If only one is in the order list, prioritize it
         if (aIndex !== -1) return -1;
         if (bIndex !== -1) return 1;
         
+        // If neither is in the order list, maintain original order
         return 0;
       });
-  
+
       setLocations(sortedLocations);
     } catch (error) {
       console.error("Error fetching locations:", error);
@@ -644,6 +695,11 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
 
 
 
+  // Clear basic meal cache manually
+  const clearBasicMealCache = () => {
+    setBasicMealCache(new Map());
+  };
+
   const value: MenuDataContextType = {
     currentLocation,
     menuData,
@@ -659,6 +715,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
     refreshAllData,
     isDateLoading,
     isDateReady,
+    clearBasicMealCache,
   };
 
   return (
