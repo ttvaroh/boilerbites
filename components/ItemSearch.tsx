@@ -144,6 +144,7 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
               value={searchQuery}
               onChangeText={setSearchQuery}
               onSubmitEditing={handleSearch}
+              autoCapitalize="none"
             />
             <TouchableOpacity
               onPress={() => setShowFilters(!showFilters)}

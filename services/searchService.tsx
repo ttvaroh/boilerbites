@@ -85,8 +85,9 @@ class DateSearchService {
       };
 
       // Use the optimized SQL function with date parameter
-      const { data, error } = await supabase.rpc('search_menu_items', {
-        search_date: formattedDate, // NEW: Pass the date parameter
+      // The function now returns JSON with { data: [...], total_count: number }
+      const { data: responseData, error } = await supabase.rpc('search_menu_items', {
+        search_date: formattedDate,
         search_query: filters.searchQuery || '',
         filter_vegetarian: filters.dietaryPreferences?.vegetarian || null,
         filter_vegan: filters.dietaryPreferences?.vegan || null,
@@ -107,12 +108,17 @@ class DateSearchService {
         return { data: [], count: 0, error };
       }
 
-      if (!data || data.length === 0) {
-        return { data: [], count: 0, error: null };
+      // Parse the JSON response
+      const result = typeof responseData === 'string' 
+        ? JSON.parse(responseData) 
+        : responseData;
+      
+      if (!result || !result.data || result.data.length === 0) {
+        return { data: [], count: result?.total_count || 0, error: null };
       }
 
       // Convert the SQL function results to DayMenuItem format
-      const items: DayMenuItem[] = data.map((item: any) => ({
+      const items: DayMenuItem[] = result.data.map((item: any) => ({
         id: item.id,
         name: item.name,
         serving_size: item.serving_size,
@@ -142,7 +148,7 @@ class DateSearchService {
 
       return {
         data: items,
-        count: items.length,
+        count: result.total_count || 0, // Use total_count from SQL (unique count computed in SQL)
         error: null
       };
     } catch (err) {
