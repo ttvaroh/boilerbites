@@ -137,3 +137,26 @@ export function mapMealNameToType(locationName: string, mealName: string): MealT
   const normalizedName = mealName.toLowerCase().trim();
   return config.mealNameMapping[normalizedName] || null;
 }
+
+// Helper function to format meal type to display name
+export function formatMealTypeName(mealType: MealType | string): string {
+  const type = mealType.toLowerCase();
+  
+  if (type === 'breakfast') return 'Breakfast';
+  if (type === 'lunch') return 'Lunch';
+  if (type === 'latelunch' || type === 'late-lunch') return 'Late Lunch';
+  if (type === 'dinner') return 'Dinner';
+  if (type === 'brunch') return 'Brunch';
+  
+  // Handle camelCase like 'lateLunch'
+  if (type.includes('late') && type.includes('lunch')) {
+    return 'Late Lunch';
+  }
+  
+  // Fallback: capitalize first letter of each word
+  return type
+    .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+    .split(/[\s-]+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}

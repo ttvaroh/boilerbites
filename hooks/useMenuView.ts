@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
-import { getMealOrder, MealType } from '../lib/mealConfig';
+import { formatMealTypeName, getMealOrder, MealType } from '../lib/mealConfig';
 import {
   addDaysToDateString,
   getCurrentTimeInEST,
@@ -119,7 +119,7 @@ function findCurrentMealType(mealsData: MealsByDate, locationName: string): Meal
     }
   }
   
-  return locationMealOrder[0] || 'Breakfast';
+  return locationMealOrder[0] || 'breakfast';
 }
 
 // ============================================================================
@@ -216,7 +216,7 @@ export function useMenuView({
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    dispatch({ type: 'START_LOADING', date, mealType });
+    dispatch({ type: 'START_LOADING', date, mealType, mealName: formatMealTypeName(mealType) });
 
     try {
       let finalMealType = mealType;
@@ -240,7 +240,7 @@ export function useMenuView({
           type: 'LOAD_EMPTY',
           date,
           mealType: finalMealType,
-          mealName: mealData?.name || finalMealType
+          mealName: mealData?.name || formatMealTypeName(finalMealType)
         });
       } else {
         dispatch({

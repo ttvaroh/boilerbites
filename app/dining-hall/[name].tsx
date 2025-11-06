@@ -315,7 +315,7 @@ export default function DiningHallPage() {
           {menuView.viewState.status === 'loading' && (
             <View className="py-8 items-center">
               <Text className="text-gray-400 text-base font-sora">
-                Loading {mealDisplayInfo.name.toLowerCase()} menu...
+                Loading {mealDisplayInfo.name} menu...
               </Text>
             </View>
           )}
@@ -323,7 +323,7 @@ export default function DiningHallPage() {
           {menuView.viewState.status === 'cached' && (
             <View className="py-8 items-center">
               <Text className="text-gray-400 text-base font-sora">
-                Loading {mealDisplayInfo.name.toLowerCase()} menu...
+                Loading {mealDisplayInfo.name} menu...
               </Text>
             </View>
           )}
@@ -339,7 +339,7 @@ export default function DiningHallPage() {
           {menuView.viewState.status === 'empty' && (
             <View className="py-8 items-center">
               <Text className="text-gray-400 text-base font-sora">
-                No {mealDisplayInfo.name.toLowerCase()} will be served
+                No {mealDisplayInfo.name} will be served
               </Text>
             </View>
           )}
