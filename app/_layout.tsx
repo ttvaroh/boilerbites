@@ -169,6 +169,10 @@ export default function RootLayout() {
                         options={{ headerShown: false }}
                       />
                       <Stack.Screen
+                        name="fdc-search"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
                         name="[...unmatched]"
                         options={{ headerShown: false }}
                       />

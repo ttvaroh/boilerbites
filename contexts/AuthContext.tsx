@@ -11,6 +11,7 @@ interface FoodEntry {
   created_at?: string;
   location_name?: string;
   meal_name?: number; // 0=uncategorized, 1=breakfast, 2=lunch, 3=dinner, 4=snack
+  source?: number; // 0=Purdue API, 1=FDC API
 }
 
 interface DailyNutrition {
@@ -168,8 +169,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         item_id: foodEntry.item_id,
         quantity: foodEntry.quantity,
         created_at: foodEntry.created_at || getCurrentTimestampInESTTimezone(),
-        location_name: foodEntry.location_name,
         meal_name: foodEntry.meal_name || 0, // Default to uncategorized
+        source: foodEntry.source !== undefined ? foodEntry.source : 0, // Default to 0 (Purdue), 1 for FDC
       });
 
     return { error };

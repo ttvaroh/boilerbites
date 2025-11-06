@@ -33,14 +33,18 @@ interface MenuItem {
   fiber_g?: number;
   sugar_g?: number;
   sodium_mg?: number;
+  protein_per_100cals?: number;
   last_verified?: string;
   ingredients?: string;
 }
 
 export default function NutritionPage() {
-  const { itemId, date: initialDateParam } = useLocalSearchParams<{ itemId: string; date?: string }>();
+  const { itemId, date: initialDateParam, source } = useLocalSearchParams<{ itemId: string; date?: string; source?: string }>();
   const router = useRouter();
   const { user, toggleFavorite, addFoodEntry } = useAuth();
+  
+  // Check if this is an FDC item
+  const isFDCItem = source === 'fdc' || itemId.startsWith('fdc_');
   const [servingCount, setServingCount] = useState("1");
   const [selectedMeal, setSelectedMeal] = useState(0); // 0 = uncategorized, 1 = breakfast, 2 = lunch, 3 = dinner, 4 = snack
   const [item, setItem] = useState<MenuItem | null>(null);
@@ -139,41 +143,209 @@ export default function NutritionPage() {
     checkFavoriteStatus();
   }, [user, item?.id]);
 
-  // Fetch item data directly from Supabase
+  // Helper function to ensure FDC item exists in database with valid nutrition data
+  const ensureFDCItemExists = async (fdcId: number, fdcData: any) => {
+    const itemId = `fdc_${fdcId}`;
+    
+    // Extract nutrients from FDC data
+    const nutrients = fdcData.foodNutrients || [];
+    const getNutrientValue = (nutrientId: number) => {
+      const nutrient = nutrients.find((n: any) => n.nutrientId === nutrientId || n.nutrient?.id === nutrientId);
+      // Handle both direct value and nested value structures
+      const value = nutrient?.value ?? nutrient?.amount ?? null;
+      // Convert to number if it's a string
+      return value !== null ? Number(value) : null;
+    };
+
+    const calories = getNutrientValue(1008); // Energy
+    const protein_g = getNutrientValue(1003); // Protein
+    const carbs_g = getNutrientValue(1005); // Carbohydrate
+    const fat_g = getNutrientValue(1004); // Total lipid (fat)
+    const fiber_g = getNutrientValue(1079); // Fiber
+    const sugar_g = getNutrientValue(2000); // Sugars
+    const sodium_mg = getNutrientValue(1093); // Sodium
+
+    const protein_per_100cals = calories && calories > 0 && protein_g
+      ? (protein_g / calories) * 100
+      : null;
+
+    // Prepare RPC parameters
+    const rpcParams = {
+      p_id: itemId,
+      p_name: fdcData.description || fdcData.lowercaseDescription || 'Unknown Food',
+      p_vegetarian: null,
+      p_vegan: null,
+      p_gluten: null,
+      p_allergens: [],
+      p_serving_size: null,
+      p_calories: calories,
+      p_protein_g: protein_g,
+      p_carbs_g: carbs_g,
+      p_fat_g: fat_g,
+      p_fiber_g: fiber_g,
+      p_sugar_g: sugar_g,
+      p_sodium_mg: sodium_mg,
+      p_protein_per_100cals: protein_per_100cals,
+      p_ingredients: null,
+      p_is_collection: false,
+      p_is_available: true,
+      p_user_id: null,
+      p_source: 1, // FDC API
+    };
+
+    // Use the create_item function to bypass RLS
+    const { data: result, error } = await supabase.rpc('create_item', rpcParams);
+
+    if (error) {
+      console.error('Error creating FDC item via function:', error);
+      throw error;
+    }
+
+    if (!result || !result.success) {
+      const errorMsg = result?.error || 'Unknown error creating item';
+      console.error('Error creating FDC item:', errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    // Fetch the created/updated item to return it
+    const { data: storedItem, error: fetchError } = await supabase
+      .from('item')
+      .select('*')
+      .eq('id', itemId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching stored FDC item:', fetchError);
+      throw fetchError;
+    }
+
+    return storedItem;
+  };
+
+  // Fetch item data directly from Supabase or FDC API
   useEffect(() => {
     const fetchItem = async () => {
+      if (!itemId) return;
+      
       try {
         setLoading(true);
-        const { data, error } = await supabase
-          .from('item')
-          .select('*')
-          .eq('id', itemId)
-          .single();
+        
+        if (isFDCItem) {
+          // Extract FDC ID from itemId (remove fdc_ prefix)
+          const fdcId = parseInt(itemId.replace('fdc_', ''));
+          
+          if (isNaN(fdcId)) {
+            console.error('Invalid FDC ID:', itemId);
+            router.back();
+            return;
+          }
 
-        if (error) {
-          console.error('Error fetching item:', error);
-          router.replace(`/missing-nutrition/${itemId}`);
-          return;
+          // Always fetch from FDC API first to ensure we have the latest data
+          try {
+            const { fdcSearchService } = await import('../../services/searchService');
+            const fdcData = await fdcSearchService.getFoodById(fdcId);
+
+            if (!fdcData) {
+              console.error('FDC item not found in API');
+              Alert.alert('Error', 'Food item not found. Please try again.');
+              router.back();
+              return;
+            }
+
+            // Store in database (upsert) to ensure it exists with valid data
+            try {
+              const storedItem = await ensureFDCItemExists(fdcId, fdcData);
+              if (storedItem) {
+                // Use the stored item from database
+                setItem(storedItem);
+              } else {
+                throw new Error('Failed to store FDC item');
+              }
+            } catch (storeError) {
+              console.error('Error storing FDC item:', storeError);
+              // Fallback: Map FDC data directly to MenuItem format if storage fails
+              const nutrients = fdcData.foodNutrients || [];
+              const getNutrientValue = (nutrientId: number) => {
+                const nutrient = nutrients.find((n: any) => n.nutrientId === nutrientId);
+                return nutrient?.value ?? null;
+              };
+
+              const calories = getNutrientValue(1008);
+              const protein_g = getNutrientValue(1003);
+              const protein_per_100cals = calories && calories > 0 && protein_g
+                ? (protein_g / calories) * 100
+                : undefined;
+
+              const mappedItem: MenuItem = {
+                id: itemId,
+                name: fdcData.description || fdcData.lowercaseDescription || 'Unknown Food',
+                serving_size: undefined,
+                calories: calories ?? undefined,
+                protein_g: protein_g ?? undefined,
+                carbs_g: getNutrientValue(1005) ?? undefined,
+                fat_g: getNutrientValue(1004) ?? undefined,
+                fiber_g: getNutrientValue(1079) ?? undefined,
+                sugar_g: getNutrientValue(2000) ?? undefined,
+                sodium_mg: getNutrientValue(1093) ?? undefined,
+                vegetarian: undefined,
+                vegan: undefined,
+                gluten: undefined,
+                allergens: [],
+                ingredients: undefined,
+              };
+              
+              // Add protein_per_100cals if calculated
+              if (protein_per_100cals !== undefined) {
+                (mappedItem as any).protein_per_100cals = protein_per_100cals;
+              }
+              
+              setItem(mappedItem);
+            }
+          } catch (apiError) {
+            console.error('Error fetching from FDC API:', apiError);
+            Alert.alert('Error', 'Failed to fetch food data. Please check your connection and try again.');
+            router.back();
+            return;
+          }
+        } else {
+          // Regular Purdue item
+          const { data, error } = await supabase
+            .from('item')
+            .select('*')
+            .eq('id', itemId)
+            .single();
+
+          if (error) {
+            console.error('Error fetching item:', error);
+            router.replace(`/missing-nutrition/${itemId}`);
+            return;
+          }
+
+          // For Purdue items, serving_size is required
+          // For FDC items, serving_size may be null
+          if (!data) {
+            router.replace(`/missing-nutrition/${itemId}`);
+            return;
+          }
+
+          if (!isFDCItem && !data.serving_size) {
+            router.replace(`/missing-nutrition/${itemId}`);
+            return;
+          }
+
+          setItem(data);
         }
-
-        if (!data || !data.serving_size) {
-          router.replace(`/missing-nutrition/${itemId}`);
-          return;
-        }
-
-        setItem(data);
       } catch (error) {
         console.error('Error fetching item:', error);
-        router.replace(`/missing-nutrition/${itemId}`);
+        Alert.alert('Error', 'Failed to load food item. Please try again.');
+        router.back();
       } finally {
         setLoading(false);
       }
     };
 
-    if (itemId) {
-      fetchItem();
-    }
-  }, [itemId, router]);
+    fetchItem();
+  }, [itemId, router, isFDCItem]);
 
   // Show loading state
   if (loading) {
@@ -250,6 +422,7 @@ export default function NutritionPage() {
         quantity: servingCountNum,
         created_at: entryDate, // Use the date from search or today
         meal_name: selectedMeal,
+        source: isFDCItem ? 1 : 0, // 0 = Purdue, 1 = FDC
       });
 
       if (error) {

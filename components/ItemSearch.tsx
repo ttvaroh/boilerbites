@@ -26,13 +26,15 @@ interface ItemSearchProps {
   searchQuery?: string;
   onSearchQueryChange?: (query: string) => void;
   initialFilters?: SearchFilters;
+  hideLocationMealFilters?: boolean;
 }
 
 const ItemSearchComponent: React.FC<ItemSearchProps> = ({ 
   onSearch, 
   searchQuery: externalSearchQuery, 
   onSearchQueryChange,
-  initialFilters
+  initialFilters,
+  hideLocationMealFilters = false
 }) => {
   const [internalSearchQuery, setInternalSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -178,35 +180,38 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
 
               <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Time of Day */}
-                <View className="mb-6">
-                  <Text className="text-white text-lg font-sora-bold mb-3">Time of Day</Text>
-                  <View className="flex-row flex-wrap">
-                    {timeOfDayOptions.map((option) => (
-                      <FilterChip
-                        key={option}
-                        label={option}
-                        isSelected={filters.timeOfDay === option}
-                        onPress={() => updateFilter('timeOfDay', option)}
-                      />
-                    ))}
+                {!hideLocationMealFilters && (
+                  <View className="mb-6">
+                    <Text className="text-white text-lg font-sora-bold mb-3">Time of Day</Text>
+                    <View className="flex-row flex-wrap">
+                      {timeOfDayOptions.map((option) => (
+                        <FilterChip
+                          key={option}
+                          label={option}
+                          isSelected={filters.timeOfDay === option}
+                          onPress={() => updateFilter('timeOfDay', option)}
+                        />
+                      ))}
+                    </View>
                   </View>
-                </View>
-
+                )}
 
                 {/* Dining Halls */}
-                <View className="mb-6">
-                  <Text className="text-white text-lg font-sora-bold mb-3">Dining Halls</Text>
-                  <View className="flex-row flex-wrap">
-                    {diningHallOptions.map((hall) => (
-                      <FilterChip
-                        key={hall}
-                        label={hall}
-                        isSelected={filters.diningHalls.includes(hall)}
-                        onPress={() => toggleDiningHall(hall)}
-                      />
-                    ))}
+                {!hideLocationMealFilters && (
+                  <View className="mb-6">
+                    <Text className="text-white text-lg font-sora-bold mb-3">Dining Halls</Text>
+                    <View className="flex-row flex-wrap">
+                      {diningHallOptions.map((hall) => (
+                        <FilterChip
+                          key={hall}
+                          label={hall}
+                          isSelected={filters.diningHalls.includes(hall)}
+                          onPress={() => toggleDiningHall(hall)}
+                        />
+                      ))}
+                    </View>
                   </View>
-                </View>
+                )}
 
                 {/* Allergens and Dietary Preferences */}
                 <View className="mb-6">

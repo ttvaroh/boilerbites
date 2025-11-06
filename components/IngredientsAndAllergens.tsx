@@ -42,15 +42,20 @@ export default function IngredientsAndAllergens({
         .from("item")
         .select("ingredients")
         .eq("id", itemId)
-        .single();
+        .maybeSingle(); // Use maybeSingle() instead of single() to handle no rows gracefully
 
       if (error) {
-        console.error("Error loading ingredients:", error);
+        // PGRST116 means no rows found, which is fine - just means no ingredients
+        if (error.code !== 'PGRST116') {
+          console.error("Error loading ingredients:", error);
+        }
+        setIngredients(null);
       } else {
         setIngredients(data?.ingredients || null);
       }
     } catch (error) {
       console.error("Error loading ingredients:", error);
+      setIngredients(null);
     } finally {
       setLoadingIngredients(false);
     }

@@ -33,9 +33,10 @@ interface SearchItemCardProps {
   showDietaryTag?: boolean;
   meals?: string[];
   isCollection?: boolean;
+  hideLocation?: boolean;
 }
 
-const SearchItemCard = React.memo(({ item, showDietaryTag = true, meals, isCollection = false }: SearchItemCardProps) => {
+const SearchItemCard = React.memo(({ item, showDietaryTag = true, meals, isCollection = false, hideLocation = false }: SearchItemCardProps) => {
   // Check if location is one of the 5 main dining halls
   const isMainDiningHall = (locationName: string): boolean => {
     const mainDiningHalls = ['Ford', 'Wiley', 'Windsor', 'Earhart', 'Hillenbrand'];
@@ -124,7 +125,7 @@ const SearchItemCard = React.memo(({ item, showDietaryTag = true, meals, isColle
           </Text>
 
           {/* Location and Meals Information */}
-          {item.location_name && (
+          {!hideLocation && item.location_name && (
             <View className="flex-row items-center mb-2">
               {item.location_name && (
                 <>

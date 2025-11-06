@@ -1,13 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import * as React from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    FlatList,
+    RefreshControl,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import BackgroundTemplate from "../components/BackgroundTemplate";
 import ErrorBoundary from "../components/ErrorBoundary";
@@ -16,8 +16,7 @@ import SearchItemCard from "../components/SearchItemCard";
 import SortBy from "../components/SortBy";
 import { useNutritionGoals } from "../contexts/NutritionGoalsContext";
 import { supabase } from "../lib/supabase";
-import { createLocalDateFromString } from "../lib/timezone-utils";
-import { DateSearchFilters, DateSearchOptions, dateSearchService, DayMenuItem } from "../services/searchService";
+import { FDCSearchFilters, FDCSearchOptions, fdcSearchService } from "../services/searchService";
 
 // Interfaces
 interface MenuItem {
@@ -46,8 +45,6 @@ interface MenuItem {
 }
 
 interface SearchFilters {
-  timeOfDay: string;
-  diningHalls: string[];
   dietaryPreferences: {
     vegetarian: boolean;
     vegan: boolean;
@@ -84,6 +81,7 @@ const SearchItemWrapper = React.memo(({
         showDietaryTag={true}
         meals={item.meals || []}
         isCollection={isCollection}
+        hideLocation={true}
       />
     </TouchableOpacity>
   );
@@ -99,59 +97,15 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-function convertDayMenuItemsToMenuItems(data: DayMenuItem[]): MenuItem[] {
-  const itemMap = new Map<string, MenuItem>();
-  
-  data.forEach((item: DayMenuItem) => {
-    const key = item.id;
-    
-    if (itemMap.has(key)) {
-      const existingItem = itemMap.get(key)!;
-      if (!existingItem.meals?.includes(item.meal_name)) {
-        existingItem.meals = [...(existingItem.meals || []), item.meal_name];
-      }
-    } else {
-      itemMap.set(key, {
-        id: item.id,
-        name: item.name,
-        vegetarian: item.vegetarian || undefined,
-        vegan: item.vegan || undefined,
-        gluten: item.gluten || undefined,
-        allergens: item.allergens || [],
-        serving_size: item.serving_size || undefined,
-        calories: item.calories || undefined,
-        protein_g: item.protein_g || undefined,
-        carbs_g: item.carbs_g || undefined,
-        fat_g: item.fat_g || undefined,
-        fiber_g: item.fiber_g || undefined,
-        sugar_g: item.sugar_g || undefined,
-        sodium_mg: item.sodium_mg || undefined,
-        protein_per_100cals: item.protein_per_100cals || undefined,
-        last_verified: undefined,
-        ingredients: item.ingredients || undefined,
-        is_collection: item.is_collection || undefined,
-        location_name: item.location_name,
-        meal_name: item.meal_name,
-        station_name: item.station_name,
-        meals: [item.meal_name]
-      });
-    }
-  });
-
-  return Array.from(itemMap.values());
-}
-
-function createDateFilters(filters: SearchFilters, query: string): DateSearchFilters {
+function createFDCFilters(filters: SearchFilters, query: string): FDCSearchFilters {
   return {
     searchQuery: query,
-    locations: filters.diningHalls,
-    meals: filters.timeOfDay !== 'All' ? [filters.timeOfDay] : undefined,
     dietaryPreferences: filters.dietaryPreferences,
     excludeAllergens: filters.excludeAllergens
   };
 }
 
-function createDateOptions(options: SearchOptions): DateSearchOptions {
+function createFDCOptions(options: SearchOptions): FDCSearchOptions {
   return {
     sortBy: options.sortBy === 'protein/calorie' ? 'protein_per_100cals' : 
             options.sortBy === null ? undefined : options.sortBy,
@@ -161,8 +115,8 @@ function createDateOptions(options: SearchOptions): DateSearchOptions {
   };
 }
 
-// Custom hook for search functionality
-function useSearch(searchDate: string) {
+// Custom hook for FDC search functionality
+function useFDCSearch() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [isSearching, setIsSearching] = React.useState(false);
   const [searchResults, setSearchResults] = React.useState<MenuItem[]>([]);
@@ -189,13 +143,12 @@ function useSearch(searchDate: string) {
       setIsSearching(true);
       setError(null);
 
-      const dateFilters = createDateFilters(filters, query);
-      const dateOptions = createDateOptions(options);
+      const fdcFilters = createFDCFilters(filters, query);
+      const fdcOptions = createFDCOptions(options);
 
-      const { data, count, error } = await dateSearchService.searchMenuItemsByDate(
-        searchDate,
-        dateFilters,
-        dateOptions
+      const { data, count, error } = await fdcSearchService.searchFoods(
+        fdcFilters,
+        fdcOptions
       );
 
       if (controller.signal.aborted) return;
@@ -205,8 +158,7 @@ function useSearch(searchDate: string) {
         return;
       }
 
-      const convertedResults = convertDayMenuItemsToMenuItems(data);
-      setSearchResults(convertedResults);
+      setSearchResults(data);
       setTotalCount(count);
     } catch (err) {
       if (!controller.signal.aborted) {
@@ -217,7 +169,7 @@ function useSearch(searchDate: string) {
         setIsSearching(false);
       }
     }
-  }, [searchDate]);
+  }, []);
 
   React.useEffect(() => {
     return () => {
@@ -242,88 +194,9 @@ function useSearch(searchDate: string) {
   };
 }
 
-// Reusable SearchByDate component
-interface SearchByDateProps {
-  date?: string;
-  showDateIndicator?: boolean;
-  showBackButton?: boolean;
-  onBack?: () => void;
-  paddingBottom?: number;
-}
-
-export function SearchByDateComponent({ 
-  date, 
-  showDateIndicator = true, 
-  showBackButton = true,
-  onBack,
-  paddingBottom = 0
-}: SearchByDateProps) {
+export default function FDCSearchPage() {
   const router = useRouter();
   const { goals: nutritionGoals } = useNutritionGoals();
-  
-  // Parse the initial date parameter
-  const initialDate = React.useMemo(() => {
-    if (!date) return new Date();
-    // Use createLocalDateFromString to avoid UTC timezone issues
-    try {
-      const parsedDate = createLocalDateFromString(date);
-      return isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
-    } catch {
-      return new Date();
-    }
-  }, [date]);
-  
-  // Internal state for date navigation
-  const [searchDate, setSearchDate] = React.useState(initialDate);
-  
-  // Update searchDate when the date prop changes
-  React.useEffect(() => {
-    setSearchDate(initialDate);
-  }, [initialDate]);
-
-  // Format date string for API (YYYY-MM-DD)
-  const dateString = React.useMemo(() => {
-    const year = searchDate.getFullYear();
-    const month = String(searchDate.getMonth() + 1).padStart(2, '0');
-    const day = String(searchDate.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }, [searchDate]);
-
-  // Date navigation functions
-  const goToPreviousDay = () => {
-    const newDate = new Date(searchDate);
-    newDate.setDate(newDate.getDate() - 1);
-    setSearchDate(newDate);
-  };
-
-  const goToNextDay = () => {
-    const newDate = new Date(searchDate);
-    newDate.setDate(newDate.getDate() + 1);
-    setSearchDate(newDate);
-  };
-
-  const goToToday = () => {
-    setSearchDate(new Date());
-  };
-
-  // Check if selected date is today
-  const isToday = () => {
-    const today = new Date();
-    return searchDate.toDateString() === today.toDateString();
-  };
-
-  // Format date for display
-  const formatDate = (date: Date) => {
-    const today = new Date();
-    if (date.toDateString() === today.toDateString()) {
-      return "Today";
-    }
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      month: 'long', 
-      day: 'numeric' 
-    });
-  };
   
   // Map nutrition preferences to allergen names for filtering
   const getUserAllergens = () => {
@@ -354,7 +227,7 @@ export function SearchByDateComponent({
     performSearch,
     hasSearched,
     setHasSearched
-  } = useSearch(dateString);
+  } = useFDCSearch();
   
   const [showSortBy, setShowSortBy] = React.useState(false);
   const [sortBy, setSortBy] = React.useState<'calories' | 'protein_g' | 'protein/calorie' | 'carbs_g' | 'fat_g' | 'name' | null>('protein/calorie');
@@ -362,8 +235,6 @@ export function SearchByDateComponent({
   const [isSortCleared, setIsSortCleared] = React.useState(false);
   
   const [currentFilters, setCurrentFilters] = React.useState<SearchFilters>({
-    timeOfDay: "All",
-    diningHalls: [],
     dietaryPreferences: {
       vegetarian: false,
       vegan: false,
@@ -385,7 +256,7 @@ export function SearchByDateComponent({
     }
   }, [nutritionGoals]);
 
-  // Trigger search when debounced query, filters, or date changes
+  // Trigger search when debounced query or filters change
   React.useEffect(() => {
     setSearchResults([]);
     
@@ -401,10 +272,19 @@ export function SearchByDateComponent({
         sortOrder
       });
     }
-  }, [debouncedQuery, currentFilters, sortBy, sortOrder, performSearch, hasSearched, dateString]);
+  }, [debouncedQuery, currentFilters, sortBy, sortOrder, performSearch, hasSearched]);
 
-  const handleSearch = React.useCallback(async (query: string, filters: SearchFilters) => {
-    setCurrentFilters(filters);
+  const handleSearch = React.useCallback(async (query: string, filters: any) => {
+    // Convert filters to our format (remove timeOfDay and diningHalls)
+    const fdcFilters: SearchFilters = {
+      dietaryPreferences: filters.dietaryPreferences || {
+        vegetarian: false,
+        vegan: false,
+        glutenFree: false,
+      },
+      excludeAllergens: filters.excludeAllergens || [],
+    };
+    setCurrentFilters(fdcFilters);
     setSearchQuery(query);
   }, []);
 
@@ -467,17 +347,13 @@ export function SearchByDateComponent({
   const handleMenuItemPress = React.useCallback(async (item: MenuItem) => {
     // Check if this item is a collection
     if (collectionStatus[item.id]) {
-      router.push(`/collection/${item.id}?date=${dateString}`);
+      router.push(`/collection/${item.id}`);
       return;
     }
 
-    // Navigate to nutrition page if serving size exists, otherwise to missing nutrition page
-    if (item.serving_size) {
-      router.push(`/nutrition/${item.id}?date=${dateString}`);
-    } else {
-      router.push(`/missing-nutrition/${item.id}?date=${dateString}`);
-    }
-  }, [router, collectionStatus, dateString]);
+    // Navigate to nutrition page with source=fdc
+    router.push(`/nutrition/${item.id}?source=fdc`);
+  }, [router, collectionStatus]);
 
   // Check collection status when search results change
   React.useEffect(() => {
@@ -505,7 +381,7 @@ export function SearchByDateComponent({
       return (
         <View className="flex-1 justify-center items-center py-8">
           <ActivityIndicator size="large" color="#CFB991" />
-          <Text className="text-gray-400 text-lg font-sora mt-4">Searching menu items...</Text>
+          <Text className="text-gray-400 text-lg font-sora mt-4">Searching foods...</Text>
         </View>
       );
     }
@@ -513,10 +389,10 @@ export function SearchByDateComponent({
     return (
       <View className="flex-1 justify-center items-center py-8">
         <Text className="text-gray-400 text-lg font-sora text-center">
-          {hasSearched ? "No results found" : "No items available"}
+          {hasSearched ? "No results found" : "Search for foods from FoodData Central"}
         </Text>
         <Text className="text-gray-500 text-sm font-sora text-center mt-2">
-          {hasSearched ? "Try adjusting your search or filters" : "Check back later for menu updates"}
+          {hasSearched ? "Try adjusting your search or filters" : "Enter a food name to get started"}
         </Text>
       </View>
     );
@@ -538,59 +414,34 @@ export function SearchByDateComponent({
 
   return (
     <ErrorBoundary>
-      <BackgroundTemplate paddingBottom={paddingBottom}>
+      <BackgroundTemplate paddingBottom={0}>
         <View className="flex-1 px-6 pt-16">
           {/* Header with Back Button */}
-          {showBackButton && (
-            <View className="flex-row items-center justify-between mb-4">
-              <TouchableOpacity
-                onPress={onBack || (() => router.back())}
-                className="p-2 -ml-2"
-              >
-                <Ionicons name="arrow-back" size={24} color="white" />
-              </TouchableOpacity>
-              
-              <Text className="text-2xl font-sora-bold text-white flex-1 text-center mr-8">
-                Search
-              </Text>
-            </View>
-          )}
-
-          {/* Date Indicator with Navigation */}
-          {showDateIndicator && (
-            <View className="bg-gray-800 rounded-lg px-4 py-3 mb-4 border border-purdueGold/30">
-              <View className="flex-row items-center justify-between">
-                <TouchableOpacity onPress={goToPreviousDay} className="p-2 -ml-2">
-                  <Ionicons name="chevron-back" size={20} color="white" />
-                </TouchableOpacity>
-                
-                <TouchableOpacity onPress={goToToday} className="flex-1 items-center">
-                  <View className="flex-row items-center justify-center">
-                    <Ionicons name="calendar-outline" size={18} color="#CFB991" />
-                    <Text className="text-purdueGold text-base font-sora-semibold ml-2">
-                      {isToday() ? "Today" : formatDate(searchDate)}
-                    </Text>
-                  </View>
-                  {!isToday() && (
-                    <Text className="text-xs text-gray-400 mt-1">
-                      Tap to go to today
-                    </Text>
-                  )}
-                </TouchableOpacity>
-                
-                <TouchableOpacity onPress={goToNextDay} className="p-2 -mr-2">
-                  <Ionicons name="chevron-forward" size={20} color="white" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+          <View className="flex-row items-center justify-between mb-4">
+            <TouchableOpacity
+              onPress={() => router.back()}
+              className="p-2 -ml-2"
+            >
+              <Ionicons name="arrow-back" size={24} color="white" />
+            </TouchableOpacity>
+            
+            <Text className="text-2xl font-sora-bold text-white flex-1 text-center mr-8">
+              FDC Search
+            </Text>
+          </View>
 
           {/* Search Component */}
           <ItemSearchComponent 
             onSearch={handleSearch}
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
-            initialFilters={currentFilters}
+            initialFilters={{
+              timeOfDay: "All",
+              diningHalls: [],
+              dietaryPreferences: currentFilters.dietaryPreferences,
+              excludeAllergens: currentFilters.excludeAllergens,
+            }}
+            hideLocationMealFilters={true}
           />
 
           {/* Results Header */}
@@ -598,17 +449,9 @@ export function SearchByDateComponent({
             <Text className="text-white text-base font-sora">
               {isSearching ? "Searching..." : hasSearched ? `${totalCount} results` : "Available"}
             </Text>
-            <View className="flex-row items-center">
-              <TouchableOpacity 
-                onPress={() => router.push('/fdc-search')} 
-                className="p-2 mr-2"
-              >
-                <Ionicons name="globe-outline" size={20} color="#CFB991" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowSortBy(true)} className="p-2">
-                <Ionicons name="swap-vertical" size={20} color="#CFB991" />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={() => setShowSortBy(true)} className="p-2">
+              <Ionicons name="swap-vertical" size={20} color="#CFB991" />
+            </TouchableOpacity>
           </View>
 
           {/* Results with FlatList */}
@@ -659,15 +502,3 @@ export function SearchByDateComponent({
   );
 }
 
-// Default page component for the route
-export default function SearchByDatePage() {
-  const { date } = useLocalSearchParams<{ date?: string }>();
-  
-  return (
-    <SearchByDateComponent 
-      date={date}
-      showDateIndicator={true}
-      showBackButton={true}
-    />
-  );
-}
