@@ -538,3 +538,281 @@ class FDCSearchService {
 }
 
 export const fdcSearchService = new FDCSearchService();
+
+// Open Food Facts API Interfaces and Service
+export interface OFFFoodItem {
+  code: string;
+  status: number;
+  status_verbose: string;
+  product?: {
+    product_name: string;
+    generic_name?: string;
+    brands?: string;
+    nutriments: {
+      'energy-kcal_100g'?: number;
+      'energy-kcal'?: number;
+      'proteins_100g'?: number;
+      'proteins'?: number;
+      'carbohydrates_100g'?: number;
+      'carbohydrates'?: number;
+      'fat_100g'?: number;
+      'fat'?: number;
+      'fiber_100g'?: number;
+      'fiber'?: number;
+      'sugars_100g'?: number;
+      'sugars'?: number;
+      'sodium_100g'?: number;
+      'sodium'?: number;
+    };
+    ingredients_text?: string;
+    ingredients_text_en?: string; // English ingredients
+    serving_size?: string; // e.g., "1 cookie", "1 slice"
+    serving_quantity?: number; // Numeric serving quantity
+    allergens_tags?: string[];
+    nutriscore_grade?: string;
+    nova_group?: number;
+    image_url?: string;
+    image_front_url?: string;
+    image_nutrition_url?: string;
+    image_ingredients_url?: string;
+  };
+}
+
+export interface OFFSearchFilters {
+  searchQuery: string;
+  dietaryPreferences?: {
+    vegetarian?: boolean;
+    vegan?: boolean;
+    glutenFree?: boolean;
+  };
+  excludeAllergens?: string[];
+}
+
+export interface OFFSearchResult {
+  data: any[]; // MenuItem format
+  count: number;
+  error: any | null;
+}
+
+class OFFSearchService {
+  private baseUrl = 'https://world.openfoodfacts.org';
+  private userAgent = 'BoilerBites/1.0 (contact@boilerbites.app)';
+
+  /**
+   * Search foods using Open Food Facts API
+   * Rate limit: 10 requests/minute
+   */
+  async searchFoods(
+    filters: OFFSearchFilters,
+    options?: { limit?: number; offset?: number }
+  ): Promise<OFFSearchResult> {
+    try {
+      const query = filters.searchQuery?.trim() || '';
+      
+      if (!query) {
+        return { data: [], count: 0, error: null };
+      }
+
+      const limit = options?.limit || 50;
+      const page = Math.floor((options?.offset || 0) / limit) + 1;
+
+      // Use /cgi/search.pl endpoint for better compatibility
+      // Request English language data and serving size fields
+      const searchParams = new URLSearchParams({
+        action: 'process',
+        search_terms: query,
+        page_size: limit.toString(),
+        page: page.toString(),
+        json: 'true',
+        lc: 'en', // Request English language
+        fields: 'code,product_name,generic_name,brands,nutriments,ingredients_text,ingredients_text_en,serving_size,serving_quantity,allergens_tags,nutriscore_grade,nova_group,image_url,image_front_url'
+      });
+
+      const url = `${this.baseUrl}/cgi/search.pl?${searchParams.toString()}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'User-Agent': this.userAgent,
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          return { 
+            data: [], 
+            count: 0, 
+            error: new Error('Rate limit exceeded. Please wait before searching again.') 
+          };
+        }
+        return { 
+          data: [], 
+          count: 0, 
+          error: new Error(`Open Food Facts API error: ${response.statusText}`) 
+        };
+      }
+
+      const result = await response.json();
+      const products = result.products || [];
+      const count = result.count || 0;
+
+      // Map OFF products to MenuItem format
+      const mappedItems = products
+        .filter((product: any) => product.code && product.product_name)
+        .map((product: any) => this.mapOFFToMenuItem(product));
+
+      return {
+        data: mappedItems,
+        count: count,
+        error: null,
+      };
+    } catch (err) {
+      console.error('OFF search service error:', err);
+      return {
+        data: [],
+        count: 0,
+        error: err,
+      };
+    }
+  }
+
+  /**
+   * Map OFF product to MenuItem format
+   */
+  private mapOFFToMenuItem(offProduct: any): any {
+    const barcode = offProduct.code || '';
+    const product = offProduct.product || offProduct;
+    const nutriments = product.nutriments || {};
+
+    // Extract nutrition values (prefer per 100g, fallback to absolute)
+    const calories = nutriments['energy-kcal_100g'] ?? nutriments['energy-kcal'] ?? null;
+    const protein_g = nutriments['proteins_100g'] ?? nutriments['proteins'] ?? null;
+    const carbs_g = nutriments['carbohydrates_100g'] ?? nutriments['carbohydrates'] ?? null;
+    const fat_g = nutriments['fat_100g'] ?? nutriments['fat'] ?? null;
+    const fiber_g = nutriments['fiber_100g'] ?? nutriments['fiber'] ?? null;
+    const sugar_g = nutriments['sugars_100g'] ?? nutriments['sugars'] ?? null;
+    const sodium_mg = nutriments['sodium_100g'] ?? nutriments['sodium'] ?? null;
+
+    // Calculate protein per 100 calories
+    const protein_per_100cals = calories && calories > 0 && protein_g
+      ? (protein_g / calories) * 100
+      : null;
+
+    // Map allergens from allergens_tags
+    const allergens: string[] = [];
+    if (product.allergens_tags && Array.isArray(product.allergens_tags)) {
+      product.allergens_tags.forEach((tag: string) => {
+        // Format: "en:milk" -> "Milk"
+        const allergen = tag.replace(/^en:/, '').replace(/-/g, ' ');
+        // Capitalize first letter
+        const formatted = allergen.charAt(0).toUpperCase() + allergen.slice(1);
+        if (!allergens.includes(formatted)) {
+          allergens.push(formatted);
+        }
+      });
+    }
+
+    // Determine dietary flags from ingredients analysis (if available)
+    // Note: OFF doesn't always provide these, so we'll set to null
+    const vegetarian = null;
+    const vegan = null;
+    const gluten = null;
+
+    // Get ingredients in English if available, fallback to default
+    const ingredients = product.ingredients_text_en || product.ingredients_text || null;
+    
+    // Get serving size - OFF provides serving_size (e.g., "1 cookie") or serving_quantity (numeric)
+    // Format: "serving_quantity serving_size" if both exist, or just serving_size
+    let serving_size: string | null = null;
+    if (product.serving_size) {
+      serving_size = product.serving_size;
+      // If serving_quantity exists, prepend it (e.g., "2 cookies" instead of just "cookies")
+      if (product.serving_quantity) {
+        serving_size = `${product.serving_quantity} ${product.serving_size}`.trim();
+      }
+    } else if (product.serving_quantity) {
+      // If only serving_quantity exists, use it as serving size
+      serving_size = product.serving_quantity.toString();
+    }
+
+    return {
+      id: `off_${barcode}`,
+      name: product.product_name || product.generic_name || 'Unknown Food',
+      serving_size: serving_size,
+      calories,
+      protein_g,
+      carbs_g,
+      fat_g,
+      fiber_g,
+      sugar_g,
+      sodium_mg,
+      protein_per_100cals,
+      vegetarian,
+      vegan,
+      gluten,
+      allergens,
+      ingredients: ingredients,
+      is_collection: false,
+      // OFF-specific fields (can be used later)
+      nutriscore_grade: product.nutriscore_grade || null,
+      nova_group: product.nova_group || null,
+      image_url: product.image_url || product.image_front_url || null,
+    };
+  }
+
+  /**
+   * Get product by barcode from Open Food Facts
+   * Rate limit: 100 requests/minute
+   */
+  async getProductByBarcode(barcode: string): Promise<OFFFoodItem | null> {
+    try {
+      // Clean barcode - remove any whitespace or special characters
+      const cleanBarcode = barcode.trim();
+      
+      if (!cleanBarcode || cleanBarcode.length === 0) {
+        console.error('Invalid barcode provided:', barcode);
+        return null;
+      }
+
+      // Request English language data and serving size
+      const url = `${this.baseUrl}/api/v2/product/${cleanBarcode}.json?lc=en`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'User-Agent': this.userAgent,
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error('Rate limit exceeded. Please try again later.');
+        }
+        if (response.status === 404) {
+          console.log('OFF product not found (404) - barcode:', cleanBarcode);
+          return null; // Product not found
+        }
+        console.error('OFF API error:', response.status, response.statusText, 'barcode:', cleanBarcode);
+        throw new Error(`Open Food Facts API error: ${response.statusText}`);
+      }
+
+      const result: OFFFoodItem = await response.json();
+      
+      // Log for debugging
+      if (result.status !== 0) {
+        console.log('OFF product status indicates not found - status:', result.status, 'barcode:', cleanBarcode, 'status_verbose:', result.status_verbose);
+      }
+      
+      if (result.status === 0) {
+        return result; // Product found
+      } else {
+        return null; // Product not found (status = 1)
+      }
+    } catch (err) {
+      console.error('Error fetching OFF product by barcode:', err, 'barcode:', barcode);
+      return null;
+    }
+  }
+}
+
+export const offSearchService = new OFFSearchService();

@@ -13,10 +13,10 @@ import BackgroundTemplate from "../components/BackgroundTemplate";
 import ErrorBoundary from "../components/ErrorBoundary";
 import ItemSearchComponent from "../components/ItemSearch";
 import SearchItemCard from "../components/SearchItemCard";
-import SortBy from "../components/SortBy";
 import { useNutritionGoals } from "../contexts/NutritionGoalsContext";
+import { useOFFRateLimit } from "../hooks/useOFFRateLimit";
 import { supabase } from "../lib/supabase";
-import { FDCSearchFilters, FDCSearchOptions, fdcSearchService } from "../services/searchService";
+import { FDCSearchFilters, FDCSearchOptions, fdcSearchService, OFFSearchFilters, offSearchService } from "../services/searchService";
 
 // Interfaces
 interface MenuItem {
@@ -53,10 +53,6 @@ interface SearchFilters {
   excludeAllergens: string[];
 }
 
-interface SearchOptions {
-  sortBy?: 'protein/calorie' | 'protein_g' | 'carbs_g' | 'fat_g' | 'calories' | 'name' | null;
-  sortOrder?: 'desc' | 'asc';
-}
 
 // Optimized SearchItemWrapper component
 const SearchItemWrapper = React.memo(({ 
@@ -105,18 +101,23 @@ function createFDCFilters(filters: SearchFilters, query: string): FDCSearchFilte
   };
 }
 
-function createFDCOptions(options: SearchOptions): FDCSearchOptions {
+function createOFFFilters(filters: SearchFilters, query: string): OFFSearchFilters {
   return {
-    sortBy: options.sortBy === 'protein/calorie' ? 'protein_per_100cals' : 
-            options.sortBy === null ? undefined : options.sortBy,
-    sortOrder: options.sortOrder,
+    searchQuery: query,
+    dietaryPreferences: filters.dietaryPreferences,
+    excludeAllergens: filters.excludeAllergens
+  };
+}
+
+function createFDCOptions(): FDCSearchOptions {
+  return {
     limit: 1000,
     offset: 0
   };
 }
 
-// Custom hook for FDC search functionality
-function useFDCSearch() {
+// Custom hook for unified search functionality (supports FDC and OFF)
+function useUnifiedSearch(selectedDatabase: 'fdc' | 'off') {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [isSearching, setIsSearching] = React.useState(false);
   const [searchResults, setSearchResults] = React.useState<MenuItem[]>([]);
@@ -130,7 +131,7 @@ function useFDCSearch() {
   const performSearch = React.useCallback(async (
     query: string,
     filters: SearchFilters,
-    options: SearchOptions = {}
+    checkRateLimit?: () => Promise<boolean>
   ) => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -143,23 +144,52 @@ function useFDCSearch() {
       setIsSearching(true);
       setError(null);
 
-      const fdcFilters = createFDCFilters(filters, query);
-      const fdcOptions = createFDCOptions(options);
+      if (selectedDatabase === 'off') {
+        // Check rate limit for OFF searches
+        if (checkRateLimit) {
+          const canSearch = await checkRateLimit();
+          if (!canSearch) {
+            setError(new Error('Rate limit reached. Please wait before searching again.'));
+            setIsSearching(false);
+            return;
+          }
+        }
 
-      const { data, count, error } = await fdcSearchService.searchFoods(
-        fdcFilters,
-        fdcOptions
-      );
+        const offFilters = createOFFFilters(filters, query);
+        const { data, count, error } = await offSearchService.searchFoods(
+          offFilters,
+          { limit: 50, offset: 0 }
+        );
 
-      if (controller.signal.aborted) return;
+        if (controller.signal.aborted) return;
 
-      if (error) {
-        setError(error);
-        return;
+        if (error) {
+          setError(error);
+          return;
+        }
+
+        setSearchResults(data);
+        setTotalCount(count);
+      } else {
+        // FDC search
+        const fdcFilters = createFDCFilters(filters, query);
+        const fdcOptions = createFDCOptions();
+
+        const { data, count, error } = await fdcSearchService.searchFoods(
+          fdcFilters,
+          fdcOptions
+        );
+
+        if (controller.signal.aborted) return;
+
+        if (error) {
+          setError(error);
+          return;
+        }
+
+        setSearchResults(data);
+        setTotalCount(count);
       }
-
-      setSearchResults(data);
-      setTotalCount(count);
     } catch (err) {
       if (!controller.signal.aborted) {
         setError(err);
@@ -169,7 +199,7 @@ function useFDCSearch() {
         setIsSearching(false);
       }
     }
-  }, []);
+  }, [selectedDatabase]);
 
   React.useEffect(() => {
     return () => {
@@ -194,9 +224,15 @@ function useFDCSearch() {
   };
 }
 
-export default function FDCSearchPage() {
+export default function GlobalSearchPage() {
   const router = useRouter();
   const { goals: nutritionGoals } = useNutritionGoals();
+  
+  // Database selection state
+  const [selectedDatabase, setSelectedDatabase] = React.useState<'fdc' | 'off'>('fdc');
+  
+  // Rate limiting for OFF searches
+  const { canSearch, requestsRemaining, timeUntilNextRequest, checkRateLimit } = useOFFRateLimit();
   
   // Map nutrition preferences to allergen names for filtering
   const getUserAllergens = () => {
@@ -227,12 +263,8 @@ export default function FDCSearchPage() {
     performSearch,
     hasSearched,
     setHasSearched
-  } = useFDCSearch();
+  } = useUnifiedSearch(selectedDatabase);
   
-  const [showSortBy, setShowSortBy] = React.useState(false);
-  const [sortBy, setSortBy] = React.useState<'calories' | 'protein_g' | 'protein/calorie' | 'carbs_g' | 'fat_g' | 'name' | null>('protein/calorie');
-  const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('desc');
-  const [isSortCleared, setIsSortCleared] = React.useState(false);
   
   const [currentFilters, setCurrentFilters] = React.useState<SearchFilters>({
     dietaryPreferences: {
@@ -257,26 +289,35 @@ export default function FDCSearchPage() {
   }, [nutritionGoals]);
 
   // Trigger search when debounced query or filters change
+  // For OFF: only search on explicit button press (no auto-search)
+  // For FDC: auto-search with debouncing
   React.useEffect(() => {
+    if (selectedDatabase === 'off') {
+      // OFF: Don't auto-search, wait for explicit search button
+      return;
+    }
+    
+    // FDC: Auto-search with debouncing
     setSearchResults([]);
     
     if (debouncedQuery.trim() || hasSearched) {
       setHasSearched(true);
-      performSearch(debouncedQuery, currentFilters, {
-        sortBy,
-        sortOrder
-      });
+      performSearch(debouncedQuery, currentFilters);
     } else {
-      performSearch('', currentFilters, {
-        sortBy,
-        sortOrder
-      });
+      performSearch('', currentFilters);
     }
-  }, [debouncedQuery, currentFilters, sortBy, sortOrder, performSearch, hasSearched]);
+  }, [debouncedQuery, currentFilters, performSearch, hasSearched, selectedDatabase]);
+  
+  // Reset search when database changes
+  React.useEffect(() => {
+    setSearchResults([]);
+    setHasSearched(false);
+    setSearchQuery('');
+  }, [selectedDatabase]);
 
   const handleSearch = React.useCallback(async (query: string, filters: any) => {
     // Convert filters to our format (remove timeOfDay and diningHalls)
-    const fdcFilters: SearchFilters = {
+    const searchFilters: SearchFilters = {
       dietaryPreferences: filters.dietaryPreferences || {
         vegetarian: false,
         vegan: false,
@@ -284,44 +325,32 @@ export default function FDCSearchPage() {
       },
       excludeAllergens: filters.excludeAllergens || [],
     };
-    setCurrentFilters(fdcFilters);
+    setCurrentFilters(searchFilters);
     setSearchQuery(query);
+    
+    // For OFF: perform search immediately on button press (with rate limit check)
+    // For FDC: search will be triggered by debounced query effect
+    if (selectedDatabase === 'off' && query.trim()) {
+      setHasSearched(true);
+      await performSearch(query.trim(), searchFilters, checkRateLimit);
+    }
+  }, [selectedDatabase, performSearch, checkRateLimit]);
+  
+  const handleDatabaseChange = React.useCallback((database: 'fdc' | 'off') => {
+    setSelectedDatabase(database);
   }, []);
 
   // Pull to refresh handler
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
-      await performSearch(debouncedQuery, currentFilters, {
-        sortBy,
-        sortOrder
-      });
+      const query = selectedDatabase === 'off' ? searchQuery : debouncedQuery;
+      await performSearch(query, currentFilters, selectedDatabase === 'off' ? checkRateLimit : undefined);
     } finally {
       setRefreshing(false);
     }
-  }, [debouncedQuery, currentFilters, sortBy, sortOrder, performSearch]);
+  }, [debouncedQuery, searchQuery, currentFilters, performSearch, selectedDatabase, checkRateLimit]);
 
-  const handleSortChange = React.useCallback((newSortBy: string, order: 'highest' | 'lowest') => {
-    // Handle clear sort
-    if (newSortBy === '') {
-      setSortBy(null);
-      setSortOrder('desc');
-      setIsSortCleared(true);
-      return;
-    }
-
-    const sortByMap: Record<string, typeof sortBy> = {
-      'Protein/Calorie': 'protein/calorie',
-      'Protein': 'protein_g',
-      'Carbs': 'carbs_g',
-      'Fat': 'fat_g',
-      'Calories': 'calories'
-    };
-
-    setSortBy(sortByMap[newSortBy] || null);
-    setSortOrder(order === 'highest' ? 'desc' : 'asc');
-    setIsSortCleared(false);
-  }, []);
 
   const [collectionStatus, setCollectionStatus] = React.useState<Record<string, boolean>>({});
 
@@ -351,8 +380,60 @@ export default function FDCSearchPage() {
       return;
     }
 
-    // Navigate to nutrition page with source=fdc
-    router.push(`/nutrition/${item.id}?source=fdc`);
+    // Navigate to nutrition page with appropriate source
+    if (item.id.startsWith('off_')) {
+      // For OFF items: ensure item exists in database before navigating
+      try {
+        // Check if item exists in database
+        const { data: existingItem } = await supabase
+          .from('item')
+          .select('id')
+          .eq('id', item.id)
+          .maybeSingle();
+
+        // If not in database, use the search result data directly to create the item
+        // (we already have all the data from the search, no need for another API call)
+        if (!existingItem) {
+          // Use the item data from search results directly
+          const protein_per_100cals = item.calories && item.calories > 0 && item.protein_g
+            ? (item.protein_g / item.calories) * 100
+            : null;
+
+          await supabase.rpc('create_item', {
+            p_id: item.id,
+            p_name: item.name || 'Unknown Food',
+            p_vegetarian: item.vegetarian ?? null,
+            p_vegan: item.vegan ?? null,
+            p_gluten: item.gluten ?? null,
+            p_allergens: item.allergens || [],
+            p_serving_size: item.serving_size ?? null,
+            p_calories: item.calories ?? null,
+            p_protein_g: item.protein_g ?? null,
+            p_carbs_g: item.carbs_g ?? null,
+            p_fat_g: item.fat_g ?? null,
+            p_fiber_g: item.fiber_g ?? null,
+            p_sugar_g: item.sugar_g ?? null,
+            p_sodium_mg: item.sodium_mg ?? null,
+            p_protein_per_100cals: protein_per_100cals,
+            p_ingredients: item.ingredients ?? null,
+            p_is_collection: false,
+            p_is_available: true,
+            p_user_id: null,
+            p_source: 2,
+          });
+        }
+      } catch (error) {
+        console.error('Error ensuring OFF item exists in database:', error);
+        // Continue navigation anyway - nutrition page will handle it
+      }
+      
+      router.push(`/nutrition/${item.id}?source=off`);
+    } else if (item.id.startsWith('fdc_')) {
+      router.push(`/nutrition/${item.id}?source=fdc`);
+    } else {
+      // Purdue item
+      router.push(`/nutrition/${item.id}`);
+    }
   }, [router, collectionStatus]);
 
   // Check collection status when search results change
@@ -389,7 +470,7 @@ export default function FDCSearchPage() {
     return (
       <View className="flex-1 justify-center items-center py-8">
         <Text className="text-gray-400 text-lg font-sora text-center">
-          {hasSearched ? "No results found" : "Search for foods from FoodData Central"}
+          {hasSearched ? "No results found" : `Search for foods from ${selectedDatabase === 'off' ? 'Open Food Facts' : 'FoodData Central'}`}
         </Text>
         <Text className="text-gray-500 text-sm font-sora text-center mt-2">
           {hasSearched ? "Try adjusting your search or filters" : "Enter a food name to get started"}
@@ -426,7 +507,7 @@ export default function FDCSearchPage() {
             </TouchableOpacity>
             
             <Text className="text-2xl font-sora-bold text-white flex-1 text-center mr-8">
-              FDC Search
+              Global Search
             </Text>
           </View>
 
@@ -442,6 +523,15 @@ export default function FDCSearchPage() {
               excludeAllergens: currentFilters.excludeAllergens,
             }}
             hideLocationMealFilters={true}
+            disableFilters={false}
+            selectedDatabase={selectedDatabase}
+            onDatabaseChange={handleDatabaseChange}
+            rateLimitInfo={selectedDatabase === 'off' ? {
+              canSearch,
+              requestsRemaining,
+              timeUntilNextRequest
+            } : undefined}
+            requireSearchButton={selectedDatabase === 'off'}
           />
 
           {/* Results Header */}
@@ -449,9 +539,6 @@ export default function FDCSearchPage() {
             <Text className="text-white text-base font-sora">
               {isSearching ? "Searching..." : hasSearched ? `${totalCount} results` : "Available"}
             </Text>
-            <TouchableOpacity onPress={() => setShowSortBy(true)} className="p-2">
-              <Ionicons name="swap-vertical" size={20} color="#CFB991" />
-            </TouchableOpacity>
           </View>
 
           {/* Results with FlatList */}
@@ -482,20 +569,6 @@ export default function FDCSearchPage() {
             />
           </View>
 
-          {/* Sort By Modal */}
-          <SortBy
-            visible={showSortBy}
-            onClose={() => setShowSortBy(false)}
-            onSortChange={handleSortChange}
-            currentSort={isSortCleared ? undefined : 
-                        sortBy === 'protein/calorie' ? 'Protein/Calorie' : 
-                        sortBy === 'protein_g' ? 'Protein' :
-                        sortBy === 'carbs_g' ? 'Carbs' :
-                        sortBy === 'fat_g' ? 'Fat' :
-                        sortBy === 'calories' ? 'Calories' : 
-                        sortBy === null ? undefined : 'Protein/Calorie'}
-            currentOrder={sortOrder === 'desc' ? 'highest' : 'lowest'}
-          />
         </View>
       </BackgroundTemplate>
     </ErrorBoundary>

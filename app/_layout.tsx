@@ -169,7 +169,7 @@ export default function RootLayout() {
                         options={{ headerShown: false }}
                       />
                       <Stack.Screen
-                        name="fdc-search"
+                        name="global-search"
                         options={{ headerShown: false }}
                       />
                       <Stack.Screen

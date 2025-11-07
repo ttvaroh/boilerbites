@@ -21,12 +21,23 @@ interface SearchFilters {
   excludeAllergens: string[];
 }
 
+interface RateLimitInfo {
+  canSearch: boolean;
+  requestsRemaining: number;
+  timeUntilNextRequest: number;
+}
+
 interface ItemSearchProps {
   onSearch: (query: string, filters: SearchFilters) => void;
   searchQuery?: string;
   onSearchQueryChange?: (query: string) => void;
   initialFilters?: SearchFilters;
   hideLocationMealFilters?: boolean;
+  disableFilters?: boolean;
+  selectedDatabase?: 'fdc' | 'off';
+  onDatabaseChange?: (database: 'fdc' | 'off') => void;
+  rateLimitInfo?: RateLimitInfo;
+  requireSearchButton?: boolean;
 }
 
 const ItemSearchComponent: React.FC<ItemSearchProps> = ({ 
@@ -34,7 +45,12 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
   searchQuery: externalSearchQuery, 
   onSearchQueryChange,
   initialFilters,
-  hideLocationMealFilters = false
+  hideLocationMealFilters = false,
+  disableFilters = false,
+  selectedDatabase = 'fdc',
+  onDatabaseChange,
+  rateLimitInfo,
+  requireSearchButton = false
 }) => {
   const [internalSearchQuery, setInternalSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -145,12 +161,25 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
               placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
-              onSubmitEditing={handleSearch}
+              onSubmitEditing={requireSearchButton ? undefined : handleSearch}
               autoCapitalize="none"
+              editable={true}
             />
+            {requireSearchButton && (
+              <TouchableOpacity
+                onPress={handleSearch}
+                disabled={!rateLimitInfo?.canSearch || !searchQuery.trim()}
+                className="ml-2 px-3 py-1 bg-purdueGold rounded-lg"
+                style={{ opacity: (!rateLimitInfo?.canSearch || !searchQuery.trim()) ? 0.5 : 1 }}
+              >
+                <Text className="text-black text-sm font-sora-semibold">Search</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               onPress={() => setShowFilters(!showFilters)}
-              className="p-1"
+              disabled={disableFilters}
+              className="p-1 ml-2"
+              style={{ opacity: disableFilters ? 0.5 : 1 }}
             >
               <Ionicons 
                 name="filter" 
@@ -159,6 +188,18 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
               />
             </TouchableOpacity>
           </View>
+          {requireSearchButton && rateLimitInfo && (
+            <View className="mt-2 flex-row items-center justify-between">
+              <Text className="text-gray-400 text-xs font-sora">
+                {rateLimitInfo.requestsRemaining} searches remaining
+              </Text>
+              {!rateLimitInfo.canSearch && rateLimitInfo.timeUntilNextRequest > 0 && (
+                <Text className="text-yellow-400 text-xs font-sora">
+                  Wait {rateLimitInfo.timeUntilNextRequest}s
+                </Text>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Filter Modal */}
@@ -179,6 +220,37 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
               </View>
 
               <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Database Selection */}
+                {onDatabaseChange && (
+                  <View className="mb-6">
+                    <Text className="text-white text-lg font-sora-bold mb-3">Search Database</Text>
+                    <View className="flex-row flex-wrap gap-2">
+                      <FilterChip
+                        label="FoodData Central"
+                        isSelected={selectedDatabase === 'fdc'}
+                        onPress={() => onDatabaseChange('fdc')}
+                      />
+                      <FilterChip
+                        label="Open Food Facts"
+                        isSelected={selectedDatabase === 'off'}
+                        onPress={() => onDatabaseChange('off')}
+                      />
+                    </View>
+                    {selectedDatabase === 'off' && rateLimitInfo && (
+                      <View className="mt-3">
+                        <Text className="text-gray-400 text-xs font-sora">
+                          {rateLimitInfo.requestsRemaining} searches remaining this minute
+                        </Text>
+                        {!rateLimitInfo.canSearch && rateLimitInfo.timeUntilNextRequest > 0 && (
+                          <Text className="text-yellow-400 text-xs font-sora mt-1">
+                            Wait {rateLimitInfo.timeUntilNextRequest}s before next search
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                )}
+
                 {/* Time of Day */}
                 {!hideLocationMealFilters && (
                   <View className="mb-6">

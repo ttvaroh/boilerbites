@@ -600,7 +600,7 @@ export function SearchByDateComponent({
             </Text>
             <View className="flex-row items-center">
               <TouchableOpacity 
-                onPress={() => router.push('/fdc-search')} 
+                onPress={() => router.push('/global-search')} 
                 className="p-2 mr-2"
               >
                 <Ionicons name="globe-outline" size={20} color="#CFB991" />

@@ -135,8 +135,6 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
       return basicMealCache.get(cacheKey)!;
     }
     
-    console.log(`🔄 Cache miss for ${cacheKey}, fetching and caching entire day...`);
-    
     // Fetch from database if not cached
     try {
       const { data: menuData, error: menuError } = await supabase
@@ -187,7 +185,6 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
       // Cache the entire day (all meals for this date)
       if (Object.keys(mealsByDate).length > 0) {
         setBasicMealCache(prev => new Map(prev).set(cacheKey, mealsByDate));
-        console.log(`✅ Cached entire day for ${cacheKey} with ${Object.keys(mealsByDate).length} meals`);
       }
       
       return mealsByDate;
