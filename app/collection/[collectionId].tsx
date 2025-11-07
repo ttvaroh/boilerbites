@@ -146,7 +146,7 @@ export default function CollectionPage() {
   // Show loading state
   if (loading) {
     return (
-      <BackgroundTemplate>
+      <BackgroundTemplate paddingBottom={0}>
         <View className="flex-1">
           <View className="bg-purdueBlack-200 pt-12 pb-6 px-6">
             <View className="flex-row items-center justify-between">
@@ -172,7 +172,7 @@ export default function CollectionPage() {
   // Show error state
   if (error) {
     return (
-      <BackgroundTemplate>
+      <BackgroundTemplate paddingBottom={0}>
         <View className="flex-1">
           <View className="bg-purdueBlack-200 pt-12 pb-6 px-6">
             <View className="flex-row items-center justify-between">
@@ -206,7 +206,7 @@ export default function CollectionPage() {
   // Show no collection state
   if (!collection) {
     return (
-      <BackgroundTemplate>
+      <BackgroundTemplate paddingBottom={0}>
         <View className="flex-1">
           <View className="bg-purdueBlack-200 pt-12 pb-6 px-6">
             <View className="flex-row items-center justify-between">
@@ -230,7 +230,7 @@ export default function CollectionPage() {
   }
 
   return (
-    <BackgroundTemplate>
+    <BackgroundTemplate paddingBottom={0}>
       <View className="flex-1">
         {/* Header */}
         <View className="bg-transparent pt-14 pb-2 px-6">

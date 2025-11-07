@@ -489,7 +489,7 @@ export default function NutritionPage() {
     <BackgroundTemplate paddingBottom={40}>
       <View className="flex-1">
         {/* Header */}
-        <View className="bg-transparent pt-14 pb-2 px-6">
+        <View className="bg-transparent pt-16 pb-2 px-6">
           <View className="flex-row items-center justify-between mb-0">
             <TouchableOpacity
               onPress={() => router.back()}

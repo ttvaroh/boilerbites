@@ -287,7 +287,7 @@ export default function DiningHallPage() {
     <BackgroundTemplate paddingBottom={0}>
       <View className="flex-1">
         {/* Header */}
-        <View className="bg-transparent pt-14 pb-2 px-6">
+        <View className="bg-transparent pt-16 pb-2 px-6">
           <TouchableOpacity
             onPress={() => router.back()}
             className="flex-row items-center pb-2"
@@ -295,7 +295,7 @@ export default function DiningHallPage() {
             <Ionicons name="arrow-back" size={24} color="white" />
             <Text className="text-white text-lg font-sora ml-2">Back</Text>
           </TouchableOpacity>
-          <Text className="text-white text-3xl font-sora-bold mb-4">{name}</Text>
+          <Text className="text-white text-3xl font-sora-bold mb-2">{name}</Text>
         </View>
 
         {/* Main Content */}
