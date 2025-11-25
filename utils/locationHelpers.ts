@@ -66,7 +66,7 @@ import { MealHours } from "../types/menu";
   export function formatLocationHours(mealHours: MealHours[]): string {
     if (!mealHours || mealHours.length === 0) return "Closed Today";
   
-  const openMeals = mealHours.filter((meal) => meal.open);
+    const openMeals = mealHours.filter((meal) => meal.open);
   
   // Check if we have any meals with valid times (for tomorrow's display)
   const mealsWithTimes = mealHours.filter(meal => meal.start_time && meal.end_time);
@@ -104,15 +104,15 @@ import { MealHours } from "../types/menu";
       return `Next: ${formatTime(nextMeal.start_time)} - ${formatTime(nextMeal.end_time)}`;
     }
   
-  // If no current or next meal today, show the first meal tomorrow
-  const allMeals = mealHours.filter(meal => meal.start_time);
-  const firstMeal = allMeals[0];
+    // If no current or next meal today, show the first meal tomorrow
+    const allMeals = mealHours.filter(meal => meal.start_time);
+    const firstMeal = allMeals[0];
   
-  if (firstMeal && firstMeal.start_time) {
-    return `Opens tomorrow at ${formatTime(firstMeal.start_time)}`;
-  }
-
-  return "Closed Today";
+    if (firstMeal && firstMeal.start_time) {
+      return `Opens tomorrow at ${formatTime(firstMeal.start_time)}`;
+    }
+  
+    return "Closed Today";
   }
   
   /**

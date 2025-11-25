@@ -1,5 +1,6 @@
 // dateSearchService.ts
 import { supabase } from '../lib/supabase';
+import { fatSecretAuthService } from './fatsecretAuth';
 
 export interface DayMenuItem {
   id: string;
@@ -302,6 +303,27 @@ export interface FDCSearchResult {
   error: any | null;
 }
 
+export interface FatSecretSearchFilters {
+  searchQuery?: string;
+  dietaryPreferences?: {
+    vegetarian?: boolean;
+    vegan?: boolean;
+    glutenFree?: boolean;
+  };
+  excludeAllergens?: string[];
+}
+
+export interface FatSecretSearchOptions {
+  limit?: number;
+  offset?: number;
+}
+
+export interface FatSecretSearchResult {
+  data: any[]; // MenuItem format
+  count: number;
+  error: any | null;
+}
+
 // Nutrient ID mappings for FDC API
 const FDC_NUTRIENT_IDS = {
   CALORIES: 1008, // Energy
@@ -538,6 +560,268 @@ class FDCSearchService {
 }
 
 export const fdcSearchService = new FDCSearchService();
+
+// FatSecret API Interfaces and Service
+interface FatSecretServing {
+  serving_id: string;
+  serving_description?: string;
+  metric_serving_amount?: string;
+  metric_serving_unit?: string;
+  number_of_units?: string;
+  measurement_description?: string;
+  calories?: string;
+  carbohydrate?: string;
+  protein?: string;
+  fat?: string;
+  fiber?: string;
+  sugar?: string;
+  sodium?: string;
+  cholesterol?: string;
+}
+
+interface FatSecretAllergen {
+  id: string;
+  name: string;
+  value: string;
+}
+
+interface FatSecretPreference {
+  id: string;
+  name: string;
+  value: string;
+}
+
+interface FatSecretFoodAttributes {
+  allergens?: {
+    allergen: FatSecretAllergen | FatSecretAllergen[];
+  };
+  preferences?: {
+    preference: FatSecretPreference | FatSecretPreference[];
+  };
+}
+
+interface FatSecretFood {
+  food_id: string;
+  food_name: string;
+  food_type: string;
+  brand_name?: string;
+  food_attributes?: FatSecretFoodAttributes;
+  servings?: {
+    serving: FatSecretServing | FatSecretServing[];
+  };
+}
+
+interface FatSecretFoodsSearchResponse {
+  foods_search?: {
+    total_results?: string;
+    max_results?: string;
+    page_number?: string;
+    results?: {
+      food: FatSecretFood | FatSecretFood[];
+    };
+  };
+}
+
+class FatSecretSearchService {
+  private baseUrl = "https://platform.fatsecret.com/rest/server.api";
+  private maxPageSize = 50;
+
+  async searchFoods(
+    filters: FatSecretSearchFilters = {},
+    options: FatSecretSearchOptions = {}
+  ): Promise<FatSecretSearchResult> {
+    try {
+      const query = filters.searchQuery?.trim();
+      if (!query) {
+        console.log("[FatSecretSearch] Empty query, skipping request");
+        return { data: [], count: 0, error: null };
+      }
+
+      const limit = Math.min(options.limit || 20, this.maxPageSize);
+      const offset = options.offset || 0;
+      const pageNumber = Math.floor(offset / limit);
+
+      console.log("[FatSecretSearch] Preparing request", {
+        query,
+        limit,
+        offset,
+        pageNumber,
+      });
+
+      const token = await fatSecretAuthService.getAccessToken();
+      console.log("[FatSecretSearch] Access token acquired");
+
+      const bodyParams = new URLSearchParams({
+        method: "foods.search.v4",
+        format: "json",
+        search_expression: query,
+        max_results: limit.toString(),
+        page_number: pageNumber.toString(),
+        include_food_attributes: "true",
+        flag_default_serving: "true",
+      });
+
+      console.log("[FatSecretSearch] Request body", bodyParams.toString());
+
+      const response = await fetch(this.baseUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Bearer ${token}`,
+        },
+        body: bodyParams.toString(),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => response.statusText);
+        console.error("[FatSecretSearch] API error", response.status, errorText);
+        if (response.status === 401) {
+          // Force token refresh on next request
+          throw new Error("FatSecret authentication failed. Check credentials.");
+        }
+        throw new Error(`FatSecret API error: ${response.status} ${errorText}`);
+      }
+
+      const json = (await response.json()) as FatSecretFoodsSearchResponse;
+      console.log("[FatSecretSearch] Raw response", JSON.stringify(json)?.slice(0, 500) || "empty");
+      const foods = this.extractFoods(json);
+      const mappedItems = foods.map(food => this.mapFoodToMenuItem(food));
+      const totalResults = this.parseNumber(json.foods_search?.total_results) || mappedItems.length;
+
+      console.log("[FatSecretSearch] Parsed results", {
+        totalResults,
+        mappedCount: mappedItems.length,
+      });
+
+      return {
+        data: mappedItems,
+        count: totalResults,
+        error: null,
+      };
+    } catch (err) {
+      console.error("FatSecret search service error:", err);
+      return {
+        data: [],
+        count: 0,
+        error: err,
+      };
+    }
+  }
+
+  private extractFoods(response: FatSecretFoodsSearchResponse): FatSecretFood[] {
+    const foodsNode = response.foods_search?.results?.food;
+    if (!foodsNode) {
+      return [];
+    }
+    return Array.isArray(foodsNode) ? foodsNode : [foodsNode];
+  }
+
+  private extractServings(food: FatSecretFood): FatSecretServing[] {
+    const servingsNode = food.servings?.serving;
+    if (!servingsNode) {
+      return [];
+    }
+    return Array.isArray(servingsNode) ? servingsNode : [servingsNode];
+  }
+
+  private extractAllergens(attributes?: FatSecretFoodAttributes): string[] {
+    const allergensNode = attributes?.allergens?.allergen;
+    if (!allergensNode) {
+      return [];
+    }
+    const allergens = Array.isArray(allergensNode) ? allergensNode : [allergensNode];
+    return allergens
+      .filter(allergen => allergen.value === "1")
+      .map(allergen => allergen.name)
+      .filter(Boolean);
+  }
+
+  private extractPreferences(attributes?: FatSecretFoodAttributes): {
+    vegetarian: boolean | null;
+    vegan: boolean | null;
+  } {
+    const prefsNode = attributes?.preferences?.preference;
+    if (!prefsNode) {
+      return { vegetarian: null, vegan: null };
+    }
+    const preferences = Array.isArray(prefsNode) ? prefsNode : [prefsNode];
+
+    const vegetarianPref = preferences.find(pref => pref.name?.toLowerCase() === "vegetarian");
+    const veganPref = preferences.find(pref => pref.name?.toLowerCase() === "vegan");
+
+    const parseValue = (value?: string): boolean | null => {
+      if (value === "1") return true;
+      if (value === "0") return false;
+      return null;
+    };
+
+    return {
+      vegetarian: parseValue(vegetarianPref?.value),
+      vegan: parseValue(veganPref?.value),
+    };
+  }
+
+  private toNumber(value?: string): number | null {
+    if (value === undefined || value === null) return null;
+    const num = parseFloat(value);
+    return Number.isFinite(num) ? num : null;
+  }
+
+  private parseNumber(value?: string): number | null {
+    if (!value) return null;
+    const num = parseInt(value, 10);
+    return Number.isFinite(num) ? num : null;
+  }
+
+  private computeProteinPer100Calories(calories: number | null, protein: number | null): number | null {
+    if (!calories || !protein || calories <= 0) {
+      return null;
+    }
+    return (protein / calories) * 100;
+  }
+
+  private mapFoodToMenuItem(food: FatSecretFood): any {
+    const servings = this.extractServings(food);
+    const serving = servings[0];
+
+    const calories = this.toNumber(serving?.calories);
+    const protein = this.toNumber(serving?.protein);
+    const carbs = this.toNumber(serving?.carbohydrate);
+    const fat = this.toNumber(serving?.fat);
+    const fiber = this.toNumber(serving?.fiber);
+    const sugar = this.toNumber(serving?.sugar);
+    const sodium = this.toNumber(serving?.sodium);
+
+    const { vegetarian, vegan } = this.extractPreferences(food.food_attributes);
+
+    const name =
+      food.food_type === "Brand" && food.brand_name
+        ? `${food.brand_name} ${food.food_name}`
+        : food.food_name;
+
+    return {
+      id: `fatsecret_${food.food_id}`,
+      name,
+      serving_size: serving?.serving_description || null,
+      calories,
+      protein_g: protein,
+      carbs_g: carbs,
+      fat_g: fat,
+      fiber_g: fiber,
+      sugar_g: sugar,
+      sodium_mg: sodium,
+      protein_per_100cals: this.computeProteinPer100Calories(calories, protein),
+      vegetarian,
+      vegan,
+      gluten: null,
+      allergens: this.extractAllergens(food.food_attributes),
+      ingredients: null,
+      is_collection: false,
+    };
+  }
+}
+
+export const fatSecretSearchService = new FatSecretSearchService();
 
 // Open Food Facts API Interfaces and Service
 export interface OFFFoodItem {

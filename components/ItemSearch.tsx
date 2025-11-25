@@ -34,8 +34,8 @@ interface ItemSearchProps {
   initialFilters?: SearchFilters;
   hideLocationMealFilters?: boolean;
   disableFilters?: boolean;
-  selectedDatabase?: 'fdc' | 'off';
-  onDatabaseChange?: (database: 'fdc' | 'off') => void;
+  selectedDatabase?: 'fdc' | 'off' | 'fatsecret';
+  onDatabaseChange?: (database: 'fdc' | 'off' | 'fatsecret') => void;
   rateLimitInfo?: RateLimitInfo;
   requireSearchButton?: boolean;
 }
@@ -234,6 +234,11 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
                         label="Open Food Facts"
                         isSelected={selectedDatabase === 'off'}
                         onPress={() => onDatabaseChange('off')}
+                      />
+                      <FilterChip
+                        label="FatSecret"
+                        isSelected={selectedDatabase === 'fatsecret'}
+                        onPress={() => onDatabaseChange('fatsecret')}
                       />
                     </View>
                     {selectedDatabase === 'off' && rateLimitInfo && (

@@ -129,15 +129,15 @@ const SearchItemCard = React.memo(({ item, showDietaryTag = true, meals, isColle
             <View className="flex-row items-center mb-2">
               {item.location_name && (
                 <>
-                  <Text className="text-purdueGold text-sm font-sora">
-                    📍 {item.location_name}
-                  </Text>
+              <Text className="text-purdueGold text-sm font-sora">
+                📍 {item.location_name}
+              </Text>
                 </>
               )}
               {meals && meals.length > 0 && isMainDiningHall(item.location_name || '') && (
                 <>
                   <Text className="text-gray-400 text-sm font-sora">  •  </Text>
-                <Text className="text-gray-400 text-sm font-sora">
+                  <Text className="text-gray-400 text-sm font-sora">
                     {sortMeals(meals.filter(meal => meal && meal.trim() !== "")).join(", ")}
                   </Text>
                 </>

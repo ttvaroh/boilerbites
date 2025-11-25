@@ -16,7 +16,7 @@ import SearchItemCard from "../components/SearchItemCard";
 import { useNutritionGoals } from "../contexts/NutritionGoalsContext";
 import { useOFFRateLimit } from "../hooks/useOFFRateLimit";
 import { supabase } from "../lib/supabase";
-import { FDCSearchFilters, FDCSearchOptions, fdcSearchService, OFFSearchFilters, offSearchService } from "../services/searchService";
+import { FDCSearchFilters, FDCSearchOptions, FatSecretSearchFilters, fdcSearchService, fatSecretSearchService, OFFSearchFilters, offSearchService } from "../services/searchService";
 
 // Interfaces
 interface MenuItem {
@@ -109,6 +109,14 @@ function createOFFFilters(filters: SearchFilters, query: string): OFFSearchFilte
   };
 }
 
+function createFatSecretFilters(filters: SearchFilters, query: string): FatSecretSearchFilters {
+  return {
+    searchQuery: query,
+    dietaryPreferences: filters.dietaryPreferences,
+    excludeAllergens: filters.excludeAllergens
+  };
+}
+
 function createFDCOptions(): FDCSearchOptions {
   return {
     limit: 1000,
@@ -117,7 +125,7 @@ function createFDCOptions(): FDCSearchOptions {
 }
 
 // Custom hook for unified search functionality (supports FDC and OFF)
-function useUnifiedSearch(selectedDatabase: 'fdc' | 'off') {
+function useUnifiedSearch(selectedDatabase: 'fdc' | 'off' | 'fatsecret') {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [isSearching, setIsSearching] = React.useState(false);
   const [searchResults, setSearchResults] = React.useState<MenuItem[]>([]);
@@ -158,6 +166,22 @@ function useUnifiedSearch(selectedDatabase: 'fdc' | 'off') {
         const offFilters = createOFFFilters(filters, query);
         const { data, count, error } = await offSearchService.searchFoods(
           offFilters,
+          { limit: 50, offset: 0 }
+        );
+
+        if (controller.signal.aborted) return;
+
+        if (error) {
+          setError(error);
+          return;
+        }
+
+        setSearchResults(data);
+        setTotalCount(count);
+      } else if (selectedDatabase === 'fatsecret') {
+        const fatSecretFilters = createFatSecretFilters(filters, query);
+        const { data, count, error } = await fatSecretSearchService.searchFoods(
+          fatSecretFilters,
           { limit: 50, offset: 0 }
         );
 
@@ -229,7 +253,7 @@ export default function GlobalSearchPage() {
   const { goals: nutritionGoals } = useNutritionGoals();
   
   // Database selection state
-  const [selectedDatabase, setSelectedDatabase] = React.useState<'fdc' | 'off'>('fdc');
+  const [selectedDatabase, setSelectedDatabase] = React.useState<'fdc' | 'off' | 'fatsecret'>('fdc');
   
   // Rate limiting for OFF searches
   const { canSearch, requestsRemaining, timeUntilNextRequest, checkRateLimit } = useOFFRateLimit();
@@ -336,7 +360,7 @@ export default function GlobalSearchPage() {
     }
   }, [selectedDatabase, performSearch, checkRateLimit]);
   
-  const handleDatabaseChange = React.useCallback((database: 'fdc' | 'off') => {
+  const handleDatabaseChange = React.useCallback((database: 'fdc' | 'off' | 'fatsecret') => {
     setSelectedDatabase(database);
   }, []);
 
@@ -428,6 +452,47 @@ export default function GlobalSearchPage() {
       }
       
       router.push(`/nutrition/${item.id}?source=off`);
+    } else if (item.id.startsWith('fatsecret_')) {
+      try {
+        const { data: existingItem } = await supabase
+          .from('item')
+          .select('id')
+          .eq('id', item.id)
+          .maybeSingle();
+
+        if (!existingItem) {
+          const protein_per_100cals = item.calories && item.calories > 0 && item.protein_g
+            ? (item.protein_g / item.calories) * 100
+            : null;
+
+          await supabase.rpc('create_item', {
+            p_id: item.id,
+            p_name: item.name || 'Unknown Food',
+            p_vegetarian: item.vegetarian ?? null,
+            p_vegan: item.vegan ?? null,
+            p_gluten: item.gluten ?? null,
+            p_allergens: item.allergens || [],
+            p_serving_size: item.serving_size ?? null,
+            p_calories: item.calories ?? null,
+            p_protein_g: item.protein_g ?? null,
+            p_carbs_g: item.carbs_g ?? null,
+            p_fat_g: item.fat_g ?? null,
+            p_fiber_g: item.fiber_g ?? null,
+            p_sugar_g: item.sugar_g ?? null,
+            p_sodium_mg: item.sodium_mg ?? null,
+            p_protein_per_100cals: protein_per_100cals,
+            p_ingredients: item.ingredients ?? null,
+            p_is_collection: false,
+            p_is_available: true,
+            p_user_id: null,
+            p_source: 2,
+          });
+        }
+      } catch (error) {
+        console.error('Error ensuring FatSecret item exists in database:', error);
+      }
+
+      router.push(`/nutrition/${item.id}?source=fatsecret`);
     } else if (item.id.startsWith('fdc_')) {
       router.push(`/nutrition/${item.id}?source=fdc`);
     } else {
@@ -458,6 +523,12 @@ export default function GlobalSearchPage() {
 
   // Empty state component
   const ListEmptyComponent = React.useCallback(() => {
+    const databaseLabel = selectedDatabase === 'off'
+      ? 'Open Food Facts'
+      : selectedDatabase === 'fatsecret'
+        ? 'FatSecret'
+        : 'FoodData Central';
+
     if (isSearching) {
       return (
         <View className="flex-1 justify-center items-center py-8">
@@ -470,14 +541,14 @@ export default function GlobalSearchPage() {
     return (
       <View className="flex-1 justify-center items-center py-8">
         <Text className="text-gray-400 text-lg font-sora text-center">
-          {hasSearched ? "No results found" : `Search for foods from ${selectedDatabase === 'off' ? 'Open Food Facts' : 'FoodData Central'}`}
+          {hasSearched ? "No results found" : `Search for foods from ${databaseLabel}`}
         </Text>
         <Text className="text-gray-500 text-sm font-sora text-center mt-2">
           {hasSearched ? "Try adjusting your search or filters" : "Enter a food name to get started"}
         </Text>
       </View>
     );
-  }, [isSearching, hasSearched]);
+  }, [isSearching, hasSearched, selectedDatabase]);
 
   // Footer component
   const ListFooterComponent = React.useCallback(() => {
