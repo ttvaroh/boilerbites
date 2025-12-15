@@ -112,74 +112,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
 
-    // Handle deep links for OAuth callback
+    // Handle deep links (excluding OAuth callbacks which are handled by the route component)
     const handleDeepLink = async (url: string) => {
       console.log('[AuthContext] Deep link received:', url);
       
+      // Skip OAuth callback URLs - they are handled by the /auth/callback route component
+      // to prevent duplicate code exchange which causes "invalid/expired code" errors
       if (url.includes('auth/callback')) {
-        // Check for hash fragment (implicit flow) or query params (code flow)
-        const hashIndex = url.indexOf('#');
-        const queryIndex = url.indexOf('?');
-        
-        if (hashIndex !== -1) {
-          // Hash fragment - Supabase should handle this automatically
-          // Extract hash and let Supabase process it
-          const hash = url.substring(hashIndex + 1);
-          const hashParams = new URLSearchParams(hash);
-          
-          const accessToken = hashParams.get('access_token');
-          const error = hashParams.get('error');
-          
-          if (error) {
-            console.error('[AuthContext] Deep link OAuth error:', error);
-            return;
-          }
-          
-          if (accessToken) {
-            console.log('[AuthContext] Access token in deep link hash - setting session manually');
-            
-            // Extract refresh token from hash fragment
-            const refreshToken = hashParams.get('refresh_token');
-            
-            if (!refreshToken) {
-              console.error('[AuthContext] No refresh token found in deep link hash');
-              return;
-            }
-            
-            // Set the session manually
-            const { data: sessionData, error: setSessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            
-            if (setSessionError) {
-              console.error('[AuthContext] Deep link session set error:', setSessionError);
-            } else if (sessionData.session) {
-              console.log('[AuthContext] Deep link session set successfully');
-            }
-          }
-        } else if (queryIndex !== -1) {
-          // Query parameters - authorization code flow
-          const parsedUrl = Linking.parse(url);
-          const code = parsedUrl.queryParams?.code as string;
-          const error = parsedUrl.queryParams?.error as string;
-          
-          if (error) {
-            console.error('[AuthContext] Deep link OAuth error:', error);
-            return;
-          }
-          
-          if (code) {
-            console.log('[AuthContext] Exchanging code from deep link...');
-            const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
-            if (sessionError) {
-              console.error('[AuthContext] Deep link session exchange error:', sessionError);
-            } else {
-              console.log('[AuthContext] Deep link session exchange successful');
-            }
-          }
-        }
+        console.log('[AuthContext] OAuth callback deep link detected - skipping (handled by route component)');
+        return;
       }
+      
+      // Handle other types of deep links here if needed in the future
     };
 
     // Check if app was opened with a deep link

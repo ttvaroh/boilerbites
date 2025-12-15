@@ -31,11 +31,27 @@ export default function AuthCallback() {
           return;
         }
 
+        // Check if session already exists (may have been set by signInWithAzure or another handler)
+        const { data: { session: existingSession } } = await supabase.auth.getSession();
+        if (existingSession) {
+          console.log('[AuthCallback] Session already exists, skipping code exchange');
+          router.replace('/profile');
+          return;
+        }
+
         if (code) {
           console.log('[AuthCallback] Exchanging code for session...');
           const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
           
           if (sessionError) {
+            // Check if error is due to code already being used (which is OK if session exists)
+            const { data: { session: checkSession } } = await supabase.auth.getSession();
+            if (checkSession) {
+              console.log('[AuthCallback] Code already used but session exists, proceeding');
+              router.replace('/profile');
+              return;
+            }
+            
             console.error('[AuthCallback] Session exchange error:', sessionError);
             router.replace('/signin');
             return;
@@ -50,6 +66,13 @@ export default function AuthCallback() {
         }
       } catch (error) {
         console.error('[AuthCallback] Unexpected error:', error);
+        // Check if session exists despite the error
+        const { data: { session: checkSession } } = await supabase.auth.getSession();
+        if (checkSession) {
+          console.log('[AuthCallback] Session exists despite error, proceeding');
+          router.replace('/profile');
+          return;
+        }
         router.replace('/signin');
       }
     };
