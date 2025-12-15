@@ -1,21 +1,30 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
 export default function AuthCallback() {
   const params = useLocalSearchParams();
+  const hasProcessedRef = useRef(false);
 
   useEffect(() => {
-    console.log('[AuthCallback] Callback received with params:', params);
+    // Prevent multiple executions - only process callback once
+    if (hasProcessedRef.current) {
+      return;
+    }
+
+    // Extract values from params to avoid dependency on the object reference
+    const code = params.code as string;
+    const error = params.error as string;
+    const errorDescription = params.error_description as string;
+
+    // Mark as processed immediately to prevent re-execution
+    hasProcessedRef.current = true;
+
+    console.log('[AuthCallback] Callback received with params:', { code: !!code, error, errorDescription });
     
     const handleCallback = async () => {
       try {
-        // Check if we have a code in the URL
-        const code = params.code as string;
-        const error = params.error as string;
-        const errorDescription = params.error_description as string;
-
         if (error) {
           console.error('[AuthCallback] OAuth error:', error, errorDescription);
           router.replace('/signin');
@@ -46,7 +55,8 @@ export default function AuthCallback() {
     };
 
     handleCallback();
-  }, [params]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - only run once on mount
 
   return (
     <View className="flex-1 bg-black justify-center items-center">
