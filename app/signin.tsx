@@ -34,18 +34,22 @@ export default function SignInScreen() {
 
   const handleAzureSignIn = async () => {
     setLoading(true);
+    console.log('[SignIn] Azure sign in button clicked');
     
     const { error } = await signInWithAzure();
     
     setLoading(false);
     
     if (error) {
-      Alert.alert("Azure Sign In Error", error.message);
+      console.error('[SignIn] Azure sign in error:', error);
+      Alert.alert("Sign In Error", error.message || "Failed to sign in with Azure");
+    } else {
+      router.replace("/profile");
     }
   };
 
   return (
-    <BackgroundTemplate>
+    <BackgroundTemplate paddingBottom={0}>
       <ScrollView 
         className="flex-1" 
         contentContainerStyle={{ paddingHorizontal: 32, paddingTop: 60, paddingBottom: 40 }}
@@ -124,10 +128,30 @@ export default function SignInScreen() {
           </Text>
         </TouchableOpacity>
 
+        {/* Divider */}
+        <View className="flex-row items-center mb-6">
+          <View className="flex-1 h-px bg-gray-700" />
+          <Text className="text-gray-500 text-sm font-sora mx-4">OR</Text>
+          <View className="flex-1 h-px bg-gray-700" />
+        </View>
+
+        {/* Azure Sign In Button */}
+        <TouchableOpacity
+          onPress={handleAzureSignIn}
+          className="w-full bg-gray-800 border border-gray-700 py-4 rounded-xl mb-6 flex-row items-center justify-center"
+          activeOpacity={0.8}
+          disabled={loading}
+        >
+          <Ionicons name="logo-microsoft" size={20} color="#FFFFFF" />
+          <Text className="text-white text-base font-sora-bold ml-2">
+            {loading ? "Signing In..." : "Continue with Purdue.edu"}
+          </Text>
+        </TouchableOpacity>
+
         {/* Sign In Button */}
         <TouchableOpacity
           onPress={handleSignIn}
-          className="w-full bg-purdueGold py-4 rounded-xl mb-6"
+          className="w-full bg-purdueGold py-4 rounded-xl mb-8"
           activeOpacity={0.8}
           disabled={loading}
         >
@@ -135,41 +159,6 @@ export default function SignInScreen() {
             {loading ? "Signing In..." : "Sign In"}
           </Text>
         </TouchableOpacity>
-
-        {/* Separator */}
-        <View className="flex-row items-center mb-6">
-          <View className="flex-1 h-px bg-gray-700" />
-          <Text className="text-gray-500 text-sm font-sora mx-4">or</Text>
-          <View className="flex-1 h-px bg-gray-700" />
-        </View>
-
-        {/* Social Login Buttons */}
-        <View className="mb-8">
-          {/* Microsoft Button */}
-          <TouchableOpacity 
-            onPress={handleAzureSignIn}
-            className="w-full bg-gray-800 border border-gray-700 py-4 rounded-xl flex-row items-center justify-center opacity-50 mb-3"
-            activeOpacity={0.8}
-            disabled={loading}
-          >
-            <Ionicons name="logo-microsoft" size={20} color="#FFFFFF" />
-            <Text className="text-white text-base font-sora ml-3">
-              {loading ? "Connecting..." : "Continue with Purdue Email"}
-            </Text>
-            <Text className="text-gray-400 text-xs font-sora ml-2">(Coming Soon)</Text>
-          </TouchableOpacity>
-
-          {/* Google Button - Disabled */}
-          <TouchableOpacity 
-            className="w-full bg-gray-800 border border-gray-700 py-4 rounded-xl flex-row items-center justify-center opacity-50"
-            activeOpacity={0.8}
-            disabled={true}
-          >
-            <Ionicons name="logo-google" size={20} color="#FFFFFF" />
-            <Text className="text-white text-base font-sora ml-3">Continue with Google</Text>
-            <Text className="text-gray-400 text-xs font-sora ml-2">(Coming Soon)</Text>
-          </TouchableOpacity>
-        </View>
 
         {/* Sign Up Link */}
         <View className="flex-row justify-center">

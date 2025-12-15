@@ -1,6 +1,11 @@
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCurrentTimestampInESTTimezone } from '../lib/timezone-utils';
+
+// Complete the OAuth session when the browser closes
+WebBrowser.maybeCompleteAuthSession();
 
 type User = any;
 type Session = any;
@@ -93,19 +98,106 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
+      console.log('[AuthContext] Initial session loaded:', session ? 'authenticated' : 'not authenticated');
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: Session | null) => {
+      console.log('[AuthContext] Auth state changed:', event, session ? 'authenticated' : 'not authenticated');
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    // Handle deep links for OAuth callback
+    const handleDeepLink = async (url: string) => {
+      console.log('[AuthContext] Deep link received:', url);
+      
+      if (url.includes('auth/callback')) {
+        // Check for hash fragment (implicit flow) or query params (code flow)
+        const hashIndex = url.indexOf('#');
+        const queryIndex = url.indexOf('?');
+        
+        if (hashIndex !== -1) {
+          // Hash fragment - Supabase should handle this automatically
+          // Extract hash and let Supabase process it
+          const hash = url.substring(hashIndex + 1);
+          const hashParams = new URLSearchParams(hash);
+          
+          const accessToken = hashParams.get('access_token');
+          const error = hashParams.get('error');
+          
+          if (error) {
+            console.error('[AuthContext] Deep link OAuth error:', error);
+            return;
+          }
+          
+          if (accessToken) {
+            console.log('[AuthContext] Access token in deep link hash - setting session manually');
+            
+            // Extract refresh token from hash fragment
+            const refreshToken = hashParams.get('refresh_token');
+            
+            if (!refreshToken) {
+              console.error('[AuthContext] No refresh token found in deep link hash');
+              return;
+            }
+            
+            // Set the session manually
+            const { data: sessionData, error: setSessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            
+            if (setSessionError) {
+              console.error('[AuthContext] Deep link session set error:', setSessionError);
+            } else if (sessionData.session) {
+              console.log('[AuthContext] Deep link session set successfully');
+            }
+          }
+        } else if (queryIndex !== -1) {
+          // Query parameters - authorization code flow
+          const parsedUrl = Linking.parse(url);
+          const code = parsedUrl.queryParams?.code as string;
+          const error = parsedUrl.queryParams?.error as string;
+          
+          if (error) {
+            console.error('[AuthContext] Deep link OAuth error:', error);
+            return;
+          }
+          
+          if (code) {
+            console.log('[AuthContext] Exchanging code from deep link...');
+            const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+            if (sessionError) {
+              console.error('[AuthContext] Deep link session exchange error:', sessionError);
+            } else {
+              console.log('[AuthContext] Deep link session exchange successful');
+            }
+          }
+        }
+      }
+    };
+
+    // Check if app was opened with a deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink(url);
+      }
+    });
+
+    // Listen for deep links while app is running
+    const linkingSubscription = Linking.addEventListener('url', ({ url }) => {
+      handleDeepLink(url);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      linkingSubscription.remove();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -130,13 +222,173 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithAzure = async () => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'azure',
-      options: {
-        redirectTo: 'boilerbites://auth/callback',
-      },
-    });
-    return { error };
+    console.log('[AuthContext] Starting Azure OAuth sign in...');
+    
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'azure',
+        options: {
+          redirectTo: 'boilerbites://auth/callback',
+          skipBrowserRedirect: true, // We handle browser opening manually in React Native
+          scopes: 'email openid profile', // Explicitly request email, openid, and profile scopes
+        },
+      });
+
+      if (error) {
+        console.error('[AuthContext] OAuth error:', error);
+        return { error };
+      }
+
+      if (!data?.url) {
+        console.error('[AuthContext] No OAuth URL returned');
+        return { error: new Error('No OAuth URL returned from Supabase') };
+      }
+
+      const oauthUrl = data.url;
+      console.log('[AuthContext] Full OAuth URL:', oauthUrl);
+      console.log('[AuthContext] Expected redirect URL: boilerbites://auth/callback');
+      console.log('[AuthContext] Make sure this redirect URL is configured in:');
+      console.log('  1. Supabase Dashboard → Authentication → URL Configuration');
+      console.log('  2. Azure Portal → App Registration → Authentication → Redirect URIs');
+      
+      // Open the OAuth URL in the browser
+      const result = await WebBrowser.openAuthSessionAsync(
+        oauthUrl,
+        'boilerbites://auth/callback'
+      );
+
+      console.log('[AuthContext] WebBrowser result:', {
+        type: result.type,
+        url: result.type === 'success' ? result.url : null,
+        hasUrl: result.type === 'success' && !!result.url,
+      });
+
+      // Log the full result for debugging
+      if (result.type === 'cancel') {
+        console.warn('[AuthContext] Browser session cancelled');
+        console.warn('[AuthContext] This could mean:');
+        console.warn('  1. User closed the browser');
+        console.warn('  2. Azure returned an error (check Azure app registration)');
+        console.warn('  3. Redirect URL mismatch (check Supabase and Azure redirect URLs)');
+        console.warn('  4. Deep link not properly configured');
+        return { error: new Error('Authentication cancelled. Please check Azure configuration and redirect URLs.') };
+      }
+
+      if (result.type === 'success' && result.url) {
+        const callbackUrl = result.url;
+        console.log('[AuthContext] Received callback URL:', callbackUrl);
+        
+        // Check if URL contains hash fragment (implicit flow) or query params (code flow)
+        const hashIndex = callbackUrl.indexOf('#');
+        const queryIndex = callbackUrl.indexOf('?');
+        
+        if (hashIndex !== -1) {
+          // Handle hash fragment (implicit flow - tokens in hash)
+          console.log('[AuthContext] Detected hash fragment (implicit flow)');
+          const hash = callbackUrl.substring(hashIndex + 1);
+          const hashParams = new URLSearchParams(hash);
+          
+          const accessToken = hashParams.get('access_token');
+          const error = hashParams.get('error');
+          const errorDescription = hashParams.get('error_description');
+          
+          if (error) {
+            console.error('[AuthContext] OAuth callback error:', error, errorDescription);
+            return { error: new Error(errorDescription || error || 'OAuth authentication failed') };
+          }
+          
+          if (accessToken) {
+            console.log('[AuthContext] Access token found in hash, setting session manually');
+            
+            // Extract all tokens from hash fragment
+            const refreshToken = hashParams.get('refresh_token');
+            const expiresAt = hashParams.get('expires_at');
+            const expiresIn = hashParams.get('expires_in');
+            
+            if (!refreshToken) {
+              console.error('[AuthContext] No refresh token found in hash fragment');
+              return { error: new Error('No refresh token received') };
+            }
+            
+            // Set the session manually using the tokens
+            // Supabase needs the session object with access_token and refresh_token
+            const { data: sessionData, error: setSessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            
+            if (setSessionError) {
+              console.error('[AuthContext] Error setting session:', setSessionError);
+              return { error: setSessionError };
+            }
+            
+            if (sessionData.session) {
+              console.log('[AuthContext] Session successfully set from hash fragment');
+              // The session will be updated via the onAuthStateChange listener
+              return { error: null };
+            } else {
+              console.warn('[AuthContext] Session was not set properly');
+              return { error: new Error('Failed to set session') };
+            }
+          } else {
+            console.warn('[AuthContext] No access token found in hash fragment');
+            return { error: new Error('No access token received') };
+          }
+        } else if (queryIndex !== -1) {
+          // Handle query parameters (authorization code flow)
+          console.log('[AuthContext] Detected query parameters (code flow)');
+          const url = new URL(callbackUrl);
+          
+          const code = url.searchParams.get('code');
+          const error = url.searchParams.get('error');
+          const errorDescription = url.searchParams.get('error_description');
+          const errorUri = url.searchParams.get('error_uri');
+
+          console.log('[AuthContext] Callback params:', {
+            hasCode: !!code,
+            hasError: !!error,
+            error,
+            errorDescription,
+          });
+
+          if (error) {
+            console.error('[AuthContext] OAuth callback error:', error, errorDescription);
+            console.error('[AuthContext] Error URI:', errorUri);
+            return { error: new Error(errorDescription || error || 'OAuth authentication failed') };
+          }
+
+          if (code) {
+            console.log('[AuthContext] Exchange code for session...');
+            // Exchange the code for a session
+            const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+            
+            if (sessionError) {
+              console.error('[AuthContext] Session exchange error:', sessionError);
+              return { error: sessionError };
+            }
+
+            console.log('[AuthContext] Session exchange successful');
+            // The session will be updated via the onAuthStateChange listener
+            return { error: null };
+          } else {
+            console.warn('[AuthContext] No code found in callback URL');
+            return { error: new Error('No authorization code received') };
+          }
+        } else {
+          console.warn('[AuthContext] No hash or query parameters found in callback URL');
+          return { error: new Error('Invalid callback URL format') };
+        }
+      } else {
+        console.error('[AuthContext] Unexpected browser result:', {
+          type: result.type,
+        });
+        return { error: new Error(`Authentication failed: ${result.type}`) };
+      }
+
+    } catch (error) {
+      console.error('[AuthContext] Unexpected error in signInWithAzure:', error);
+      return { error: error as Error };
+    }
   };
 
   const signOut = async () => {

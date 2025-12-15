@@ -2,12 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    Alert,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import BackgroundTemplate from "../components/BackgroundTemplate";
 import { useAuth } from "../contexts/AuthContext";
@@ -21,6 +21,10 @@ export default function EditProfileScreen() {
   const [email] = useState(user?.email || "");
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
+
+  // Check if user signed in with OAuth provider (Azure)
+  const isOAuthUser = user?.app_metadata?.provider && user.app_metadata.provider !== 'email';
+  const isAzureUser = user?.app_metadata?.provider === 'azure';
 
   const handleSave = async () => {
     if (!user) return;
@@ -243,28 +247,46 @@ export default function EditProfileScreen() {
               Security
             </Text>
 
-            {/* Reset Password Button */}
-            <TouchableOpacity
-              onPress={handleResetPassword}
-              disabled={isSendingReset}
-              className="bg-gray-900/50 rounded-xl px-4 py-4 border border-gray-600/40 flex-row items-center justify-between"
-              activeOpacity={0.7}
-            >
-              <View className="flex-row items-center flex-1">
-                <View className="bg-purdueGold/20 rounded-full p-2 mr-3">
-                  <Ionicons name="key" size={18} color="#CFB991" />
+            {/* Reset Password Button - Only show for email/password users */}
+            {!isOAuthUser ? (
+              <TouchableOpacity
+                onPress={handleResetPassword}
+                disabled={isSendingReset}
+                className="bg-gray-900/50 rounded-xl px-4 py-4 border border-gray-600/40 flex-row items-center justify-between"
+                activeOpacity={0.7}
+              >
+                <View className="flex-row items-center flex-1">
+                  <View className="bg-purdueGold/20 rounded-full p-2 mr-3">
+                    <Ionicons name="key" size={18} color="#CFB991" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-white text-base font-sora-semibold">
+                      {isSendingReset ? "Sending..." : "Reset Password"}
+                    </Text>
+                    <Text className="text-gray-400 text-xs font-sora mt-0.5">
+                      Send reset link to email
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+            ) : (
+              <View className="bg-gray-900/30 rounded-xl px-4 py-4 border border-gray-700/20 flex-row items-center">
+                <View className="bg-gray-700/50 rounded-full p-2 mr-3">
+                  <Ionicons name="lock-closed" size={18} color="#6B7280" />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-white text-base font-sora-semibold">
-                    {isSendingReset ? "Sending..." : "Reset Password"}
+                  <Text className="text-gray-400 text-base font-sora-semibold">
+                    Password Management
                   </Text>
-                  <Text className="text-gray-400 text-xs font-sora mt-0.5">
-                    Send reset link to email
+                  <Text className="text-gray-500 text-xs font-sora mt-0.5">
+                    {isAzureUser 
+                      ? "Your account is managed by Microsoft. Reset your password through your Microsoft account."
+                      : "Password reset is not available for OAuth accounts."}
                   </Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-            </TouchableOpacity>
+            )}
           </View>
 
           {/* Action Buttons */}
