@@ -175,18 +175,18 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
                 <Text className="text-black text-sm font-sora-semibold">Search</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              onPress={() => setShowFilters(!showFilters)}
-              disabled={disableFilters}
-              className="p-1 ml-2"
-              style={{ opacity: disableFilters ? 0.5 : 1 }}
-            >
-              <Ionicons 
-                name="filter" 
-                size={20} 
-                color={showFilters ? "#CFB991" : "#9CA3AF"} 
-              />
-            </TouchableOpacity>
+            {!disableFilters && (
+              <TouchableOpacity
+                onPress={() => setShowFilters(!showFilters)}
+                className="p-1 ml-2"
+              >
+                <Ionicons 
+                  name="filter" 
+                  size={20} 
+                  color={showFilters ? "#CFB991" : "#9CA3AF"} 
+                />
+              </TouchableOpacity>
+            )}
           </View>
           {requireSearchButton && rateLimitInfo && (
             <View className="mt-2 flex-row items-center justify-between">
@@ -226,33 +226,11 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
                     <Text className="text-white text-lg font-sora-bold mb-3">Search Database</Text>
                     <View className="flex-row flex-wrap gap-2">
                       <FilterChip
-                        label="FoodData Central"
-                        isSelected={selectedDatabase === 'fdc'}
-                        onPress={() => onDatabaseChange('fdc')}
-                      />
-                      <FilterChip
-                        label="Open Food Facts"
-                        isSelected={selectedDatabase === 'off'}
-                        onPress={() => onDatabaseChange('off')}
-                      />
-                      <FilterChip
                         label="FatSecret"
                         isSelected={selectedDatabase === 'fatsecret'}
                         onPress={() => onDatabaseChange('fatsecret')}
                       />
                     </View>
-                    {selectedDatabase === 'off' && rateLimitInfo && (
-                      <View className="mt-3">
-                        <Text className="text-gray-400 text-xs font-sora">
-                          {rateLimitInfo.requestsRemaining} searches remaining this minute
-                        </Text>
-                        {!rateLimitInfo.canSearch && rateLimitInfo.timeUntilNextRequest > 0 && (
-                          <Text className="text-yellow-400 text-xs font-sora mt-1">
-                            Wait {rateLimitInfo.timeUntilNextRequest}s before next search
-                          </Text>
-                        )}
-                      </View>
-                    )}
                   </View>
                 )}
 

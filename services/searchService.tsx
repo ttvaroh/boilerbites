@@ -1,6 +1,5 @@
 // dateSearchService.ts
 import { supabase } from '../lib/supabase';
-import { fatSecretAuthService } from './fatsecretAuth';
 
 export interface DayMenuItem {
   id: string;
@@ -623,8 +622,15 @@ interface FatSecretFoodsSearchResponse {
 }
 
 class FatSecretSearchService {
-  private baseUrl = "https://platform.fatsecret.com/rest/server.api";
   private maxPageSize = 50;
+  private proxyUrl: string;
+
+  constructor() {
+    // Use Supabase Edge Function proxy URL
+    // This will be set via environment variable or use default Supabase function path
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+    this.proxyUrl = `${supabaseUrl}/functions/v1/fatsecret-proxy`;
+  }
 
   async searchFoods(
     filters: FatSecretSearchFilters = {},
@@ -639,50 +645,52 @@ class FatSecretSearchService {
 
       const limit = Math.min(options.limit || 20, this.maxPageSize);
       const offset = options.offset || 0;
-      const pageNumber = Math.floor(offset / limit);
 
-      console.log("[FatSecretSearch] Preparing request", {
+      console.log("[FatSecretSearch] Preparing request via proxy", {
         query,
         limit,
         offset,
-        pageNumber,
       });
 
-      const token = await fatSecretAuthService.getAccessToken();
-      console.log("[FatSecretSearch] Access token acquired");
-
-      const bodyParams = new URLSearchParams({
-        method: "foods.search.v4",
-        format: "json",
-        search_expression: query,
-        max_results: limit.toString(),
-        page_number: pageNumber.toString(),
-        include_food_attributes: "true",
-        flag_default_serving: "true",
-      });
-
-      console.log("[FatSecretSearch] Request body", bodyParams.toString());
-
-      const response = await fetch(this.baseUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Authorization: `Bearer ${token}`,
+      // Call Supabase Edge Function proxy instead of FatSecret directly
+      const { data, error } = await supabase.functions.invoke('fatsecret-proxy', {
+        body: {
+          query: query,
+          limit: limit,
+          offset: offset,
         },
-        body: bodyParams.toString(),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => response.statusText);
-        console.error("[FatSecretSearch] API error", response.status, errorText);
-        if (response.status === 401) {
-          // Force token refresh on next request
-          throw new Error("FatSecret authentication failed. Check credentials.");
-        }
-        throw new Error(`FatSecret API error: ${response.status} ${errorText}`);
+      if (error) {
+        console.error("[FatSecretSearch] Proxy error", error);
+        return {
+          data: [],
+          count: 0,
+          error: new Error(error.message || "FatSecret proxy request failed"),
+        };
       }
 
-      const json = (await response.json()) as FatSecretFoodsSearchResponse;
+      if (!data) {
+        console.error("[FatSecretSearch] No data returned from proxy");
+        return {
+          data: [],
+          count: 0,
+          error: new Error("No data returned from FatSecret proxy"),
+        };
+      }
+
+      // Handle error response from proxy
+      if (data.error) {
+        console.error("[FatSecretSearch] FatSecret API error", data.error);
+        return {
+          data: [],
+          count: 0,
+          error: new Error(data.error),
+        };
+      }
+
+      // Parse the FatSecret response (same format as before)
+      const json = data as FatSecretFoodsSearchResponse;
       console.log("[FatSecretSearch] Raw response", JSON.stringify(json)?.slice(0, 500) || "empty");
       const foods = this.extractFoods(json);
       const mappedItems = foods.map(food => this.mapFoodToMenuItem(food));
