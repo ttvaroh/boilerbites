@@ -98,7 +98,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
-      console.log('[AuthContext] Initial session loaded:', session ? 'authenticated' : 'not authenticated');
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -106,7 +105,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: Session | null) => {
-      console.log('[AuthContext] Auth state changed:', event, session ? 'authenticated' : 'not authenticated');
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -116,7 +114,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Note: Hash fragments are NOT accessible via route params, so we must handle them here
     // Query parameters (code flow) are handled by the route component to avoid duplicate processing
     const handleDeepLink = async (url: string) => {
-      console.log('[AuthContext] Deep link received:', url);
       
       if (url.includes('auth/callback')) {
         // Check if this is a hash fragment callback (implicit flow)
@@ -126,7 +123,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Only handle hash fragments here - query params are handled by route component
         if (hashIndex !== -1) {
-          console.log('[AuthContext] OAuth callback with hash fragment detected - processing (implicit flow)');
           
           const hash = url.substring(hashIndex + 1);
           const hashParams = new URLSearchParams(hash);
@@ -141,7 +137,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           
           if (accessToken) {
-            console.log('[AuthContext] Access token in deep link hash - setting session manually');
             
             // Extract refresh token from hash fragment
             const refreshToken = hashParams.get('refresh_token');
@@ -159,8 +154,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             
             if (setSessionError) {
               console.error('[AuthContext] Deep link session set error:', setSessionError);
-            } else if (sessionData.session) {
-              console.log('[AuthContext] Deep link session set successfully');
             }
           }
         } else if (queryIndex !== -1) {
@@ -213,9 +206,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error };
   };
 
-  const signInWithAzure = async () => {
-    console.log('[AuthContext] Starting Azure OAuth sign in...');
-    
+  const signInWithAzure = async () => {    
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'azure',
@@ -237,23 +228,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const oauthUrl = data.url;
-      console.log('[AuthContext] Full OAuth URL:', oauthUrl);
-      console.log('[AuthContext] Expected redirect URL: boilerbites://auth/callback');
-      console.log('[AuthContext] Make sure this redirect URL is configured in:');
-      console.log('  1. Supabase Dashboard → Authentication → URL Configuration');
-      console.log('  2. Azure Portal → App Registration → Authentication → Redirect URIs');
       
       // Open the OAuth URL in the browser
       const result = await WebBrowser.openAuthSessionAsync(
         oauthUrl,
         'boilerbites://auth/callback'
       );
-
-      console.log('[AuthContext] WebBrowser result:', {
-        type: result.type,
-        url: result.type === 'success' ? result.url : null,
-        hasUrl: result.type === 'success' && !!result.url,
-      });
 
       // Log the full result for debugging
       if (result.type === 'cancel') {
@@ -268,7 +248,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (result.type === 'success' && result.url) {
         const callbackUrl = result.url;
-        console.log('[AuthContext] Received callback URL:', callbackUrl);
         
         // Check if URL contains hash fragment (implicit flow) or query params (code flow)
         const hashIndex = callbackUrl.indexOf('#');
@@ -276,7 +255,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (hashIndex !== -1) {
           // Handle hash fragment (implicit flow - tokens in hash)
-          console.log('[AuthContext] Detected hash fragment (implicit flow)');
           const hash = callbackUrl.substring(hashIndex + 1);
           const hashParams = new URLSearchParams(hash);
           
@@ -290,7 +268,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           
           if (accessToken) {
-            console.log('[AuthContext] Access token found in hash, setting session manually');
             
             // Extract all tokens from hash fragment
             const refreshToken = hashParams.get('refresh_token');
@@ -315,7 +292,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
             
             if (sessionData.session) {
-              console.log('[AuthContext] Session successfully set from hash fragment');
               // The session will be updated via the onAuthStateChange listener
               return { error: null };
             } else {
@@ -328,20 +304,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } else if (queryIndex !== -1) {
           // Handle query parameters (authorization code flow)
-          console.log('[AuthContext] Detected query parameters (code flow)');
           const url = new URL(callbackUrl);
           
           const code = url.searchParams.get('code');
           const error = url.searchParams.get('error');
           const errorDescription = url.searchParams.get('error_description');
           const errorUri = url.searchParams.get('error_uri');
-
-          console.log('[AuthContext] Callback params:', {
-            hasCode: !!code,
-            hasError: !!error,
-            error,
-            errorDescription,
-          });
 
           if (error) {
             console.error('[AuthContext] OAuth callback error:', error, errorDescription);
@@ -350,7 +318,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
 
           if (code) {
-            console.log('[AuthContext] Exchange code for session...');
             // Exchange the code for a session
             const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
             
@@ -359,7 +326,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return { error: sessionError };
             }
 
-            console.log('[AuthContext] Session exchange successful');
             // The session will be updated via the onAuthStateChange listener
             return { error: null };
           } else {

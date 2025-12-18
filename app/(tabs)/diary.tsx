@@ -33,13 +33,13 @@ interface FoodEntry {
 
 
 export default function DiaryPage() {
-  const { user, removeFoodEntry } = useAuth();
+  const { user, removeFoodEntry: removeFoodEntryFromDB } = useAuth();
   const { 
     clearNutritionData, 
     getFoodEntries, 
     setFoodEntries: setFoodEntriesCache, 
-    clearFoodEntries, 
-    removeFoodEntry: removeFoodEntryFromCache 
+    clearFoodEntries,
+    removeFoodEntry: removeFoodEntryFromCache
   } = useNutritionCache();
   const router = useRouter();
   const [foodEntries, setFoodEntries] = React.useState<FoodEntry[]>([]);
@@ -48,6 +48,7 @@ export default function DiaryPage() {
   const [selectedDate, setSelectedDate] = React.useState(new Date());
   const [refreshKey, setRefreshKey] = React.useState(0);
   const [refreshing, setRefreshing] = React.useState(false);
+  const [swipedCardId, setSwipedCardId] = React.useState<string | null>(null);
 
   // Date navigation functions
   const goToPreviousDay = () => {
@@ -162,34 +163,6 @@ export default function DiaryPage() {
     }, [])
   );
 
-  // Remove food entry
-  const handleRemoveEntry = async (entryId: string) => {
-    try {
-      const { error } = await removeFoodEntry(entryId);
-      if (error) {
-        Alert.alert('Error', 'Failed to remove food entry. Please try again.');
-        return;
-      }
-      
-      setFoodEntries(prev => prev.filter(entry => entry.id !== entryId));
-      
-      // Get date string for cache operations
-      const isToday = selectedDate.toDateString() === new Date().toDateString();
-      const dateString = isToday ? getTodayDateString() : selectedDate.toISOString().split('T')[0];
-      
-      // Update cache - remove entry from cache
-      removeFoodEntryFromCache(dateString, entryId);
-      
-      // Clear nutrition cache for the current date
-      clearNutritionData(dateString);
-      
-      // Trigger refresh of DailyProgress component
-      setRefreshKey(prev => prev + 1);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to remove food entry. Please try again.');
-      console.error('Remove food entry error:', error);
-    }
-  };
 
   // Toggle meal section
   const toggleMealSection = (mealKey: string) => {
@@ -227,6 +200,109 @@ export default function DiaryPage() {
       fat_g: acc.fat_g + entry.fat_g,
     }), { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
   };
+
+  // Helper function to get date string for cache clearing
+  const getDateStringForEntry = React.useCallback((createdAt: string) => {
+    // Parse the entry's created_at timestamp
+    const entryDate = new Date(createdAt);
+    const today = new Date();
+    
+    // Check if entry is from today
+    const isToday = entryDate.toDateString() === today.toDateString();
+    
+    if (isToday) {
+      return getTodayDateString();
+    } else {
+      // For past dates, get the local date string
+      const year = entryDate.getFullYear();
+      const month = String(entryDate.getMonth() + 1).padStart(2, '0');
+      const day = String(entryDate.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+  }, []);
+
+  // Handle entry removal
+  const handleRemoveEntry = React.useCallback(async (entryId: string) => {
+    if (!user) return;
+
+    // Find the entry to get its date
+    const entry = foodEntries.find(e => e.id === entryId);
+    if (!entry) return;
+
+    // Optimistic update: remove from local state immediately
+    setFoodEntries(prev => prev.filter(e => e.id !== entryId));
+
+    // Get date string for cache operations
+    const dateString = getDateStringForEntry(entry.created_at);
+
+    // Remove from cache
+    removeFoodEntryFromCache(dateString, entryId);
+
+    // Clear nutrition data cache to force recalculation
+    clearNutritionData(dateString);
+
+    try {
+      // Delete from database
+      const { error } = await removeFoodEntryFromDB(entryId);
+      
+      if (error) {
+        // Revert optimistic update on error
+        setFoodEntries(prev => {
+          const updated = [...prev, entry];
+          // Re-sort by created_at to maintain order
+          return updated.sort((a, b) => 
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+        });
+        
+        // Restore cache
+        setFoodEntriesCache(dateString, foodEntries);
+        
+        Alert.alert(
+          "Error",
+          "Failed to remove food entry. Please try again.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+
+      // Refresh DailyProgress
+      setRefreshKey(prev => prev + 1);
+    } catch (error) {
+      // Revert optimistic update on error
+      setFoodEntries(prev => {
+        const updated = [...prev, entry];
+        return updated.sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+      });
+      
+      // Restore cache
+      setFoodEntriesCache(dateString, foodEntries);
+      
+      Alert.alert(
+        "Error",
+        "Failed to remove food entry. Please try again.",
+        [{ text: "OK" }]
+      );
+    }
+  }, [user, foodEntries, getDateStringForEntry, removeFoodEntryFromDB, removeFoodEntryFromCache, clearNutritionData, setFoodEntriesCache]);
+
+  // Handle swipe start - close other cards
+  const handleSwipeStart = React.useCallback((entryId: string) => {
+    // If a different card is being swiped, close the previous one
+    if (swipedCardId && swipedCardId !== entryId) {
+      setSwipedCardId(null);
+    }
+    setSwipedCardId(entryId);
+  }, [swipedCardId]);
+
+  // Handle swipe end - clear swiped card ID when card is reset
+  const handleSwipeEnd = React.useCallback(() => {
+    // Clear the swiped card ID when a card resets to position 0
+    // This is called from the card when it snaps back
+    setSwipedCardId(null);
+  }, []);
 
   // Pull to refresh handler
   const onRefresh = React.useCallback(async () => {
@@ -421,6 +497,9 @@ export default function DiaryPage() {
                               key={entry.id}
                               entry={entry}
                               onRemove={handleRemoveEntry}
+                              isSwiped={swipedCardId === entry.id}
+                              onSwipeStart={handleSwipeStart}
+                              onSwipeEnd={handleSwipeEnd}
                             />
                           ))}
                         </View>
