@@ -66,12 +66,14 @@ const SearchItemWrapper = React.memo(({
   item, 
   index, 
   onPress, 
-  isCollection 
+  isCollection,
+  isCustomMeal
 }: { 
   item: MenuItem; 
   index: number; 
   onPress: (item: MenuItem) => void; 
-  isCollection: boolean; 
+  isCollection: boolean;
+  isCustomMeal?: boolean;
 }) => {
   const handlePress = React.useCallback(() => {
     onPress(item);
@@ -84,6 +86,7 @@ const SearchItemWrapper = React.memo(({
         showDietaryTag={true}
         meals={item.meals || []}
         isCollection={isCollection}
+        isCustomMeal={isCustomMeal || false}
       />
     </TouchableOpacity>
   );
@@ -444,20 +447,31 @@ export function SearchByDateComponent({
   }, []);
 
   const [collectionStatus, setCollectionStatus] = React.useState<Record<string, boolean>>({});
+  const [customMealStatus, setCustomMealStatus] = React.useState<Record<string, boolean>>({});
 
   const checkCollectionStatusBatch = React.useCallback(async (itemIds: string[]) => {
     try {
       const { data: itemsData, error } = await supabase
         .from('item')
-        .select('id, is_collection')
+        .select('id, is_collection, user_id')
         .in('id', itemIds);
 
       if (!error && itemsData) {
-        const newStatus: Record<string, boolean> = {};
+        const newCollectionStatus: Record<string, boolean> = {};
+        const newCustomMealStatus: Record<string, boolean> = {};
+        
         itemsData.forEach((item: any) => {
-          newStatus[item.id] = item.is_collection || false;
+          const isCollection = item.is_collection || false;
+          const isCustomMeal = isCollection && item.user_id !== null;
+          const isSystemCollection = isCollection && item.user_id === null;
+          
+          // Only mark as collection if it's a system collection (not custom meal)
+          newCollectionStatus[item.id] = isSystemCollection;
+          newCustomMealStatus[item.id] = isCustomMeal;
         });
-        setCollectionStatus(prev => ({ ...prev, ...newStatus }));
+        
+        setCollectionStatus(prev => ({ ...prev, ...newCollectionStatus }));
+        setCustomMealStatus(prev => ({ ...prev, ...newCustomMealStatus }));
       }
     } catch (error) {
       console.error('Error checking collection status batch:', error);
@@ -465,19 +479,23 @@ export function SearchByDateComponent({
   }, []);
 
   const handleMenuItemPress = React.useCallback(async (item: MenuItem) => {
-    // Check if this item is a collection
-    if (collectionStatus[item.id]) {
+    // Check if this item is a system collection (not custom meal)
+    if (collectionStatus[item.id] && !customMealStatus[item.id]) {
       router.push(`/collection/${item.id}?date=${dateString}`);
       return;
     }
 
-    // Navigate to nutrition page if serving size exists, otherwise to missing nutrition page
-    if (item.serving_size) {
+    // Custom meals should always go to nutrition page (they have aggregated nutrition)
+    const isCustomMeal = customMealStatus[item.id] || false;
+    
+    // Custom meals and items with serving_size go to nutrition page
+    // Items without serving_size (and not custom meals) go to missing nutrition page
+    if (isCustomMeal || item.serving_size) {
       router.push(`/nutrition/${item.id}?date=${dateString}`);
     } else {
       router.push(`/missing-nutrition/${item.id}?date=${dateString}`);
     }
-  }, [router, collectionStatus, dateString]);
+  }, [router, collectionStatus, customMealStatus, dateString]);
 
   // Check collection status when search results change
   React.useEffect(() => {
@@ -495,9 +513,10 @@ export function SearchByDateComponent({
         index={index}
         onPress={handleMenuItemPress}
         isCollection={collectionStatus[item.id] || false}
+        isCustomMeal={customMealStatus[item.id] || false}
       />
     );
-  }, [handleMenuItemPress, collectionStatus]);
+  }, [handleMenuItemPress, collectionStatus, customMealStatus]);
 
   // Empty state component
   const ListEmptyComponent = React.useCallback(() => {

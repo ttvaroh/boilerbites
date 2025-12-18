@@ -149,6 +149,18 @@ export default function RootLayout() {
                         options={{ headerShown: false }}
                       />
                       <Stack.Screen
+                        name="custom-food/create-food"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="custom-food/create-meal"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="custom-food/edit-meal"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
                         name="edit-profile"
                         options={{ headerShown: false }}
                       />

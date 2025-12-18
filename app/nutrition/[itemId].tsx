@@ -36,6 +36,8 @@ interface MenuItem {
   protein_per_100cals?: number;
   last_verified?: string;
   ingredients?: string;
+  is_collection?: boolean;
+  user_id?: string | null;
 }
 
 export default function NutritionPage() {
@@ -44,8 +46,8 @@ export default function NutritionPage() {
   const { user, toggleFavorite, addFoodEntry } = useAuth();
   
   // Check if this is an FDC or OFF item
-  const isFDCItem = source === 'fdc' || itemId.startsWith('fdc_');
-  const isOFFItem = source === 'off' || itemId.startsWith('off_');
+  const isFDCItem = source === 'fdc' || itemId?.startsWith('fdc_');
+  const isOFFItem = source === 'off' || itemId?.startsWith('off_');
   const [servingCount, setServingCount] = useState("1");
   const [selectedMeal, setSelectedMeal] = useState(0); // 0 = uncategorized, 1 = breakfast, 2 = lunch, 3 = dinner, 4 = snack
   const [item, setItem] = useState<MenuItem | null>(null);
@@ -493,7 +495,12 @@ export default function NutritionPage() {
             return;
           }
 
-          if (!isFDCItem && !data.serving_size) {
+          // Check if this is a custom meal (is_collection = true AND user_id IS NOT NULL)
+          const isCustomMeal = data.is_collection && data.user_id !== null;
+          
+          // For custom meals, allow display even without serving_size since they have aggregated nutrition
+          // For regular Purdue items, serving_size is required
+          if (!isFDCItem && !isCustomMeal && !data.serving_size) {
             router.replace(`/missing-nutrition/${itemId}`);
             return;
           }
@@ -764,9 +771,11 @@ export default function NutritionPage() {
                 />
               </TouchableOpacity>
             </View>
-            <Text className="text-gray-300 text-sm font-sora mb-4">
-              Serving Size: {item.serving_size}
-            </Text>
+            {(item.serving_size || (item.is_collection && item.user_id !== null)) && (
+              <Text className="text-gray-300 text-sm font-sora mb-4">
+                Serving Size: {item.serving_size || "1 meal"}
+              </Text>
+            )}
 
             {/* Number of Servings */}
             <View className="mb-4">

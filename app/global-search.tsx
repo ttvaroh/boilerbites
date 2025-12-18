@@ -2,12 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as React from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    RefreshControl,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 import BackgroundTemplate from "../components/BackgroundTemplate";
 import ErrorBoundary from "../components/ErrorBoundary";
@@ -50,12 +50,14 @@ const SearchItemWrapper = React.memo(({
   item, 
   index, 
   onPress, 
-  isCollection 
+  isCollection,
+  isCustomMeal
 }: { 
   item: MenuItem; 
   index: number; 
   onPress: (item: MenuItem) => void; 
-  isCollection: boolean; 
+  isCollection: boolean;
+  isCustomMeal?: boolean;
 }) => {
   const handlePress = React.useCallback(() => {
     onPress(item);
@@ -68,6 +70,7 @@ const SearchItemWrapper = React.memo(({
         showDietaryTag={true}
         meals={item.meals || []}
         isCollection={isCollection}
+        isCustomMeal={isCustomMeal || false}
         hideLocation={true}
       />
     </TouchableOpacity>
@@ -102,7 +105,7 @@ function useFatSecretSearch() {
   const [hasSearched, setHasSearched] = React.useState(false);
   const [hasMore, setHasMore] = React.useState(false);
   
-  const debouncedQuery = useDebounce(searchQuery, 300);
+  const debouncedQuery = useDebounce(searchQuery, 400);
   const abortControllerRef = React.useRef<AbortController | null>(null);
   const currentOffsetRef = React.useRef(0);
 
@@ -260,20 +263,31 @@ export default function GlobalSearchPage() {
 
 
   const [collectionStatus, setCollectionStatus] = React.useState<Record<string, boolean>>({});
+  const [customMealStatus, setCustomMealStatus] = React.useState<Record<string, boolean>>({});
 
   const checkCollectionStatusBatch = React.useCallback(async (itemIds: string[]) => {
     try {
       const { data: itemsData, error } = await supabase
         .from('item')
-        .select('id, is_collection')
+        .select('id, is_collection, user_id')
         .in('id', itemIds);
 
       if (!error && itemsData) {
-        const newStatus: Record<string, boolean> = {};
+        const newCollectionStatus: Record<string, boolean> = {};
+        const newCustomMealStatus: Record<string, boolean> = {};
+        
         itemsData.forEach((item: any) => {
-          newStatus[item.id] = item.is_collection || false;
+          const isCollection = item.is_collection || false;
+          const isCustomMeal = isCollection && item.user_id !== null;
+          const isSystemCollection = isCollection && item.user_id === null;
+          
+          // Only mark as collection if it's a system collection (not custom meal)
+          newCollectionStatus[item.id] = isSystemCollection;
+          newCustomMealStatus[item.id] = isCustomMeal;
         });
-        setCollectionStatus(prev => ({ ...prev, ...newStatus }));
+        
+        setCollectionStatus(prev => ({ ...prev, ...newCollectionStatus }));
+        setCustomMealStatus(prev => ({ ...prev, ...newCustomMealStatus }));
       }
     } catch (error) {
       console.error('Error checking collection status batch:', error);
@@ -281,12 +295,13 @@ export default function GlobalSearchPage() {
   }, []);
 
   const handleMenuItemPress = React.useCallback(async (item: MenuItem) => {
-    // Check if this item is a collection
-    if (collectionStatus[item.id]) {
+    // Check if this item is a system collection (not custom meal)
+    if (collectionStatus[item.id] && !customMealStatus[item.id]) {
       router.push(`/collection/${item.id}`);
       return;
     }
 
+    // Custom meals and regular items go to nutrition page
     // Navigate to nutrition page with FatSecret source
     if (item.id.startsWith('fatsecret_')) {
       try {
@@ -333,7 +348,7 @@ export default function GlobalSearchPage() {
       // Purdue item
       router.push(`/nutrition/${item.id}`);
     }
-  }, [router, collectionStatus]);
+  }, [router, collectionStatus, customMealStatus]);
 
   // Check collection status when search results change
   React.useEffect(() => {
@@ -351,9 +366,10 @@ export default function GlobalSearchPage() {
         index={index}
         onPress={handleMenuItemPress}
         isCollection={collectionStatus[item.id] || false}
+        isCustomMeal={customMealStatus[item.id] || false}
       />
     );
-  }, [handleMenuItemPress, collectionStatus]);
+  }, [handleMenuItemPress, collectionStatus, customMealStatus]);
 
   // Empty state component
   const ListEmptyComponent = React.useCallback(() => {

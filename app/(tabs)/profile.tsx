@@ -146,10 +146,10 @@ export default function ProfileScreen() {
                 </View>
                 <View className="flex-1">
                   <Text className="text-white text-base font-sora-semibold mb-1">
-                    Custom Foods
+                    Custom Foods & Meals
                   </Text>
                   <Text className="text-gray-400 text-xs font-sora">
-                    Create and manage custom entries
+                    Design your dining experience
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
@@ -173,19 +173,6 @@ export default function ProfileScreen() {
                 </View>
                 <Text className="text-white text-base font-sora flex-1">
                   Edit Profile
-                </Text>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                className="flex-row items-center p-4 border-b border-gray-700/50"
-                activeOpacity={0.7}
-              >
-                <View className="bg-gray-700/50 rounded-full w-10 h-10 items-center justify-center mr-3">
-                  <Ionicons name="notifications-outline" size={20} color="#CFB991" />
-                </View>
-                <Text className="text-white text-base font-sora flex-1">
-                  Notifications
                 </Text>
                 <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
               </TouchableOpacity>

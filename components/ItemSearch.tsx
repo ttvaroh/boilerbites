@@ -38,6 +38,7 @@ interface ItemSearchProps {
   onDatabaseChange?: (database: 'fdc' | 'off' | 'fatsecret') => void;
   rateLimitInfo?: RateLimitInfo;
   requireSearchButton?: boolean;
+  placeholder?: string;
 }
 
 const ItemSearchComponent: React.FC<ItemSearchProps> = ({ 
@@ -50,7 +51,8 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
   selectedDatabase = 'fdc',
   onDatabaseChange,
   rateLimitInfo,
-  requireSearchButton = false
+  requireSearchButton = false,
+  placeholder
 }) => {
   const [internalSearchQuery, setInternalSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -157,14 +159,29 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
             <Ionicons name="search" size={20} color="#9CA3AF" />
             <TextInput
               className="flex-1 text-white text-base font-sora ml-3"
-              placeholder="Search for items (e.g. chicken, pasta, pizza)"
+              placeholder={placeholder || "Search for items (e.g. smash burger)"}
               placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
               onSubmitEditing={requireSearchButton ? undefined : handleSearch}
               autoCapitalize="none"
               editable={true}
+              multiline={false}
+              style={{ paddingVertical: 0, maxHeight: 24 }}
             />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => {
+                  setSearchQuery("");
+                  if (onSearchQueryChange) {
+                    onSearchQueryChange("");
+                  }
+                }}
+                className="p-1 ml-2"
+              >
+                <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+            )}
             {requireSearchButton && (
               <TouchableOpacity
                 onPress={handleSearch}

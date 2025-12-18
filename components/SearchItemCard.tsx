@@ -33,10 +33,11 @@ interface SearchItemCardProps {
   showDietaryTag?: boolean;
   meals?: string[];
   isCollection?: boolean;
+  isCustomMeal?: boolean;
   hideLocation?: boolean;
 }
 
-const SearchItemCard = React.memo(({ item, showDietaryTag = true, meals, isCollection = false, hideLocation = false }: SearchItemCardProps) => {
+const SearchItemCard = React.memo(({ item, showDietaryTag = true, meals, isCollection = false, isCustomMeal = false, hideLocation = false }: SearchItemCardProps) => {
   // Check if location is one of the 5 main dining halls
   const isMainDiningHall = (locationName: string): boolean => {
     const mainDiningHalls = ['Ford', 'Wiley', 'Windsor', 'Earhart', 'Hillenbrand'];
@@ -225,8 +226,16 @@ const SearchItemCard = React.memo(({ item, showDietaryTag = true, meals, isColle
         </View>
       </View>
 
-      {/* Collection indicator */}
-      {isCollection && (
+      {/* Collection or Custom Meal indicator */}
+      {isCustomMeal && (
+        <View className="flex-row">
+          <Ionicons name="restaurant-outline" size={16} color="#CFB991" />
+          <Text className="text-purdueGold text-sm font-sora ml-1">
+            Custom Meal
+          </Text>
+        </View>
+      )}
+      {isCollection && !isCustomMeal && (
         <View className="flex-row">
           <Ionicons name="albums-outline" size={16} color="#CFB991" />
           <Text className="text-purdueGold text-sm font-sora ml-1">
