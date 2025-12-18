@@ -119,15 +119,14 @@ export function getCurrentTimestampInEST(): string {
 }
 
 /**
- * Get current timestamp in EST timezone
- * This ensures food entries are logged in Eastern Time
- * @returns ISO string representing current time in EST
+ * Get current timestamp in UTC (database stores time in UTC)
+ * This returns the actual current time, not a static value
+ * @returns ISO string representing current time in UTC
  */
 export function getCurrentTimestampInESTTimezone(): string {
-  const now = new Date();
-  // Set to noon to avoid timezone edge cases and ensure consistent EST behavior
-  now.setHours(12, 0, 0, 0);
-  return now.toISOString();
+  // Return current time in UTC (ISO format)
+  // The database stores time in UTC, so we use the actual current time
+  return new Date().toISOString();
 }
 
 /**

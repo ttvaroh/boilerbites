@@ -123,7 +123,7 @@ export default function DiaryPage() {
         .eq('user_id', user.id)
         .gte('created_at', start)
         .lte('created_at', end)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
       if (error) {
         console.error('Error fetching food entries:', error);
@@ -213,11 +213,9 @@ export default function DiaryPage() {
     { key: 'snack', title: 'Snacks', icon: 'ice-cream-outline', mealType: 4 },
   ];
 
-  // Get entries for a meal type with stable ordering
+  // Get entries for a meal type - already sorted by created_at from database
   const getEntriesForMeal = (mealType: number) => {
-    return foodEntries
-      .filter(entry => entry.meal_name === mealType)
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    return foodEntries.filter(entry => entry.meal_name === mealType);
   };
 
   // Calculate totals for entries

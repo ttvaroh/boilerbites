@@ -115,11 +115,23 @@ export default function NutritionPage() {
     });
   };
   
-  // Convert selectedDate to ISO string for food entry (at noon to avoid timezone issues)
+  // Convert selectedDate to ISO string for food entry
+  // Use current time to ensure unique timestamps for proper ordering
   const entryDate = React.useMemo(() => {
-    const dateForEntry = new Date(selectedDate);
-    dateForEntry.setHours(12, 0, 0, 0);
-    return dateForEntry.toISOString();
+    // If the selected date is today, use current time
+    // Otherwise, use the selected date at the current time of day
+    const now = new Date();
+    const isToday = selectedDate.toDateString() === now.toDateString();
+    
+    if (isToday) {
+      // Use current time for today's entries
+      return now.toISOString();
+    } else {
+      // For past/future dates, preserve the date but use current time
+      const dateForEntry = new Date(selectedDate);
+      dateForEntry.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+      return dateForEntry.toISOString();
+    }
   }, [selectedDate]);
 
   // Check if item is already favorited
