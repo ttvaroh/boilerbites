@@ -34,8 +34,8 @@ interface ItemSearchProps {
   initialFilters?: SearchFilters;
   hideLocationMealFilters?: boolean;
   disableFilters?: boolean;
-  selectedDatabase?: 'fdc' | 'off' | 'fatsecret';
-  onDatabaseChange?: (database: 'fdc' | 'off' | 'fatsecret') => void;
+  selectedDatabase?: 'fatsecret';
+  onDatabaseChange?: (database: 'fatsecret') => void;
   rateLimitInfo?: RateLimitInfo;
   requireSearchButton?: boolean;
   placeholder?: string;
@@ -48,7 +48,7 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
   initialFilters,
   hideLocationMealFilters = false,
   disableFilters = false,
-  selectedDatabase = 'fdc',
+  selectedDatabase = 'fatsecret',
   onDatabaseChange,
   rateLimitInfo,
   requireSearchButton = false,

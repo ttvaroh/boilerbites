@@ -19,13 +19,6 @@ async function proxySearchRequest(
     throw new Error("ORACLE_PROXY_URL not configured. Set it as a Supabase secret.");
   }
 
-  console.log("[FatSecretProxy] Calling Oracle proxy:", {
-    url: ORACLE_PROXY_URL,
-    query: searchQuery,
-    limit,
-    offset,
-  });
-
   const response = await fetch(`${ORACLE_PROXY_URL}/search`, {
     method: "POST",
     headers: {

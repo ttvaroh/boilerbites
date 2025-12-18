@@ -2,22 +2,22 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    Alert,
-    Animated,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  Animated,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 import BackgroundTemplate from "../../components/BackgroundTemplate";
 import CustomMealBuilder from "../../components/CustomMealBuilder";
 import {
-    addItemToCustomMeal,
-    deleteCustomMeal,
-    getCustomMealItems,
-    MealItem,
-    removeItemFromCustomMeal,
-    updateMealItemQuantity,
+  addItemToCustomMeal,
+  deleteCustomMeal,
+  getCustomMealItems,
+  MealItem,
+  removeItemFromCustomMeal,
+  updateMealItemQuantity,
 } from "../../lib/api";
 import { supabase } from "../../lib/supabase";
 
@@ -203,7 +203,7 @@ export default function EditMealPage() {
                   p_is_collection: false,
                   p_is_available: true,
                   p_user_id: null,
-                  p_source: 2,
+                  p_source: 1, // FatSecret
                 });
               }
             } catch (error) {

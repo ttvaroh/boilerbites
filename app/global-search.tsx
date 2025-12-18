@@ -336,7 +336,7 @@ export default function GlobalSearchPage() {
             p_is_collection: false,
             p_is_available: true,
             p_user_id: null,
-            p_source: 2,
+            p_source: 1, // FatSecret
           });
         }
       } catch (error) {

@@ -126,7 +126,7 @@ export default function CreateMealPage() {
                 p_is_collection: false,
                 p_is_available: true,
                 p_user_id: null,
-                p_source: 2, // FatSecret
+                p_source: 1, // FatSecret
               });
             }
           } catch (error) {
