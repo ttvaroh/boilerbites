@@ -1,13 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  FlatList,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { supabase } from "../lib/supabase";
 import { fatSecretSearchService } from "../services/searchService";
@@ -387,9 +387,16 @@ export default function CustomMealBuilder({
 
       {!isSearching && searchResults.length > 0 && (
         <View className="mb-4">
-          <Text className="text-white text-sm font-sora-bold mb-2">
-            Search Results ({searchResults.length})
-          </Text>
+          <View className="flex-row items-center mb-2">
+            <Text className="text-white text-sm font-sora-bold">
+              Search Results ({searchResults.length})
+            </Text>
+            {searchMode === "fatsecret" && (
+              <Text className="text-gray-500 text-xs font-sora ml-2">
+                - Data provided by FatSecret
+              </Text>
+            )}
+          </View>
           <FlatList
             data={searchResults}
             keyExtractor={(item) => item.id}

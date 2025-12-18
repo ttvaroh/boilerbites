@@ -45,9 +45,10 @@ export default function NutritionPage() {
   const router = useRouter();
   const { user, toggleFavorite, addFoodEntry } = useAuth();
   
-  // Check if this is an FDC or OFF item
+  // Check if this is an FDC, OFF, or FatSecret item
   const isFDCItem = source === 'fdc' || itemId?.startsWith('fdc_');
   const isOFFItem = source === 'off' || itemId?.startsWith('off_');
+  const isFatSecretItem = source === 'fatsecret' || itemId?.startsWith('fatsecret_');
   const [servingCount, setServingCount] = useState("1");
   const [selectedMeal, setSelectedMeal] = useState(0); // 0 = uncategorized, 1 = breakfast, 2 = lunch, 3 = dinner, 4 = snack
   const [item, setItem] = useState<MenuItem | null>(null);
@@ -784,8 +785,14 @@ export default function NutritionPage() {
               </TouchableOpacity>
             </View>
             {(item.serving_size || (item.is_collection && item.user_id !== null)) && (
-              <Text className="text-gray-300 text-sm font-sora mb-4">
+              <Text className="text-gray-300 text-sm font-sora mb-2">
                 Serving Size: {item.serving_size || "1 meal"}
+              </Text>
+            )}
+            {/* FatSecret Attribution */}
+            {isFatSecretItem && (
+              <Text className="text-gray-500 text-xs font-sora mb-4">
+                Nutrition data provided by FatSecret
               </Text>
             )}
 

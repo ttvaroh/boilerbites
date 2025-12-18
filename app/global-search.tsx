@@ -421,6 +421,9 @@ export default function GlobalSearchPage() {
             {searchResults.length} of {totalCount} items
             {hasMore && " • Scroll for more"}
           </Text>
+          <Text className="text-gray-500 text-xs font-sora mt-2">
+            Nutrition data provided by FatSecret
+          </Text>
         </View>
       );
     }
@@ -489,13 +492,21 @@ export default function GlobalSearchPage() {
             onSearchQueryChange={setSearchQuery}
             hideLocationMealFilters={true}
             disableFilters={true}
+            placeholder="Search for anything..."
           />
 
           {/* Results Header */}
           <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-white text-base font-sora">
-              {isSearching ? "Searching..." : hasSearched ? `${totalCount} results` : "Available"}
-            </Text>
+            <View className="flex-row items-center">
+              <Text className="text-white text-base font-sora">
+                {isSearching ? "Searching..." : hasSearched ? `${totalCount} results` : "Available"}
+              </Text>
+              {hasSearched && totalCount > 0 && (
+                <Text className="text-gray-500 text-xs font-sora ml-2">
+                  - Data provided by FatSecret
+                </Text>
+              )}
+            </View>
           </View>
 
           {/* Results with FlatList */}

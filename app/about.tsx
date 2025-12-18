@@ -89,19 +89,37 @@ export default function AboutScreen() {
               <View className="mb-4">
                 <View className="flex-row items-center mb-3">
                   <Ionicons name="sparkles" size={20} color="#CFB991" />
-                  <Text className="text-purdueGold text-sm font-sora-semibold ml-2">Latest Updates</Text>
+                  <Text className="text-purdueGold text-sm font-sora-semibold ml-2">Version 1.6.0 - Latest Updates</Text>
                 </View>
                 <View className="ml-7">
                   <View className="flex-row items-start">
                     <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
                     <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      New dining locations added: Quick Bites and On-the-GO!
+                      Swipe to delete food entries directly from your diary
                     </Text>
                   </View>
                   <View className="flex-row items-start">
                     <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
                     <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      Optimized home screen loading for faster performance
+                      Search for foods globally with FatSecret API integration
+                    </Text>
+                  </View>
+                  <View className="flex-row items-start">
+                    <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
+                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
+                      Create custom meals by combining foods from Purdue, FatSecret, or collections
+                    </Text>
+                  </View>
+                  <View className="flex-row items-start">
+                    <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
+                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
+                      Sign in with Microsoft Azure AD authentication
+                    </Text>
+                  </View>
+                  <View className="flex-row items-start">
+                    <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
+                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
+                      Fixed timestamp and entry ordering issues in diary
                     </Text>
                   </View>
                 </View>
@@ -154,7 +172,7 @@ export default function AboutScreen() {
             <View className="bg-gray-800/60 backdrop-blur-xl rounded-2xl p-4 border border-gray-700/50">
               <View className="flex-row items-center justify-between">
                 <Text className="text-gray-300 text-base font-sora">App Version</Text>
-                <Text className="text-purdueGold text-base font-sora-semibold">1.0.0</Text>
+                <Text className="text-purdueGold text-base font-sora-semibold">1.6.0</Text>
               </View>
               <View className="flex-row items-center justify-between mt-3">
                 <Text className="text-gray-300 text-base font-sora">Build</Text>

@@ -429,22 +429,6 @@ Before deploying to production:
 
 ---
 
-## 📚 Documentation
-
-### Setup Guides
-
-- **[Oracle Cloud Setup](./ORACLE_CLOUD_SETUP.md)**: Complete guide for setting up the FatSecret proxy server
-- **[Oracle Proxy Next Steps](./ORACLE_PROXY_NEXT_STEPS.md)**: Post-setup configuration and testing
-- **[Azure Auth Setup](./AZURE_AUTH_SETUP.md)**: Complete Azure AD OAuth configuration for Purdue.edu
-- **[Proxy Server Guide](./PROXY_SERVER_GUIDE.md)**: General proxy server documentation
-- **[Free Proxy Options](./FREE_PROXY_OPTIONS.md)**: Alternative proxy hosting options
-
-### Architecture Documents
-
-- **[Security Migration Summary](./SECURITY_MIGRATION_SUMMARY.md)**: Security improvements and migrations
-- **[Supabase IP Solution](./SUPABASE_IP_SOLUTION.md)**: IP whitelisting solutions
-
----
 
 ## 🤝 Contributing
 

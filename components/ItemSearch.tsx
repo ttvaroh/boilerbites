@@ -155,7 +155,7 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
     <>
         {/* Search Bar */}
         <View className="mb-4">
-          <View className="flex-row items-center bg-gray-800 rounded-xl px-4 py-3">
+          <View className="flex-row items-center bg-gray-800 rounded-xl px-4 py-3" style={{ minHeight: 48, maxHeight: 48 }}>
             <Ionicons name="search" size={20} color="#9CA3AF" />
             <TextInput
               className="flex-1 text-white text-base font-sora ml-3"
@@ -167,7 +167,7 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
               autoCapitalize="none"
               editable={true}
               multiline={false}
-              style={{ paddingVertical: 0, maxHeight: 24 }}
+              style={{ paddingVertical: 0, height: 24 }}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity
