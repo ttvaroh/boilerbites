@@ -43,6 +43,7 @@ yarn-error.*
 # Supabase
 supabase/.temp/
 .supabase-setup/
+lib/supabase-setup/*.sql
 
 # iOS and Android build folders
 ios/
