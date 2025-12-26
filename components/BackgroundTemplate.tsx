@@ -7,7 +7,7 @@ interface BackgroundTemplateProps {
   paddingBottom?: number;
 }
 
-const BackgroundTemplate = ({ children, paddingBottom = 80 }: BackgroundTemplateProps) => {
+const BackgroundTemplate = ({ children, paddingBottom = 0 }: BackgroundTemplateProps) => {
   return (
     <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
       <LinearGradient
