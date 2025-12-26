@@ -1,18 +1,20 @@
-// Supabase Edge Function to proxy FatSecret API calls via Oracle Cloud proxy
-// This keeps API credentials secure on the Oracle Cloud server
+/**
+ * Supabase Edge Function that proxies FatSecret API calls through an Oracle Cloud proxy server.
+ * This architecture keeps API credentials secure on the Oracle Cloud server while allowing
+ * the client to make authenticated requests through Supabase.
+ */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 /**
- * Proxy a search request to Oracle Cloud proxy server
- * The Oracle proxy handles FatSecret authentication and API calls
+ * Proxies a search request to the Oracle Cloud proxy server.
+ * The Oracle proxy handles FatSecret authentication and API calls.
  */
 async function proxySearchRequest(
   searchQuery: string,
   limit: number,
   offset: number
 ): Promise<Response> {
-  // Get Oracle proxy URL from environment variable (set as Supabase secret)
   const ORACLE_PROXY_URL = Deno.env.get("ORACLE_PROXY_URL");
   
   if (!ORACLE_PROXY_URL) {
@@ -45,7 +47,49 @@ async function proxySearchRequest(
     );
   }
 
-  // Oracle proxy returns the FatSecret API response directly
+  const data = await response.json();
+  return new Response(JSON.stringify(data), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/**
+ * Proxies a barcode lookup request to the Oracle Cloud proxy server.
+ * The Oracle proxy handles FatSecret authentication and barcode API calls.
+ */
+async function proxyBarcodeRequest(barcode: string): Promise<Response> {
+  const ORACLE_PROXY_URL = Deno.env.get("ORACLE_PROXY_URL");
+  
+  if (!ORACLE_PROXY_URL) {
+    throw new Error("ORACLE_PROXY_URL not configured. Set it as a Supabase secret.");
+  }
+
+  const response = await fetch(`${ORACLE_PROXY_URL}/barcode`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      barcode: barcode,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => response.statusText);
+    console.error("[FatSecretProxy] Oracle proxy barcode error", response.status, errorText);
+    return new Response(
+      JSON.stringify({
+        error: `Oracle proxy error: ${response.status} ${errorText}`,
+        not_found: false,
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
   const data = await response.json();
   return new Response(JSON.stringify(data), {
     status: 200,
@@ -54,7 +98,6 @@ async function proxySearchRequest(
 }
 
 serve(async (req: Request) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
@@ -66,7 +109,6 @@ serve(async (req: Request) => {
     });
   }
 
-  // Only allow POST requests
   if (req.method !== "POST") {
     return new Response(
       JSON.stringify({ error: "Method not allowed. Use POST." }),
@@ -78,7 +120,6 @@ serve(async (req: Request) => {
   }
 
   try {
-    // Verify user is authenticated (optional but recommended)
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       return new Response(
@@ -90,8 +131,20 @@ serve(async (req: Request) => {
       );
     }
 
-    // Parse request body
     const body = await req.json();
+    
+    if (body.barcode && typeof body.barcode === "string") {
+      const response = await proxyBarcodeRequest(body.barcode.trim());
+      const responseData = await response.json();
+      return new Response(JSON.stringify(responseData), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    }
+    
     const { query, limit = 20, offset = 0 } = body;
 
     if (!query || typeof query !== "string" || !query.trim()) {
@@ -104,10 +157,7 @@ serve(async (req: Request) => {
       );
     }
 
-    // Proxy the request to Oracle Cloud proxy (which handles FatSecret authentication)
     const response = await proxySearchRequest(query.trim(), limit, offset);
-
-    // Add CORS headers
     const responseData = await response.json();
     return new Response(JSON.stringify(responseData), {
       status: response.status,

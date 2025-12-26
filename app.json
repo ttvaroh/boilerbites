@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.ttvaroh.BoilerBites",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "We need camera access to scan barcodes for food products"
       }
     },
     "android": {
@@ -21,7 +22,10 @@
         "backgroundColor": "#010101"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.ttvaroh.BoilerBites"
+      "package": "com.ttvaroh.BoilerBites",
+      "permissions": [
+        "CAMERA"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -39,7 +43,13 @@
           "backgroundColor": "#ffffff"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow BoilerBites to access your camera to scan barcodes for food products."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

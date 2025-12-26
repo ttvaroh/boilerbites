@@ -283,6 +283,12 @@ export interface FatSecretSearchResult {
   error: any | null;
 }
 
+export interface FatSecretBarcodeResult {
+  data: any | null; // MenuItem format (single item)
+  error: any | null;
+  notFound: boolean; // true if error code 211
+}
+
 // FatSecret API Interfaces and Service
 interface FatSecretServing {
   serving_id: string;
@@ -355,6 +361,32 @@ class FatSecretSearchService {
     this.proxyUrl = `${supabaseUrl}/functions/v1/fatsecret-proxy`;
   }
 
+  /**
+   * Normalizes barcode to GTIN-13 format (13 digits, zero-padded).
+   * Handles UPC-A (12 digits), EAN-13 (13 digits), and EAN-8 (8 digits).
+   */
+  private normalizeBarcodeToGTIN13(barcode: string): string {
+    // Remove all non-digit characters
+    const cleaned = barcode.trim().replace(/\D/g, '');
+    
+    if (cleaned.length === 12) {
+      // UPC-A: pad with leading zero
+      return '0' + cleaned;
+    } else if (cleaned.length === 13) {
+      // EAN-13: use as-is
+      return cleaned;
+    } else if (cleaned.length === 8) {
+      // EAN-8: pad with leading zeros
+      return cleaned.padStart(13, '0');
+    } else if (cleaned.length < 13) {
+      // Pad shorter codes
+      return cleaned.padStart(13, '0');
+    } else {
+      // Already 13+ digits, take first 13
+      return cleaned.substring(0, 13);
+    }
+  }
+
   async searchFoods(
     filters: FatSecretSearchFilters = {},
     options: FatSecretSearchOptions = {}
@@ -405,7 +437,6 @@ class FatSecretSearchService {
         };
       }
 
-      // Parse the FatSecret response (same format as before)
       const json = data as FatSecretFoodsSearchResponse;
       const foods = this.extractFoods(json);
       const mappedItems = foods.map(food => this.mapFoodToMenuItem(food));
@@ -536,6 +567,85 @@ class FatSecretSearchService {
       ingredients: null,
       is_collection: false,
     };
+  }
+
+  /**
+   * Looks up a food item by barcode using the FatSecret Barcode API V2.
+   * Returns full food details in a single API call.
+   */
+  async lookupFoodByBarcode(barcode: string): Promise<FatSecretBarcodeResult> {
+    try {
+      // Normalize barcode to GTIN-13 format
+      const normalizedBarcode = this.normalizeBarcodeToGTIN13(barcode);
+      
+      // Validate format (should be 13 digits after normalization)
+      if (!/^\d{13}$/.test(normalizedBarcode)) {
+        return {
+          data: null,
+          error: new Error(`Invalid barcode format. Expected numeric barcode, got: ${barcode}`),
+          notFound: false,
+        };
+      }
+
+      // Call Supabase Edge Function barcode endpoint
+      const { data, error } = await supabase.functions.invoke('fatsecret-proxy', {
+        body: {
+          barcode: normalizedBarcode,
+        },
+      });
+
+      if (error) {
+        console.error("[FatSecretBarcode] Proxy error", error);
+        return {
+          data: null,
+          error: new Error(error.message || "FatSecret barcode proxy request failed"),
+          notFound: false,
+        };
+      }
+
+      if (!data) {
+        console.error("[FatSecretBarcode] No data returned from proxy");
+        return {
+          data: null,
+          error: new Error("No data returned from FatSecret barcode proxy"),
+          notFound: false,
+        };
+      }
+
+      // Handle error response from proxy
+      if (data.error) {
+        console.error("[FatSecretBarcode] FatSecret API error", data.error);
+        return {
+          data: null,
+          error: new Error(data.error),
+          notFound: false,
+        };
+      }
+
+      if (data.not_found || !data.food) {
+        return {
+          data: null,
+          error: null,
+          notFound: true,
+        };
+      }
+
+      const food = data.food as FatSecretFood;
+      const menuItem = this.mapFoodToMenuItem(food);
+
+      return {
+        data: menuItem,
+        error: null,
+        notFound: false,
+      };
+    } catch (err) {
+      console.error("FatSecret barcode lookup error:", err);
+      return {
+        data: null,
+        error: err,
+        notFound: false,
+      };
+    }
   }
 }
 

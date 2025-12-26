@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   Modal,
   ScrollView,
   Text,
@@ -8,7 +10,9 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { fatSecretSearchService } from "../services/searchService";
 import BackgroundTemplate from "./BackgroundTemplate";
+import BarcodeScanner from "./BarcodeScanner";
 
 interface SearchFilters {
   timeOfDay: string;
@@ -54,8 +58,12 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
   requireSearchButton = false,
   placeholder
 }) => {
+  const router = useRouter();
   const [internalSearchQuery, setInternalSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [isSearchingBarcode, setIsSearchingBarcode] = useState(false);
+  const isNavigatingRef = React.useRef(false);
   
   // Use external search query if provided, otherwise use internal state
   const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery;
@@ -159,7 +167,7 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
             <Ionicons name="search" size={20} color="#9CA3AF" />
             <TextInput
               className="flex-1 text-white text-base font-sora ml-3"
-              placeholder={placeholder || "Search for items (e.g. smash burger)"}
+              placeholder={placeholder || "Search for items from Purdue..."}
               placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -182,6 +190,12 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
                 <Ionicons name="close-circle" size={20} color="#9CA3AF" />
               </TouchableOpacity>
             )}
+            <TouchableOpacity
+              onPress={() => setShowBarcodeScanner(true)}
+              className="p-1 ml-2"
+            >
+              <Ionicons name="barcode-outline" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
             {requireSearchButton && (
               <TouchableOpacity
                 onPress={handleSearch}
@@ -345,6 +359,121 @@ const ItemSearchComponent: React.FC<ItemSearchProps> = ({
             </View>
           </BackgroundTemplate>
         </Modal>
+
+        {/* Barcode Scanner Modal */}
+        <BarcodeScanner
+          visible={showBarcodeScanner}
+          isSearching={isSearchingBarcode}
+          onClose={() => {
+            setShowBarcodeScanner(false);
+            setIsSearchingBarcode(false);
+            isNavigatingRef.current = false;
+          }}
+          onScan={async (barcode) => {
+            if (isSearchingBarcode || isNavigatingRef.current) return;
+            
+            setIsSearchingBarcode(true);
+            setShowBarcodeScanner(false);
+
+            try {
+              const result = await fatSecretSearchService.lookupFoodByBarcode(barcode);
+
+              if (result.error) {
+                Alert.alert(
+                  "Search Error",
+                  "Failed to search for product. Please try again.",
+                  [{ text: "OK" }]
+                );
+                setIsSearchingBarcode(false);
+                isNavigatingRef.current = false;
+                return;
+              }
+
+              if (result.notFound) {
+                Alert.alert(
+                  "Product Not Found",
+                  "This product was not found in our database. Please try scanning again or search manually.",
+                  [{ text: "OK" }]
+                );
+                setIsSearchingBarcode(false);
+                isNavigatingRef.current = false;
+                return;
+              }
+
+              if (result.data) {
+                if (isNavigatingRef.current) {
+                  setIsSearchingBarcode(false);
+                  return;
+                }
+                isNavigatingRef.current = true;
+
+                const item = result.data;
+                try {
+                  const { supabase } = await import("../lib/supabase");
+                  const { data: existingItem } = await supabase
+                    .from("item")
+                    .select("id")
+                    .eq("id", item.id)
+                    .maybeSingle();
+
+                  if (!existingItem) {
+                    // Create item in database
+                    const protein_per_100cals = item.calories && item.calories > 0 && item.protein_g
+                      ? (item.protein_g / item.calories) * 100
+                      : null;
+
+                    await supabase.rpc("create_item", {
+                      p_id: item.id,
+                      p_name: item.name,
+                      p_vegetarian: item.vegetarian ?? null,
+                      p_vegan: item.vegan ?? null,
+                      p_gluten: item.gluten ?? null,
+                      p_allergens: item.allergens ?? [],
+                      p_serving_size: item.serving_size ?? null,
+                      p_calories: item.calories ?? null,
+                      p_protein_g: item.protein_g ?? null,
+                      p_carbs_g: item.carbs_g ?? null,
+                      p_fat_g: item.fat_g ?? null,
+                      p_fiber_g: item.fiber_g ?? null,
+                      p_sugar_g: item.sugar_g ?? null,
+                      p_sodium_mg: item.sodium_mg ?? null,
+                      p_protein_per_100cals: protein_per_100cals,
+                      p_ingredients: item.ingredients ?? null,
+                      p_is_collection: false,
+                      p_is_available: true,
+                      p_user_id: null,
+                      p_source: 1, // FatSecret
+                    });
+                  }
+                } catch (error) {
+                  console.error("Error ensuring FatSecret item exists in database:", error);
+                }
+
+                router.push(`/nutrition/${item.id}?source=fatsecret`);
+                setTimeout(() => {
+                  isNavigatingRef.current = false;
+                }, 1000);
+              } else {
+                Alert.alert(
+                  "Product Not Found",
+                  "This product was not found in our database. Please try scanning again or search manually.",
+                  [{ text: "OK" }]
+                );
+                isNavigatingRef.current = false;
+              }
+            } catch (error) {
+              console.error("Barcode search error:", error);
+              Alert.alert(
+                "Error",
+                "An error occurred while searching for the product. Please try again.",
+                [{ text: "OK" }]
+              );
+              isNavigatingRef.current = false;
+            } finally {
+              setIsSearchingBarcode(false);
+            }
+          }}
+        />
         </>
   );
 };

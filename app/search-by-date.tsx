@@ -610,6 +610,7 @@ export function SearchByDateComponent({
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
             initialFilters={currentFilters}
+            placeholder="Search for items from Purdue..."
           />
 
           {/* Results Header */}

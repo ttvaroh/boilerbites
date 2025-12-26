@@ -301,8 +301,6 @@ export default function GlobalSearchPage() {
       return;
     }
 
-    // Custom meals and regular items go to nutrition page
-    // Navigate to nutrition page with FatSecret source
     if (item.id.startsWith('fatsecret_')) {
       try {
         const { data: existingItem } = await supabase
@@ -336,7 +334,7 @@ export default function GlobalSearchPage() {
             p_is_collection: false,
             p_is_available: true,
             p_user_id: null,
-            p_source: 1, // FatSecret
+            p_source: 1,
           });
         }
       } catch (error) {
@@ -345,12 +343,10 @@ export default function GlobalSearchPage() {
 
       router.push(`/nutrition/${item.id}?source=fatsecret`);
     } else {
-      // Purdue item
       router.push(`/nutrition/${item.id}`);
     }
   }, [router, collectionStatus, customMealStatus]);
 
-  // Check collection status when search results change
   React.useEffect(() => {
     const itemIds = searchResults.map(item => item.id);
     if (itemIds.length > 0) {
@@ -358,7 +354,6 @@ export default function GlobalSearchPage() {
     }
   }, [searchResults, checkCollectionStatusBatch]);
 
-  // Render item for FlatList - optimized with React.memo
   const renderItem = React.useCallback(({ item, index }: { item: MenuItem; index: number }) => {
     return (
       <SearchItemWrapper
@@ -371,7 +366,6 @@ export default function GlobalSearchPage() {
     );
   }, [handleMenuItemPress, collectionStatus, customMealStatus]);
 
-  // Empty state component
   const ListEmptyComponent = React.useCallback(() => {
     if (isSearching) {
       return (
@@ -394,14 +388,12 @@ export default function GlobalSearchPage() {
     );
   }, [isSearching, hasSearched]);
 
-  // Load more results when scrolling to bottom
   const loadMoreResults = React.useCallback(() => {
     if (!isLoadingMore && hasMore && !isSearching && debouncedQuery.trim()) {
       performSearch(debouncedQuery, true);
     }
   }, [isLoadingMore, hasMore, isSearching, debouncedQuery, performSearch]);
 
-  // Footer component
   const ListFooterComponent = React.useCallback(() => {
     if (isLoadingMore) {
       return (
@@ -430,7 +422,6 @@ export default function GlobalSearchPage() {
     return null;
   }, [searchResults.length, totalCount, isSearching, isLoadingMore, hasMore]);
 
-  // Show login prompt if user is not authenticated
   if (!user) {
     return (
       <ErrorBoundary>
@@ -528,7 +519,6 @@ export default function GlobalSearchPage() {
               }
               onEndReached={loadMoreResults}
               onEndReachedThreshold={0.5}
-              // Performance optimizations
               removeClippedSubviews={true}
               initialNumToRender={8}
               maxToRenderPerBatch={5}

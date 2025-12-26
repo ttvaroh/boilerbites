@@ -95,6 +95,12 @@ export default function AboutScreen() {
                   <View className="flex-row items-start">
                     <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
                     <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
+                      Scan product barcodes to quickly find nutrition information
+                    </Text>
+                  </View>
+                  <View className="flex-row items-start">
+                    <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
+                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
                       Swipe to delete food entries directly from your diary
                     </Text>
                   </View>

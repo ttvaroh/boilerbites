@@ -26,6 +26,8 @@ let ongoingTokenRequest = null;
 async function getAccessToken() {
   const clientId = process.env.FATSECRET_CLIENT_ID;
   const clientSecret = process.env.FATSECRET_CLIENT_SECRET;
+  // Note: 'premier' scope should include barcode access
+  // If barcode API calls fail with authorization errors, try updating to 'premier barcode'
   const scope = process.env.FATSECRET_SCOPE || 'premier';
 
   if (!clientId || !clientSecret) {
@@ -135,6 +137,69 @@ async function proxySearchRequest(token, searchQuery, limit, offset) {
   return await response.json();
 }
 
+/**
+ * Lookup food by barcode using FatSecret barcode API V2
+ * Barcode must be GTIN-13 format (13 digits)
+ * V2 returns full food details in a single call
+ */
+async function proxyBarcodeLookup(token, barcode) {
+  // Normalize barcode to GTIN-13 (13 digits, pad with zeros if needed)
+  const normalizedBarcode = barcode.trim().padStart(13, '0');
+  
+  // Validate it's all digits and 13 characters
+  if (!/^\d{13}$/.test(normalizedBarcode)) {
+    throw new Error(`Invalid barcode format. Expected 13 digits, got: ${barcode}`);
+  }
+
+  // Use REST API endpoint for barcode lookup V2
+  const barcodeUrl = `https://platform.fatsecret.com/rest/food/barcode/find-by-id/v2?barcode=${normalizedBarcode}&format=json&include_food_attributes=true&flag_default_serving=true`;
+
+  console.log('[Proxy] Looking up barcode (V2):', normalizedBarcode);
+
+  const response = await fetch(barcodeUrl, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => response.statusText);
+    console.error('[Proxy] Barcode lookup API error', response.status, errorText);
+    
+    // If 404, product not found (legitimate)
+    if (response.status === 404) {
+      return { food: null, not_found: true };
+    }
+    
+    throw new Error(`FatSecret barcode API error: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  console.log('[Proxy] Barcode lookup response (V2):', JSON.stringify(data, null, 2));
+  
+  // V2 response format: { "food": {...} } or { "error": { "code": 211, "message": "..." } }
+  // Check for error code 211 (No food item detected)
+  if (data.error) {
+    if (data.error.code === 211) {
+      return { food: null, not_found: true, error_code: 211 };
+    }
+    throw new Error(`FatSecret barcode API error: ${data.error.code} - ${data.error.message}`);
+  }
+  
+  // Extract food object
+  const food = data.food || null;
+  
+  if (!food) {
+    return { food: null, not_found: true };
+  }
+  
+  return { food: food };
+}
+
+// Note: proxyGetFoodById is no longer needed for barcode lookup
+// V2 barcode API returns full food details directly
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -158,6 +223,45 @@ app.post('/search', async (req, res) => {
     res.json(data);
   } catch (error) {
     console.error('[Proxy] Error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Internal server error',
+    });
+  }
+});
+
+// Barcode lookup endpoint (V2)
+app.post('/barcode', async (req, res) => {
+  try {
+    const { barcode } = req.body;
+
+    if (!barcode || typeof barcode !== 'string' || !barcode.trim()) {
+      return res.status(400).json({ error: 'Missing or invalid barcode parameter' });
+    }
+
+    // Get access token
+    const token = await getAccessToken();
+
+    // Lookup food by barcode (V2 returns full food details)
+    const barcodeResult = await proxyBarcodeLookup(token, barcode.trim());
+
+    // If not found, return early
+    if (barcodeResult.not_found || !barcodeResult.food) {
+      return res.json({ 
+        food: null, 
+        not_found: true,
+        error_code: barcodeResult.error_code || null,
+        barcode: barcode.trim()
+      });
+    }
+
+    // V2 returns full food object directly
+    res.json({
+      food: barcodeResult.food,
+      not_found: false,
+      barcode: barcode.trim()
+    });
+  } catch (error) {
+    console.error('[Proxy] Barcode lookup error:', error);
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Internal server error',
     });

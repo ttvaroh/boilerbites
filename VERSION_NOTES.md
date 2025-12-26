@@ -4,10 +4,14 @@ This document tracks all changes and improvements made to BoilerBites since the 
 
 ---
 
-## Version 1.6.0 - December 18, 2025
+## Version 1.6.0 - December 26, 2025
 
 ### Features
 - **Swipe to Delete**: Added swipe-to-delete functionality for food entries in the diary
+- **Barcode Scanning**: Added barcode scanner to quickly find products using FatSecret's barcode database
+  - Scan product barcodes directly from the search bar
+  - Automatically navigates to nutrition information when a product is found
+  - Supports multiple barcode formats (UPC-A, EAN-13, EAN-8, Code 128, Code 39, QR codes)
 - **Custom Meals**: Enhanced custom meal creation and editing features
   - Users can create custom meals by combining foods from Purdue, FatSecret, or collections
   - Meals are stored in the database and fully editable
@@ -170,7 +174,7 @@ This document tracks all changes and improvements made to BoilerBites since the 
 
 | Version | Release Date | Key Features |
 |---------|--------------|--------------|
-| 1.6.0 | Dec 18, 2025 | FatSecret API, Azure AD auth, Oracle proxy, custom meals, swipe to delete |
+| 1.6.0 | Dec 18, 2025 | FatSecret API, Azure AD auth, Oracle proxy, custom meals, swipe to delete, barcode scanning |
 | 1.5.0 | Nov 25, 2025 | Open Food Facts, FDC search, global food search |
 | 1.4.0 | Nov 6, 2025 | Date-based navigation, custom food enhancements |
 | 1.3.0 | Oct 26, 2025 | About screen updates, performance optimizations |
