@@ -332,7 +332,7 @@ export default function DiaryPage() {
   // Show login prompt if user is not authenticated
   if (!user) {
     return (
-      <BackgroundTemplate>
+      <BackgroundTemplate paddingBottom={80}>
         <View className="flex-1 justify-center items-center p-6">
           <View className="bg-gray-800 rounded-2xl p-8 items-center max-w-sm">
             <Ionicons name="lock-closed-outline" size={64} color="#CFB991" />

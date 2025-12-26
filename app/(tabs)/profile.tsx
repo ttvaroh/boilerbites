@@ -56,7 +56,7 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <BackgroundTemplate>
+      <BackgroundTemplate paddingBottom={80}>
         <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color="#CFB991" />
           <Text className="text-white text-base font-sora mt-4">Loading...</Text>
@@ -67,14 +67,14 @@ export default function ProfileScreen() {
 
   if (!user) {
     return (
-      <BackgroundTemplate>
+      <BackgroundTemplate paddingBottom={80}>
         <OnboardingComponent />
       </BackgroundTemplate>
     );
   }
 
   return (
-    <BackgroundTemplate>
+    <BackgroundTemplate paddingBottom={80}>
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         <View className="px-6 pt-16 pb-8">
           {/* Header with User Info */}

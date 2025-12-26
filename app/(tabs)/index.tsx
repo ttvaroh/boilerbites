@@ -97,7 +97,7 @@ export default function HomePage() {
   // ============================================================================
 
   return (
-    <BackgroundTemplate>
+    <BackgroundTemplate paddingBottom={80}>
       <View className="flex-1">
         {/* Header Section */}
         <View className="bg-transparent pt-14 pb-3 px-6">
