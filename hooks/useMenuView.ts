@@ -66,8 +66,8 @@ function viewStateReducer(state: ViewState, action: ViewAction): ViewState {
 
 function getDateRange() {
   return {
-    minDate: getDateStringFromToday(-6),
-    maxDate: getDateStringFromToday(6)
+    minDate: getDateStringFromToday(-7),
+    maxDate: getDateStringFromToday(7)
   };
 }
 

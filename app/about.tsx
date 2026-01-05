@@ -166,7 +166,7 @@ export default function AboutScreen() {
               <View className="space-y-3">
                 <View className="flex-row items-center">
                   <Ionicons name="mail" size={20} color="#CFB991" />
-                  <Text className="text-gray-300 text-sm font-sora ml-3">ttvaroh@purdue.edu</Text>
+                  <Text className="text-gray-300 text-sm font-sora ml-3">support@boilerbites.app</Text>
                 </View>
               </View>
             </View>

@@ -365,7 +365,7 @@ export default function DiaryPage() {
   }
 
   return (
-    <BackgroundTemplate>
+    <BackgroundTemplate paddingBottom={80}>
       <ScrollView 
         className="flex-1"
         refreshControl={

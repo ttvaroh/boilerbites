@@ -5,6 +5,7 @@ import {
   useEffect,
   useState
 } from "react";
+import { isJWTExpiredError } from "./authUtils";
 import { mapMealNameToType } from "./mealConfig";
 import { supabase } from "./supabase";
 import { getTodayDateString } from "./timezone-utils";
@@ -528,9 +529,26 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
       const today = getTodayDateString();
 
       // Fetch all locations
-      const { data: locationsData, error: locationsError } = await supabase
+      let { data: locationsData, error: locationsError } = await supabase
         .from("location")
         .select("name, type");
+
+      // If JWT expired, try to refresh and retry once
+      if (locationsError && isJWTExpiredError(locationsError)) {
+        try {
+          const { error: refreshError } = await supabase.auth.refreshSession();
+          if (!refreshError) {
+            // Retry the query after refresh
+            const retryResult = await supabase
+              .from("location")
+              .select("name, type");
+            locationsData = retryResult.data;
+            locationsError = retryResult.error;
+          }
+        } catch (refreshErr) {
+          console.warn('Error refreshing session:', refreshErr);
+        }
+      }
 
       if (locationsError) {
         throw new Error(`Failed to fetch locations: ${locationsError.message}`);

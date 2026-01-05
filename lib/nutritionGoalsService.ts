@@ -1,3 +1,4 @@
+import { isJWTExpiredError } from './authUtils';
 import { supabase } from './supabase';
 
 export interface NutritionGoals {
@@ -29,11 +30,30 @@ const DEFAULT_GOALS = {
 
 // Fetch user's nutrition goals
 export const fetchNutritionGoals = async (userId: string): Promise<NutritionGoals | null> => {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('nutrition_preferences')
     .select('*')
     .eq('user_id', userId)
-    .single();
+    .maybeSingle();
+  
+  // If JWT expired, try to refresh and retry once
+  if (error && isJWTExpiredError(error)) {
+    try {
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (!refreshError) {
+        // Retry the query after refresh
+        const retryResult = await supabase
+          .from('nutrition_preferences')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+        data = retryResult.data;
+        error = retryResult.error;
+      }
+    } catch (refreshErr) {
+      console.warn('Error refreshing session:', refreshErr);
+    }
+  }
   
   if (error && error.code !== 'PGRST116') { // PGRST116 = no rows
     console.error('Error fetching goals:', error);
@@ -57,15 +77,33 @@ export const saveNutritionGoals = async (userId: string, goals: {
   shellfish_allergy?: boolean;
 }): Promise<NutritionGoals> => {
   // Try to update first
-  const { data: existing } = await supabase
+  let { data: existing, error: checkError } = await supabase
     .from('nutrition_preferences')
     .select('id')
     .eq('user_id', userId)
-    .single();
+    .maybeSingle();
+
+  // If JWT expired, try to refresh and retry once
+  if (checkError && isJWTExpiredError(checkError)) {
+    try {
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (!refreshError) {
+        const retryResult = await supabase
+          .from('nutrition_preferences')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle();
+        existing = retryResult.data;
+        checkError = retryResult.error;
+      }
+    } catch (refreshErr) {
+      console.warn('Error refreshing session:', refreshErr);
+    }
+  }
 
   if (existing) {
     // Update existing
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('nutrition_preferences')
       .update({
         calories: goals.calories,
@@ -84,14 +122,45 @@ export const saveNutritionGoals = async (userId: string, goals: {
       .select()
       .single();
     
+    // If JWT expired, try to refresh and retry once
+    if (error && isJWTExpiredError(error)) {
+      try {
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (!refreshError) {
+          const retryResult = await supabase
+            .from('nutrition_preferences')
+            .update({
+              calories: goals.calories,
+              protein: goals.protein,
+              carbs: goals.carbs,
+              fat: goals.fat,
+              dairy_allergy: goals.dairy_allergy,
+              gluten_allergy: goals.gluten_allergy,
+              nuts_allergy: goals.nuts_allergy,
+              soy_allergy: goals.soy_allergy,
+              eggs_allergy: goals.eggs_allergy,
+              shellfish_allergy: goals.shellfish_allergy,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('user_id', userId)
+            .select()
+            .single();
+          data = retryResult.data;
+          error = retryResult.error;
+        }
+      } catch (refreshErr) {
+        console.warn('Error refreshing session:', refreshErr);
+      }
+    }
+    
     if (error) throw error;
-    return data;
+    return data!;
   } else {
     // Insert new
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('nutrition_preferences')
       .insert({ 
-        user_id: userId, 
+        user_id: userId,
         calories: goals.calories,
         protein: goals.protein,
         carbs: goals.carbs,
@@ -106,8 +175,38 @@ export const saveNutritionGoals = async (userId: string, goals: {
       .select()
       .single();
     
+    // If JWT expired, try to refresh and retry once
+    if (error && isJWTExpiredError(error)) {
+      try {
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (!refreshError) {
+          const retryResult = await supabase
+            .from('nutrition_preferences')
+            .insert({ 
+              user_id: userId,
+              calories: goals.calories,
+              protein: goals.protein,
+              carbs: goals.carbs,
+              fat: goals.fat,
+              dairy_allergy: goals.dairy_allergy,
+              gluten_allergy: goals.gluten_allergy,
+              nuts_allergy: goals.nuts_allergy,
+              soy_allergy: goals.soy_allergy,
+              eggs_allergy: goals.eggs_allergy,
+              shellfish_allergy: goals.shellfish_allergy,
+            })
+            .select()
+            .single();
+          data = retryResult.data;
+          error = retryResult.error;
+        }
+      } catch (refreshErr) {
+        console.warn('Error refreshing session:', refreshErr);
+      }
+    }
+    
     if (error) throw error;
-    return data;
+    return data!;
   }
 };
 
@@ -123,8 +222,8 @@ export const upsertNutritionGoals = async (userId: string, goals: {
   soy_allergy?: boolean;
   eggs_allergy?: boolean;
   shellfish_allergy?: boolean;
-}): Promise<NutritionGoals> => {
-  const { data, error } = await supabase
+}): Promise<NutritionGoals | null> => {
+  let { data, error } = await supabase
     .from('nutrition_preferences')
     .upsert(
       { 
@@ -146,6 +245,40 @@ export const upsertNutritionGoals = async (userId: string, goals: {
     .select()
     .single();
   
+  // If JWT expired, try to refresh and retry once
+  if (error && isJWTExpiredError(error)) {
+    try {
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (!refreshError) {
+        const retryResult = await supabase
+          .from('nutrition_preferences')
+          .upsert(
+            { 
+              user_id: userId, 
+              calories: goals.calories,
+              protein: goals.protein,
+              carbs: goals.carbs,
+              fat: goals.fat,
+              dairy_allergy: goals.dairy_allergy,
+              gluten_allergy: goals.gluten_allergy,
+              nuts_allergy: goals.nuts_allergy,
+              soy_allergy: goals.soy_allergy,
+              eggs_allergy: goals.eggs_allergy,
+              shellfish_allergy: goals.shellfish_allergy,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id' }
+          )
+          .select()
+          .single();
+        data = retryResult.data;
+        error = retryResult.error;
+      }
+    } catch (refreshErr) {
+      console.warn('Error refreshing session:', refreshErr);
+    }
+  }
+  
   if (error) throw error;
   return data;
 };
@@ -162,8 +295,52 @@ export const getOrCreateNutritionGoals = async (userId: string): Promise<Nutriti
     
     // If no goals exist, create default ones
     console.log('No nutrition goals found, creating default goals for user:', userId);
-    return await upsertNutritionGoals(userId, DEFAULT_GOALS);
-  } catch (error) {
+    let result = await upsertNutritionGoals(userId, DEFAULT_GOALS);
+    
+    // If JWT expired during upsert, try to refresh and retry once
+    if (!result && typeof result !== 'object') {
+      // Check if there was an error (result would be null/undefined on error)
+      // Try refresh and retry
+      try {
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (!refreshError) {
+          result = await upsertNutritionGoals(userId, DEFAULT_GOALS);
+        }
+      } catch (refreshErr) {
+        console.warn('Error refreshing session during upsert:', refreshErr);
+      }
+    }
+    
+    if (result) {
+      return result;
+    }
+    
+    // Fallback to default goals if upsert failed
+    return {
+      user_id: userId,
+      ...DEFAULT_GOALS,
+    };
+  } catch (error: any) {
+    // If JWT expired, try to refresh and retry once
+    if (isJWTExpiredError(error)) {
+      try {
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (!refreshError) {
+          // Retry the entire operation
+          const existingGoals = await fetchNutritionGoals(userId);
+          if (existingGoals) {
+            return existingGoals;
+          }
+          const result = await upsertNutritionGoals(userId, DEFAULT_GOALS);
+          if (result) {
+            return result;
+          }
+        }
+      } catch (refreshErr) {
+        console.warn('Error refreshing session:', refreshErr);
+      }
+    }
+    
     console.error('Error getting or creating nutrition goals:', error);
     // Return default goals as fallback
     return {

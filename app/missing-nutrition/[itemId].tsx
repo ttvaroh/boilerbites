@@ -39,7 +39,7 @@ export default function MissingNutritionPage() {
           .from('item')
           .select('*')
           .eq('id', itemId)
-          .single();
+          .maybeSingle();
 
         if (error) {
           console.error('Error fetching item:', error);

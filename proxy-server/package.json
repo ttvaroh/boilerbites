@@ -9,7 +9,6 @@
   },
   "keywords": ["fatsecret", "proxy", "api"],
   "author": "",
-  "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",

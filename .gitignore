@@ -48,3 +48,6 @@ lib/supabase-setup/*.sql
 # iOS and Android build folders
 ios/
 android/
+
+# Documentation
+XCODE_TESTFLIGHT.md
