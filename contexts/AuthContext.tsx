@@ -1,6 +1,8 @@
+import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { getCurrentTimestampInESTTimezone } from '../lib/timezone-utils';
 
@@ -55,7 +57,9 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
   signInWithAzure: () => Promise<{ error: any }>;
+  signInWithApple: () => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<{ error: any }>;
   refreshSession: () => Promise<void>;
   addFoodEntry: (foodEntry: FoodEntry) => Promise<{ error: any }>;
   removeFoodEntry: (entryId: string) => Promise<{ error: any }>;
@@ -72,7 +76,9 @@ const AuthContext = createContext<AuthContextType>({
   signIn: async () => ({ error: null }),
   signUp: async () => ({ error: null }),
   signInWithAzure: async () => ({ error: null }),
+  signInWithApple: async () => ({ error: null }),
   signOut: async () => {},
+  deleteAccount: async () => ({ error: null }),
   refreshSession: async () => {},
   addFoodEntry: async () => ({ error: null }),
   removeFoodEntry: async () => ({ error: null }),
@@ -345,6 +351,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     } catch (error) {
       console.error('[AuthContext] Unexpected error in signInWithAzure:', error);
+      return { error: error as Error };
+    }
+  };
+
+  const signInWithApple = async () => {
+    // Native Sign in with Apple is only available on iOS
+    if (Platform.OS !== 'ios') {
+      return { error: new Error('Sign in with Apple is only available on iOS devices') };
+    }
+
+    try {
+      // Check if Apple Authentication is available
+      const isAvailable = await AppleAuthentication.isAvailableAsync();
+      if (!isAvailable) {
+        return { error: new Error('Sign in with Apple is not available on this device') };
+      }
+
+      // Request Apple authentication
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      // Verify we have an identity token
+      if (!credential.identityToken) {
+        return { error: new Error('No identity token received from Apple') };
+      }
+
+      // Sign in to Supabase using the identity token
+      const { error: signInError, data: { user: supabaseUser } } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+      });
+
+      if (signInError) {
+        console.error('[AuthContext] Supabase sign in error:', signInError);
+        return { error: signInError };
+      }
+
+      // Apple only provides the user's full name on the first sign-in
+      // Save it to user metadata if available
+      if (credential.fullName && supabaseUser) {
+        try {
+          const nameParts: string[] = [];
+          if (credential.fullName.givenName) nameParts.push(credential.fullName.givenName);
+          if (credential.fullName.middleName) nameParts.push(credential.fullName.middleName);
+          if (credential.fullName.familyName) nameParts.push(credential.fullName.familyName);
+          
+          if (nameParts.length > 0) {
+            const fullName = nameParts.join(' ');
+            await supabase.auth.updateUser({
+              data: {
+                full_name: fullName,
+                given_name: credential.fullName.givenName || null,
+                family_name: credential.fullName.familyName || null,
+              },
+            });
+          }
+        } catch (updateError) {
+          // Non-critical error - user is signed in, just name update failed
+          console.warn('[AuthContext] Failed to update user name:', updateError);
+        }
+      }
+
+      return { error: null };
+    } catch (error: any) {
+      // Handle user cancellation
+      if (error.code === 'ERR_REQUEST_CANCELED' || error.code === 'ERR_CANCELED') {
+        return { error: new Error('Apple sign in was cancelled') };
+      }
+      
+      console.error('[AuthContext] Unexpected error in signInWithApple:', error);
       return { error: error as Error };
     }
   };
@@ -622,6 +702,152 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { data, error };
   };
 
+  const deleteAccount = async () => {
+    if (!user) {
+      return { error: new Error('User not authenticated') };
+    }
+
+    const userId = user.id;
+
+    try {
+      // Delete all user data in the correct order to respect foreign key constraints
+      
+      // 1. Delete food entries
+      const { error: foodEntryError } = await supabase
+        .from('food_entry')
+        .delete()
+        .eq('user_id', userId);
+
+      if (foodEntryError) {
+        console.error('Error deleting food entries:', foodEntryError);
+        return { error: foodEntryError };
+      }
+
+      // 2. Delete favorite items
+      const { error: favoriteError } = await supabase
+        .from('favorite_item')
+        .delete()
+        .eq('user_id', userId);
+
+      if (favoriteError) {
+        console.error('Error deleting favorite items:', favoriteError);
+        return { error: favoriteError };
+      }
+
+      // 3. Delete user daily nutrition records
+      const { error: dailyNutritionError } = await supabase
+        .from('user_daily_nutrition')
+        .delete()
+        .eq('user_id', userId);
+
+      if (dailyNutritionError) {
+        console.error('Error deleting daily nutrition:', dailyNutritionError);
+        return { error: dailyNutritionError };
+      }
+
+      // 4. Delete nutrition preferences
+      const { error: nutritionPrefsError } = await supabase
+        .from('nutrition_preferences')
+        .delete()
+        .eq('user_id', userId);
+
+      if (nutritionPrefsError) {
+        console.error('Error deleting nutrition preferences:', nutritionPrefsError);
+        return { error: nutritionPrefsError };
+      }
+
+      // 5. Get all custom items (meals and foods) created by this user
+      const { data: customItems, error: customItemsError } = await supabase
+        .from('item')
+        .select('id')
+        .eq('user_id', userId);
+
+      if (customItemsError) {
+        console.error('Error fetching custom items:', customItemsError);
+        return { error: customItemsError };
+      }
+
+      // 6. Delete collection_item entries for custom meals
+      if (customItems && customItems.length > 0) {
+        const customItemIds = customItems.map((item: { id: string }) => item.id);
+        
+        const { error: collectionItemError } = await supabase
+          .from('collection_item')
+          .delete()
+          .in('collection_id', customItemIds);
+
+        if (collectionItemError) {
+          console.error('Error deleting collection items:', collectionItemError);
+          return { error: collectionItemError };
+        }
+      }
+
+      // 7. Delete custom_food entries
+      const { error: customFoodError } = await supabase
+        .from('custom_food')
+        .delete()
+        .eq('created_by', userId);
+
+      if (customFoodError) {
+        console.error('Error deleting custom foods:', customFoodError);
+        return { error: customFoodError };
+      }
+
+      // 8. Delete custom items (meals and foods) from item table
+      if (customItems && customItems.length > 0) {
+        const customItemIds = customItems.map((item: { id: string }) => item.id);
+        
+        const { error: itemError } = await supabase
+          .from('item')
+          .delete()
+          .in('id', customItemIds);
+
+        if (itemError) {
+          console.error('Error deleting custom items:', itemError);
+          return { error: itemError };
+        }
+      }
+
+      // 9. Delete the auth user
+      // Note: Client-side auth doesn't support deleting users directly
+      // We need to use a database function or edge function
+      // Try using a database RPC function if available
+      const { error: rpcError } = await supabase.rpc('delete_user_account', {
+        user_id: userId
+      });
+
+      if (rpcError) {
+        // If RPC function doesn't exist, try admin API (will likely fail from client)
+        try {
+          const { error: adminError } = await supabase.auth.admin.deleteUser(userId);
+          if (adminError) {
+            // Both methods failed - sign out user and return error
+            console.warn('User deletion failed. All user data has been deleted, but user account remains. Error:', adminError);
+            await supabase.auth.signOut();
+            return { 
+              error: new Error('User data deleted, but account deletion requires server-side setup. Please contact support to complete account deletion.') 
+            };
+          }
+        } catch (adminErr) {
+          // Admin API not available from client
+          console.warn('Admin API not available. All user data deleted, but user account remains.');
+          await supabase.auth.signOut();
+          return { 
+            error: new Error('User data deleted, but account deletion requires server-side setup. Please contact support to complete account deletion.') 
+          };
+        }
+      }
+
+      // Sign out after successful deletion
+      await supabase.auth.signOut();
+
+      return { error: null };
+    } catch (error) {
+      console.error('Error in deleteAccount:', error);
+      return { error: error as Error };
+    }
+  };
+
   const value = {
     user,
     session,
@@ -629,6 +855,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signUp,
     signInWithAzure,
+    signInWithApple,
     signOut,
     refreshSession,
     addFoodEntry,
@@ -637,6 +864,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     getFavorites,
     getDailyNutrition,
     updateDailyGoals,
+    deleteAccount,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

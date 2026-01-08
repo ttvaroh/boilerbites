@@ -14,13 +14,14 @@ import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 
 export default function EditProfileScreen() {
-  const { user, loading } = useAuth();
+  const { user, loading, deleteAccount } = useAuth();
   const router = useRouter();
   
   const [fullName, setFullName] = useState(user?.user_metadata?.full_name || "");
   const [email] = useState(user?.email || "");
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Check if user signed in with OAuth provider (Azure)
   const isOAuthUser = user?.app_metadata?.provider && user.app_metadata.provider !== 'email';
@@ -102,6 +103,72 @@ export default function EditProfileScreen() {
             } finally {
               setIsSendingReset(false);
             }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "Are you sure you want to delete your account? This action cannot be undone and will permanently delete:\n\n• Your profile information\n• All food entries\n• Nutrition tracking data\n• Favorite items\n• Custom foods and meals\n• Nutrition preferences\n\nThis action is permanent and cannot be reversed.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete Account",
+          style: "destructive",
+          onPress: async () => {
+            // Second confirmation
+            Alert.alert(
+              "Final Confirmation",
+              "This will permanently delete your account and all associated data. This cannot be undone. Are you absolutely sure?",
+              [
+                {
+                  text: "Cancel",
+                  style: "cancel",
+                },
+                {
+                  text: "Yes, Delete My Account",
+                  style: "destructive",
+                  onPress: async () => {
+                    setIsDeleting(true);
+                    try {
+                      const { error } = await deleteAccount();
+                      
+                      if (error) {
+                        Alert.alert(
+                          "Error",
+                          error.message || "Failed to delete account. Please contact support if this issue persists."
+                        );
+                        console.error("Account deletion error:", error);
+                      } else {
+                        Alert.alert(
+                          "Account Deleted",
+                          "Your account has been permanently deleted.",
+                          [
+                            {
+                              text: "OK",
+                              onPress: () => {
+                                router.replace("/");
+                              },
+                            },
+                          ]
+                        );
+                      }
+                    } catch (error) {
+                      Alert.alert("Error", "An unexpected error occurred. Please contact support.");
+                      console.error("Account deletion error:", error);
+                    } finally {
+                      setIsDeleting(false);
+                    }
+                  },
+                },
+              ]
+            );
           },
         },
       ]
@@ -329,6 +396,28 @@ export default function EditProfileScreen() {
               <Ionicons name="close-circle-outline" size={22} color="#9CA3AF" />
               <Text className="text-gray-300 text-base font-sora-semibold ml-2">
                 Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Danger Zone - Account Deletion */}
+          <View className="mt-12 mb-8">
+            <View className="h-px bg-gray-700 mb-6" />
+            <Text className="text-red-400 text-lg font-sora-bold mb-4">
+              Danger Zone
+            </Text>
+            <Text className="text-gray-400 text-sm font-sora mb-4">
+              Once you delete your account, there is no going back. Please be certain.
+            </Text>
+            <TouchableOpacity
+              onPress={handleDeleteAccount}
+              className="py-4 px-6 rounded-xl bg-red-900/30 border-2 border-red-700/50 flex-row items-center justify-center"
+              activeOpacity={0.8}
+              disabled={isDeleting}
+            >
+              <Ionicons name="trash-outline" size={22} color="#EF4444" />
+              <Text className="text-red-400 text-base font-sora-semibold ml-2">
+                {isDeleting ? "Deleting Account..." : "Delete Account"}
               </Text>
             </TouchableOpacity>
           </View>

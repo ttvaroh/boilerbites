@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import BackgroundTemplate from "../components/BackgroundTemplate";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -14,7 +14,7 @@ export default function SignUpScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   
-  const { signUp, signInWithAzure } = useAuth();
+  const { signUp, signInWithAzure, signInWithApple } = useAuth();
 
   const handleSignUp = async () => {
     if (!email || !password || !confirmPassword || !name) {
@@ -60,6 +60,22 @@ export default function SignUpScreen() {
     if (error) {
       console.error('[SignUp] Azure sign up error:', error);
       Alert.alert("Sign Up Error", error.message || "Failed to sign up with Azure");
+    } else {
+      router.replace("/profile");
+    }
+  };
+
+  const handleAppleSignUp = async () => {
+    setLoading(true);
+    console.log('[SignUp] Apple sign up button clicked');
+    
+    const { error } = await signInWithApple();
+    
+    setLoading(false);
+    
+    if (error) {
+      console.error('[SignUp] Apple sign up error:', error);
+      Alert.alert("Sign Up Error", error.message || "Failed to sign up with Apple");
     } else {
       router.replace("/profile");
     }
@@ -200,7 +216,7 @@ export default function SignUpScreen() {
         {/* Azure Sign Up Button */}
         <TouchableOpacity
           onPress={handleAzureSignUp}
-          className="w-full bg-gray-800 border border-gray-700 py-4 rounded-xl mb-6 flex-row items-center justify-center"
+          className="w-full bg-gray-800 border border-gray-700 py-4 rounded-xl mb-4 flex-row items-center justify-center"
           activeOpacity={0.8}
           disabled={loading}
         >
@@ -210,6 +226,21 @@ export default function SignUpScreen() {
           </Text>
         </TouchableOpacity>
 
+        {/* Sign in with Apple Button (iOS only) */}
+        {Platform.OS === 'ios' && (
+          <TouchableOpacity
+            onPress={handleAppleSignUp}
+            className="w-full bg-black border border-gray-700 py-4 rounded-xl mb-6 flex-row items-center justify-center"
+            activeOpacity={0.8}
+            disabled={loading}
+            style={{ backgroundColor: '#000000' }}
+          >
+            <Ionicons name="logo-apple" size={20} color="#FFFFFF" />
+            <Text className="text-white text-base font-sora-bold ml-2">
+              {loading ? "Signing Up..." : "Continue with Apple"}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Sign In Link */}
         <View className="flex-row justify-center">
