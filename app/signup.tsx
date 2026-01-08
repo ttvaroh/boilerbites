@@ -176,7 +176,19 @@ export default function SignUpScreen() {
               </TouchableOpacity>
             </View>
           </View>
+          {/* Sign Up Button */}
+          <TouchableOpacity
+            onPress={handleSignUp}
+            className="w-full bg-purdueGold py-4 rounded-xl mb-4 mt-2"
+            activeOpacity={0.8}
+            disabled={loading}
+          >
+            <Text className="text-black text-base font-sora-bold text-center">
+              {loading ? "Creating Account..." : "Create Account"}
+            </Text>
+          </TouchableOpacity>
         </View>
+        
 
         {/* Divider */}
         <View className="flex-row items-center mb-6">
@@ -198,17 +210,6 @@ export default function SignUpScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* Sign Up Button */}
-        <TouchableOpacity
-          onPress={handleSignUp}
-          className="w-full bg-purdueGold py-4 rounded-xl mb-8"
-          activeOpacity={0.8}
-          disabled={loading}
-        >
-          <Text className="text-black text-base font-sora-bold text-center">
-            {loading ? "Creating Account..." : "Create Account"}
-          </Text>
-        </TouchableOpacity>
 
         {/* Sign In Link */}
         <View className="flex-row justify-center">

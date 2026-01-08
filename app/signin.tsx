@@ -122,9 +122,20 @@ export default function SignInScreen() {
         </View>
 
         {/* Forgot Password Link */}
-        <TouchableOpacity className="self-end mb-8">
+        <TouchableOpacity className="self-end mb-2">
           <Text className="text-purdueGold text-sm font-sora">
             Forgot Password?
+          </Text>
+        </TouchableOpacity>
+        {/* Sign In Button */}
+        <TouchableOpacity
+          onPress={handleSignIn}
+          className="w-full bg-purdueGold py-4 rounded-xl mb-8"
+          activeOpacity={0.8}
+          disabled={loading}
+        >
+          <Text className="text-black text-base font-sora-bold text-center">
+            {loading ? "Signing In..." : "Sign In"}
           </Text>
         </TouchableOpacity>
 
@@ -148,17 +159,6 @@ export default function SignInScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* Sign In Button */}
-        <TouchableOpacity
-          onPress={handleSignIn}
-          className="w-full bg-purdueGold py-4 rounded-xl mb-8"
-          activeOpacity={0.8}
-          disabled={loading}
-        >
-          <Text className="text-black text-base font-sora-bold text-center">
-            {loading ? "Signing In..." : "Sign In"}
-          </Text>
-        </TouchableOpacity>
 
         {/* Sign Up Link */}
         <View className="flex-row justify-center">
