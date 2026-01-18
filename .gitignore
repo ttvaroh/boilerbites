@@ -45,6 +45,9 @@ supabase/.temp/
 .supabase-setup/
 lib/supabase-setup/*.sql
 
+# Collection ETL
+lib/collection-etl/output.sql
+
 # iOS and Android build folders
 ios/
 android/
