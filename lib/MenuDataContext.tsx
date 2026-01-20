@@ -1,9 +1,9 @@
 import {
-  createContext,
-  ReactNode,
-  useContext,
-  useEffect,
-  useState
+    createContext,
+    ReactNode,
+    useContext,
+    useEffect,
+    useState
 } from "react";
 import { isJWTExpiredError } from "./authUtils";
 import { mapMealNameToType } from "./mealConfig";
@@ -132,7 +132,6 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
     // Check cache first
     const cacheKey = `${locationName}:${date}`;
     if (basicMealCache.has(cacheKey)) {
-      console.log(`📦 Cache hit for ${cacheKey}`);
       return basicMealCache.get(cacheKey)!;
     }
     

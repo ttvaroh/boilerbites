@@ -70,11 +70,13 @@ export default function FavoritesPage() {
       if (favoritesError) {
         console.error('Error fetching favorites:', favoritesError);
         setError('Failed to load favorites. Please try again.');
+        setLoading(false);
         return;
       }
 
       if (!favoriteItems || favoriteItems.length === 0) {
         setFavorites([]);
+        setLoading(false);
         return;
       }
 
@@ -86,6 +88,7 @@ export default function FavoritesPage() {
       
       if (itemIds.length === 0) {
         setFavorites([]);
+        setLoading(false);
         return;
       }
       
@@ -527,6 +530,11 @@ export default function FavoritesPage() {
       fetchFavorites();
       fetchUpcomingFavorites();
       fetchGlobalFavorites();
+    } else {
+      // If no user, set loading to false to show empty state
+      setLoading(false);
+      setUpcomingLoading(false);
+      setGlobalLoading(false);
     }
   }, [user]);
 
@@ -558,8 +566,8 @@ export default function FavoritesPage() {
     }
   }, [user, activeTab]);
 
-  // Show loading state
-  if (loading) {
+  // Show loading state (only if user exists)
+  if (loading && user) {
     return (
       <BackgroundTemplate>
         <View className="flex-1 justify-center items-center">
@@ -570,8 +578,8 @@ export default function FavoritesPage() {
     );
   }
 
-  // Show error state
-  if (error) {
+  // Show error state (only if user exists)
+  if (error && user) {
     return (
       <BackgroundTemplate>
         <View className="flex-1 justify-center items-center px-6">
@@ -590,6 +598,58 @@ export default function FavoritesPage() {
               Try Again
             </Text>
           </TouchableOpacity>
+        </View>
+      </BackgroundTemplate>
+    );
+  }
+
+  // Show login prompt if no user
+  if (!user) {
+    return (
+      <BackgroundTemplate>
+        <View className="flex-1">
+          {/* Header */}
+          <View className="flex-row items-center justify-between px-6 pt-16 pb-4">
+            <TouchableOpacity
+              onPress={() => router.back()}
+              className="p-2"
+            >
+              <Ionicons name="chevron-back" size={24} color="white" />
+            </TouchableOpacity>
+            <Text className="text-2xl font-sora-bold text-white">
+              Favorites
+            </Text>
+            <View className="w-8" />
+          </View>
+
+          {/* Empty State for No User */}
+          <View className="flex-1 justify-center items-center px-6">
+            <View className="bg-gray-800/60 backdrop-blur-xl rounded-3xl p-8 items-center border border-gray-700/50 max-w-sm">
+              <Ionicons name="heart-outline" size={80} color="#6B7280" />
+              <Text className="text-white text-xl font-sora-bold text-center mt-4 mb-2">
+                Sign in to save favorites
+              </Text>
+              <Text className="text-gray-400 text-center mb-6 font-sora px-4">
+                Create an account to save your favorite menu items and access them anytime.
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.push("/signin")}
+                className="bg-purdueGold rounded-xl px-6 py-3 w-full mb-3"
+              >
+                <Text className="text-black font-sora-semibold text-center">
+                  Sign In
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push("/signup")}
+                className="mt-2"
+              >
+                <Text className="text-purdueGold font-sora text-center">
+                  Don't have an account? Sign up
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </BackgroundTemplate>
     );

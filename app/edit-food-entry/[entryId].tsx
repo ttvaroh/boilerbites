@@ -94,8 +94,24 @@ export default function EditFoodEntryPage() {
 
         if (itemError || !itemData) {
           console.error('Error fetching item:', itemError);
-          Alert.alert("Error", "Item not found.");
-          router.back();
+          // If item not found, try navigating to nutrition page with item_id
+          // This handles cases where the item might have been deleted or doesn't exist
+          if (entryData.item_id) {
+            Alert.alert(
+              "Item Not Found",
+              "The item for this entry could not be found. Would you like to view the nutrition page?",
+              [
+                { text: "Cancel", style: "cancel", onPress: () => router.back() },
+                { 
+                  text: "View Nutrition", 
+                  onPress: () => router.replace(`/nutrition/${entryData.item_id}`) 
+                }
+              ]
+            );
+          } else {
+            Alert.alert("Error", "Item not found.");
+            router.back();
+          }
           return;
         }
 

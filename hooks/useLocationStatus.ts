@@ -7,6 +7,7 @@ import {
     getPlaceholderMealHours,
     isLocationOpen
 } from '../utils/locationHelpers';
+import { getTodayDateString, getDateStringFromToday } from '../lib/timezone-utils';
 
 // ============================================================================
 // Database Query
@@ -19,8 +20,9 @@ import {
  */
 async function fetchMealHoursFromDatabase(locationName: string): Promise<MealHours[] | null> {
   try {
-    // Get today's date in YYYY-MM-DD format
-    const today = new Date().toISOString().split('T')[0];
+    // Get today's date in YYYY-MM-DD format (use local timezone to match meal selection)
+    // This ensures consistency with getMealBasicInfo which also uses getTodayDateString()
+    const today = getTodayDateString();
     
     // First, get the day_menu ID
     let { data: dayMenu, error: dayMenuError } = await supabase
@@ -84,10 +86,8 @@ async function fetchMealHoursFromDatabase(locationName: string): Promise<MealHou
  */
 async function fetchTomorrowMealHours(locationName: string): Promise<MealHours[] | null> {
   try {
-    // Get tomorrow's date in YYYY-MM-DD format
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    // Get tomorrow's date in YYYY-MM-DD format (use local timezone to match meal selection)
+    const tomorrowStr = getDateStringFromToday(1);
     
     // Get the day_menu ID for tomorrow
     const { data: dayMenu, error: dayMenuError } = await supabase

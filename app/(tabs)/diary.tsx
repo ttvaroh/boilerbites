@@ -84,7 +84,12 @@ export default function DiaryPage() {
 
   // Fetch food entries for selected date
   const fetchFoodEntries = async (isRefresh = false) => {
-    if (!user) return;
+    if (!user) {
+      // If no user, show empty state
+      setFoodEntries([]);
+      setLoading(false);
+      return;
+    }
 
     try {
       if (!isRefresh) {
@@ -131,18 +136,20 @@ export default function DiaryPage() {
         return;
       }
 
-      const transformedEntries: FoodEntry[] = data?.map((entry: any) => ({
-        id: entry.id,
-        item_id: entry.item_id,
-        item_name: entry.item?.name || 'Unknown Item',
-        quantity: entry.quantity,
-        calories: ((entry.item?.calories || 0) * entry.quantity),
-        protein_g: ((entry.item?.protein_g || 0) * entry.quantity),
-        carbs_g: ((entry.item?.carbs_g || 0) * entry.quantity),
-        fat_g: ((entry.item?.fat_g || 0) * entry.quantity),
-        meal_name: entry.meal_name,
-        created_at: entry.created_at,
-      })) || [];
+      const transformedEntries: FoodEntry[] = data
+        ?.filter((entry: any) => entry.item_id && typeof entry.item_id === 'string' && entry.item_id.trim().length > 0)
+        .map((entry: any) => ({
+          id: entry.id,
+          item_id: entry.item_id,
+          item_name: entry.item?.name || 'Unknown Item',
+          quantity: entry.quantity,
+          calories: ((entry.item?.calories || 0) * entry.quantity),
+          protein_g: ((entry.item?.protein_g || 0) * entry.quantity),
+          carbs_g: ((entry.item?.carbs_g || 0) * entry.quantity),
+          fat_g: ((entry.item?.fat_g || 0) * entry.quantity),
+          meal_name: entry.meal_name,
+          created_at: entry.created_at,
+        })) || [];
 
       setFoodEntries(transformedEntries);
       // Cache the entries
@@ -223,7 +230,17 @@ export default function DiaryPage() {
 
   // Handle entry removal
   const handleRemoveEntry = React.useCallback(async (entryId: string) => {
-    if (!user) return;
+    if (!user) {
+      Alert.alert(
+        "Login Required",
+        "You need to be logged in to remove food entries.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Sign In", onPress: () => router.push("/signin") }
+        ]
+      );
+      return;
+    }
 
     // Find the entry to get its date
     const entry = foodEntries.find(e => e.id === entryId);
@@ -306,6 +323,11 @@ export default function DiaryPage() {
 
   // Pull to refresh handler
   const onRefresh = React.useCallback(async () => {
+    if (!user) {
+      setRefreshing(false);
+      return;
+    }
+    
     setRefreshing(true);
     
     // Get date string for cache operations
@@ -323,46 +345,9 @@ export default function DiaryPage() {
 
   useFocusEffect(
     useCallback(() => {
-      if (user) {
-        fetchFoodEntries();
-      }
+      fetchFoodEntries();
     }, [user, selectedDate])
   );
-
-  // Show login prompt if user is not authenticated
-  if (!user) {
-    return (
-      <BackgroundTemplate paddingBottom={80}>
-        <View className="flex-1 justify-center items-center p-6">
-          <View className="bg-gray-800 rounded-2xl p-8 items-center max-w-sm">
-            <Ionicons name="lock-closed-outline" size={64} color="#CFB991" />
-            <Text className="text-2xl font-sora-bold text-white text-center mt-4 mb-2">
-              Login Required
-            </Text>
-            <Text className="text-gray-400 text-center mb-6 font-sora">
-              You need to be logged in to view your food diary and track your nutrition.
-            </Text>
-            <TouchableOpacity
-              onPress={() => router.push("/signin")}
-              className="bg-purdueGold rounded-xl px-6 py-3 w-full"
-            >
-              <Text className="text-black font-sora-semibold text-center">
-                Sign In
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => router.push("/signup")}
-              className="mt-3"
-            >
-              <Text className="text-purdueGold font-sora text-center">
-                Don't have an account? Sign up
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </BackgroundTemplate>
-    );
-  }
 
   return (
     <BackgroundTemplate paddingBottom={80}>
@@ -413,6 +398,17 @@ export default function DiaryPage() {
               </Text>
               <TouchableOpacity
                 onPress={() => {
+                  if (!user) {
+                    Alert.alert(
+                      "Login Required",
+                      "You need to be logged in to add food to your diary.",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Sign In", onPress: () => router.push("/signin") }
+                      ]
+                    );
+                    return;
+                  }
                   // Format date in local timezone (YYYY-MM-DD) to avoid UTC issues
                   const year = selectedDate.getFullYear();
                   const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
@@ -429,6 +425,32 @@ export default function DiaryPage() {
             {loading ? (
               <View className="bg-gray-800 rounded-xl p-6 items-center">
                 <Text className="text-white text-base font-sora">Loading...</Text>
+              </View>
+            ) : !user ? (
+              <View className="bg-gray-800 rounded-xl p-8 items-center">
+                <Ionicons name="lock-closed-outline" size={48} color="#CFB991" />
+                <Text className="text-white text-lg font-sora-semibold text-center mt-4 mb-2">
+                  Sign in to track your nutrition
+                </Text>
+                <Text className="text-gray-400 text-sm font-sora text-center mb-6">
+                  Create an account to start logging your meals and tracking your daily nutrition goals.
+                </Text>
+                <TouchableOpacity
+                  onPress={() => router.push("/signin")}
+                  className="bg-purdueGold rounded-xl px-6 py-3 w-full"
+                >
+                  <Text className="text-black font-sora-semibold text-center">
+                    Sign In
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => router.push("/signup")}
+                  className="mt-3"
+                >
+                  <Text className="text-purdueGold font-sora text-center">
+                    Don't have an account? Sign up
+                  </Text>
+                </TouchableOpacity>
               </View>
             ) : (
               <View>

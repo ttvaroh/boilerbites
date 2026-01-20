@@ -41,12 +41,18 @@ interface MenuItem {
 }
 
 export default function NutritionPage() {
-  const { itemId, date: initialDateParam, source } = useLocalSearchParams<{ itemId: string; date?: string; source?: string }>();
+  const params = useLocalSearchParams<{ itemId: string | string[]; date?: string; source?: string }>();
   const router = useRouter();
   const { user, toggleFavorite, addFoodEntry } = useAuth();
   
+  // Handle itemId which might be an array (expo-router sometimes returns arrays)
+  const itemId = Array.isArray(params.itemId) ? params.itemId[0] : params.itemId;
+  const date = Array.isArray(params.date) ? params.date[0] : params.date;
+  const source = Array.isArray(params.source) ? params.source[0] : params.source;
+  const initialDateParam = date;
+  
   // Check if this is a FatSecret item
-  const isFatSecretItem = source === 'fatsecret' || itemId?.startsWith('fatsecret_');
+  const isFatSecretItem = source === 'fatsecret' || (itemId && typeof itemId === 'string' && itemId.startsWith('fatsecret_'));
   const [servingCount, setServingCount] = useState("1");
   const [selectedMeal, setSelectedMeal] = useState(0); // 0 = uncategorized, 1 = breakfast, 2 = lunch, 3 = dinner, 4 = snack
   const [item, setItem] = useState<MenuItem | null>(null);
@@ -160,7 +166,13 @@ export default function NutritionPage() {
   // Fetch item data directly from Supabase
   useEffect(() => {
     const fetchItem = async () => {
-      if (!itemId) return;
+      // Validate itemId
+      if (!itemId || typeof itemId !== 'string' || itemId.trim().length === 0) {
+        console.error('Invalid itemId:', itemId);
+        Alert.alert('Error', 'Invalid item ID. Please try again.');
+        router.back();
+        return;
+      }
       
       try {
         setLoading(true);
@@ -169,7 +181,7 @@ export default function NutritionPage() {
         const { data, error } = await supabase
           .from('item')
           .select('*')
-          .eq('id', itemId)
+          .eq('id', itemId.trim())
           .single();
 
         if (error) {

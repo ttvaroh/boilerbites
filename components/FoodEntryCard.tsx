@@ -125,6 +125,29 @@ const FoodEntryCard = React.memo(({
       }
     });
 
+  // Navigation handler (must be defined outside gesture for runOnJS)
+  const handleNavigation = React.useCallback(() => {
+    if (entry?.id && typeof entry.id === 'string' && entry.id.trim().length > 0) {
+      try {
+        // Navigate to edit page to allow users to modify quantity and meal
+        router.push(`/edit-food-entry/${entry.id}`);
+      } catch (error) {
+        console.error('Error navigating to edit page:', error);
+        // Fallback: try navigating to nutrition page if edit page fails
+        if (entry?.item_id && typeof entry.item_id === 'string' && entry.item_id.trim().length > 0) {
+          try {
+            const encodedItemId = encodeURIComponent(entry.item_id);
+            router.push(`/nutrition/${encodedItemId}`);
+          } catch (fallbackError) {
+            console.error('Error navigating to nutrition page:', fallbackError);
+          }
+        }
+      }
+    } else {
+      console.warn('Entry missing valid id, cannot navigate', { entryId: entry?.id, itemId: entry?.item_id });
+    }
+  }, [entry, router]);
+
   // Tap gesture handler for navigation
   const tapGesture = Gesture.Tap()
     .onEnd(() => {
@@ -134,8 +157,9 @@ const FoodEntryCard = React.memo(({
         if (translateX.value < 0) {
           translateX.value = withSpring(0, SPRING_CONFIG);
         } else {
-          // Navigate to edit page
-          router.push(`/edit-food-entry/${entry.id}`);
+          // Navigate to nutrition page using the item_id from the entry
+          // This shows the nutrition information for the item
+          runOnJS(handleNavigation)();
         }
       }
     });
