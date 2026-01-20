@@ -4,7 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { getCurrentTimestampInESTTimezone } from '../lib/timezone-utils';
+import { getCurrentTimestampInESTTimezone, getLocalDateUTCBounds, createLocalDateFromString, getTodayDateString } from '../lib/timezone-utils';
 
 // Complete the OAuth session when the browser closes
 WebBrowser.maybeCompleteAuthSession();
@@ -485,10 +485,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { data: null, error: new Error('User not authenticated') };
     }
 
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const targetDate = date || getTodayDateString();
 
     try {
-      // First, try to get existing record
+      // Convert date string to local Date object for proper timezone handling
+      const localDate = createLocalDateFromString(targetDate);
+      
+      // Get UTC bounds for the local date to ensure we capture all entries for that EST day
+      const { start, end } = getLocalDateUTCBounds(localDate);
+
+      // Calculate consumed values from food entries using EST date bounds
+      // This ensures entries added late at night EST are counted for the correct day
+      const { data: foodEntries, error: entriesError } = await supabase
+        .from('food_entry')
+        .select(`
+          quantity,
+          item:item_id (
+            calories,
+            protein_g,
+            carbs_g,
+            fat_g
+          )
+        `)
+        .eq('user_id', user.id)
+        .gte('created_at', start)
+        .lte('created_at', end);
+
+      if (entriesError) {
+        console.error('Error fetching food entries for daily nutrition:', entriesError);
+        // Continue with zero values if query fails
+      }
+
+      // Calculate consumed values from food entries
+      const consumed = (foodEntries || []).reduce(
+        (acc, entry: any) => {
+          const item = entry.item;
+          const quantity = entry.quantity || 1;
+          return {
+            consumed_calories: acc.consumed_calories + ((item?.calories || 0) * quantity),
+            consumed_protein_g: acc.consumed_protein_g + ((item?.protein_g || 0) * quantity),
+            consumed_carbs_g: acc.consumed_carbs_g + ((item?.carbs_g || 0) * quantity),
+            consumed_fat_g: acc.consumed_fat_g + ((item?.fat_g || 0) * quantity),
+          };
+        },
+        {
+          consumed_calories: 0,
+          consumed_protein_g: 0,
+          consumed_carbs_g: 0,
+          consumed_fat_g: 0,
+        }
+      );
+
+      // Get goals from user_daily_nutrition table if it exists, otherwise use defaults
       const { data: existingData, error: fetchError } = await supabase
         .from('user_daily_nutrition')
         .select('*')
@@ -496,83 +544,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('date', targetDate)
         .single();
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        console.error('Error fetching daily nutrition:', fetchError);
-        return { data: null, error: fetchError };
-      }
-
-      // If record exists, return it with calculated fields
-      if (existingData) {
-        const goal_calories = existingData.goal_calories || 2300;
-        const goal_protein_g = existingData.goal_protein_g || 115;
-        const goal_carbs_g = existingData.goal_carbs_g || 288;
-        const goal_fat_g = existingData.goal_fat_g || 77;
-        
-        const consumed_calories = existingData.consumed_calories || 0;
-        const consumed_protein_g = existingData.consumed_protein_g || 0;
-        const consumed_carbs_g = existingData.consumed_carbs_g || 0;
-        const consumed_fat_g = existingData.consumed_fat_g || 0;
-
-        const result: DailyNutrition = {
-          id: existingData.id,
-          user_id: existingData.user_id,
-          date: existingData.date,
-          goal_calories,
-          goal_protein_g,
-          goal_carbs_g,
-          goal_fat_g,
-          consumed_calories,
-          consumed_protein_g,
-          consumed_carbs_g,
-          consumed_fat_g,
-          remaining_calories: goal_calories - consumed_calories,
-          remaining_protein_g: goal_protein_g - consumed_protein_g,
-          remaining_carbs_g: goal_carbs_g - consumed_carbs_g,
-          remaining_fat_g: goal_fat_g - consumed_fat_g,
-          percent_calories: goal_calories > 0 ? (consumed_calories / goal_calories * 100) : 0,
-          percent_protein: goal_protein_g > 0 ? (consumed_protein_g / goal_protein_g * 100) : 0,
-          percent_carbs: goal_carbs_g > 0 ? (consumed_carbs_g / goal_carbs_g * 100) : 0,
-          percent_fat: goal_fat_g > 0 ? (consumed_fat_g / goal_fat_g * 100) : 0,
-        };
-
-        return { data: result, error: null };
-      }
-
-      // If no record exists, return baseline values without creating database record
-      const baselineGoals = {
-        goal_calories: 2300,
-        goal_protein_g: 115,
-        goal_carbs_g: 288,
-        goal_fat_g: 77,
-      };
-
-      const baselineConsumed = {
-        consumed_calories: 0,
-        consumed_protein_g: 0,
-        consumed_carbs_g: 0,
-        consumed_fat_g: 0,
-      };
+      // Use goals from database if available, otherwise use defaults
+      const goal_calories = existingData?.goal_calories || 2300;
+      const goal_protein_g = existingData?.goal_protein_g || 115;
+      const goal_carbs_g = existingData?.goal_carbs_g || 288;
+      const goal_fat_g = existingData?.goal_fat_g || 77;
 
       const result: DailyNutrition = {
-        id: '', // No database record, so no ID
+        id: existingData?.id || '',
         user_id: user.id,
         date: targetDate,
-        goal_calories: baselineGoals.goal_calories,
-        goal_protein_g: baselineGoals.goal_protein_g,
-        goal_carbs_g: baselineGoals.goal_carbs_g,
-        goal_fat_g: baselineGoals.goal_fat_g,
-        consumed_calories: baselineConsumed.consumed_calories,
-        consumed_protein_g: baselineConsumed.consumed_protein_g,
-        consumed_carbs_g: baselineConsumed.consumed_carbs_g,
-        consumed_fat_g: baselineConsumed.consumed_fat_g,
-        remaining_calories: baselineGoals.goal_calories - baselineConsumed.consumed_calories,
-        remaining_protein_g: baselineGoals.goal_protein_g - baselineConsumed.consumed_protein_g,
-        remaining_carbs_g: baselineGoals.goal_carbs_g - baselineConsumed.consumed_carbs_g,
-        remaining_fat_g: baselineGoals.goal_fat_g - baselineConsumed.consumed_fat_g,
-        percent_calories: baselineGoals.goal_calories > 0 ? (baselineConsumed.consumed_calories / baselineGoals.goal_calories * 100) : 0,
-        percent_protein: baselineGoals.goal_protein_g > 0 ? (baselineConsumed.consumed_protein_g / baselineGoals.goal_protein_g * 100) : 0,
-        percent_carbs: baselineGoals.goal_carbs_g > 0 ? (baselineConsumed.consumed_carbs_g / baselineGoals.goal_carbs_g * 100) : 0,
-        percent_fat: baselineGoals.goal_fat_g > 0 ? (baselineConsumed.consumed_fat_g / baselineGoals.goal_fat_g * 100) : 0,
+        goal_calories,
+        goal_protein_g,
+        goal_carbs_g,
+        goal_fat_g,
+        consumed_calories: consumed.consumed_calories,
+        consumed_protein_g: consumed.consumed_protein_g,
+        consumed_carbs_g: consumed.consumed_carbs_g,
+        consumed_fat_g: consumed.consumed_fat_g,
+        remaining_calories: goal_calories - consumed.consumed_calories,
+        remaining_protein_g: goal_protein_g - consumed.consumed_protein_g,
+        remaining_carbs_g: goal_carbs_g - consumed.consumed_carbs_g,
+        remaining_fat_g: goal_fat_g - consumed.consumed_fat_g,
+        percent_calories: goal_calories > 0 ? (consumed.consumed_calories / goal_calories * 100) : 0,
+        percent_protein: goal_protein_g > 0 ? (consumed.consumed_protein_g / goal_protein_g * 100) : 0,
+        percent_carbs: goal_carbs_g > 0 ? (consumed.consumed_carbs_g / goal_carbs_g * 100) : 0,
+        percent_fat: goal_fat_g > 0 ? (consumed.consumed_fat_g / goal_fat_g * 100) : 0,
       };
 
       return { data: result, error: null };
