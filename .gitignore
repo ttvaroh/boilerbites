@@ -47,6 +47,7 @@ lib/supabase-setup/*.sql
 
 # Collection ETL
 lib/collection-etl/output.sql
+lib/collection-etl/urls.txt
 
 # iOS and Android build folders
 ios/
