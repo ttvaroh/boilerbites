@@ -4,7 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { getCurrentTimestampInESTTimezone, getLocalDateUTCBounds, createLocalDateFromString, getTodayDateString } from '../lib/timezone-utils';
+import { createLocalDateFromString, getCurrentTimestampInESTTimezone, getLocalDateUTCBounds, getTodayDateString } from '../lib/timezone-utils';
 
 // Complete the OAuth session when the browser closes
 WebBrowser.maybeCompleteAuthSession();
@@ -59,6 +59,7 @@ interface AuthContextType {
   signInWithAzure: () => Promise<{ error: any }>;
   signInWithApple: () => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  resetPasswordForEmail: (email: string) => Promise<{ error: any }>;
   deleteAccount: () => Promise<{ error: any }>;
   refreshSession: () => Promise<void>;
   addFoodEntry: (foodEntry: FoodEntry) => Promise<{ error: any }>;
@@ -78,6 +79,7 @@ const AuthContext = createContext<AuthContextType>({
   signInWithAzure: async () => ({ error: null }),
   signInWithApple: async () => ({ error: null }),
   signOut: async () => {},
+  resetPasswordForEmail: async () => ({ error: null }),
   deleteAccount: async () => ({ error: null }),
   refreshSession: async () => {},
   addFoodEntry: async () => ({ error: null }),
@@ -120,7 +122,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Note: Hash fragments are NOT accessible via route params, so we must handle them here
     // Query parameters (code flow) are handled by the route component to avoid duplicate processing
     const handleDeepLink = async (url: string) => {
-      
       if (url.includes('auth/callback')) {
         // Check if this is a hash fragment callback (implicit flow)
         // Hash fragments are not accessible via route params, so we must handle them here
@@ -518,7 +519,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Calculate consumed values from food entries
       const consumed = (foodEntries || []).reduce(
-        (acc, entry: any) => {
+        (acc: { consumed_calories: number; consumed_protein_g: number; consumed_carbs_g: number; consumed_fat_g: number }, entry: any) => {
           const item = entry.item;
           const quantity = entry.quantity || 1;
           return {
@@ -699,6 +700,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { data, error };
   };
 
+  const resetPasswordForEmail = async (email: string) => {
+    if (!email) {
+      return { error: new Error('Email is required') };
+    }
+
+    try {
+      // Redirect to web page for password reset
+      // Users will complete the reset on the website, then can sign in on the app
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'https://boilerbites.vercel.app/reset-password',
+      });
+
+      return { error };
+    } catch (error) {
+      console.error('Error in resetPasswordForEmail:', error);
+      return { error: error as Error };
+    }
+  };
+
   const deleteAccount = async () => {
     if (!user) {
       return { error: new Error('User not authenticated') };
@@ -855,6 +875,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signInWithApple,
     signOut,
     refreshSession,
+    resetPasswordForEmail,
     addFoodEntry,
     removeFoodEntry,
     toggleFavorite,

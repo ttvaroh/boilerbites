@@ -138,7 +138,11 @@ export default function SignInScreen() {
         </View>
 
         {/* Forgot Password Link */}
-        <TouchableOpacity className="self-end mb-2">
+        <TouchableOpacity 
+          className="self-end mb-2"
+          onPress={() => router.push("/forgot-password")}
+          disabled={loading}
+        >
           <Text className="text-purdueGold text-sm font-sora">
             Forgot Password?
           </Text>

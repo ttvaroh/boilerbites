@@ -82,7 +82,7 @@ export default function EditProfileScreen() {
               const { error } = await supabase.auth.resetPasswordForEmail(
                 user.email,
                 {
-                  redirectTo: "yourapp://reset-password", // Update with your app's deep link
+                  redirectTo: "https://boilerbites.vercel.app/reset-password",
                 }
               );
 
