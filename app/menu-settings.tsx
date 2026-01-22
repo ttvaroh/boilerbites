@@ -1,8 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
 import {
-    Linking,
     ScrollView,
     Switch,
     Text,
@@ -34,8 +32,6 @@ type SettingsSection = {
 export default function SettingsScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
 
   const settingsSections: SettingsSection[] = [
@@ -60,11 +56,11 @@ export default function SettingsScreen() {
           id: "notifications",
           icon: "notifications",
           title: "Push Notifications",
-          subtitle: "Receive updates and alerts",
+          subtitle: "Coming soon",
           action: () => {},
           showSwitch: true,
-          switchValue: notificationsEnabled,
-          onSwitchChange: setNotificationsEnabled,
+          switchValue: false,
+          onSwitchChange: () => {}, // Disabled - no action
           color: "#F59E0B",
         },
       ],
@@ -103,15 +99,6 @@ export default function SettingsScreen() {
           action: () => router.push("/contact-support-screen"),
           showChevron: true,
           color: "#10B981",
-        },
-        {
-          id: "discord",
-          icon: "logo-discord",
-          title: "Join Discord",
-          subtitle: "Connect with the community",
-          action: () => Linking.openURL("https://discord.gg/FdebEjfF"),
-          showChevron: true,
-          color: "#5865F2",
         },
       ],
     },
@@ -194,12 +181,13 @@ export default function SettingsScreen() {
                         </Text>
                       )}
                     </View>
-                    {item.showSwitch && item.onSwitchChange && (
+                    {item.showSwitch && (
                       <Switch
-                        value={item.switchValue}
-                        onValueChange={item.onSwitchChange}
+                        value={item.switchValue || false}
+                        onValueChange={item.onSwitchChange || (() => {})}
                         trackColor={{ false: "#374151", true: "#CFB991" }}
                         thumbColor={item.switchValue ? "#FFFFFF" : "#9CA3AF"}
+                        disabled={!item.onSwitchChange || item.id === "notifications"}
                       />
                     )}
                     {item.showChevron && (

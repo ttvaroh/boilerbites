@@ -35,9 +35,10 @@ interface SearchItemCardProps {
   isCollection?: boolean;
   isCustomMeal?: boolean;
   hideLocation?: boolean;
+  hasIntolerance?: boolean;
 }
 
-const SearchItemCard = React.memo(({ item, showDietaryTag = true, meals, isCollection = false, isCustomMeal = false, hideLocation = false }: SearchItemCardProps) => {
+const SearchItemCard = React.memo(({ item, showDietaryTag = true, meals, isCollection = false, isCustomMeal = false, hideLocation = false, hasIntolerance = false }: SearchItemCardProps) => {
   // Check if location is one of the 5 main dining halls
   const isMainDiningHall = (locationName: string): boolean => {
     const mainDiningHalls = ['Ford', 'Wiley', 'Windsor', 'Earhart', 'Hillenbrand'];
@@ -116,7 +117,12 @@ const SearchItemCard = React.memo(({ item, showDietaryTag = true, meals, isColle
   const dietaryIcons = getDietaryIcons();
 
   return (
-    <View className="bg-gray-800 rounded-xl p-4 mb-2 shadow-lg">
+    <View 
+      className="bg-gray-800 rounded-xl p-4 mb-2 shadow-lg"
+      style={{
+        opacity: hasIntolerance ? 0.5 : 1.0
+      }}
+    >
       <View className="flex-row">
         {/* Left portion - Main content */}
         <View className="flex-1">
@@ -240,6 +246,16 @@ const SearchItemCard = React.memo(({ item, showDietaryTag = true, meals, isColle
           <Ionicons name="albums-outline" size={16} color="#CFB991" />
           <Text className="text-purdueGold text-sm font-sora ml-1">
             Collection
+          </Text>
+        </View>
+      )}
+
+      {/* Allergen indicator */}
+      {hasIntolerance && (
+        <View className="flex-row items-center mt-2">
+          <Ionicons name="warning" size={14} color="#9CA3AF" />
+          <Text className="text-gray-400 text-xs font-sora ml-1.5">
+            Contains allergen
           </Text>
         </View>
       )}

@@ -5,8 +5,10 @@ import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import BackgroundTemplate from "../../components/BackgroundTemplate";
 import MealNavigationHeader from "../../components/MealNavigationHeader";
 import StationList from "../../components/StationList";
+import { useNutritionGoals } from "../../contexts/NutritionGoalsContext";
 import { useMenuView } from "../../hooks/useMenuView";
 import { useStationExpansion } from "../../hooks/useStationExpansion";
+import { getUserAllergenNames } from "../../lib/allergenUtils";
 import { useMenuData } from "../../lib/MenuDataContext";
 import { supabase } from "../../lib/supabase";
 import { getTodayDateString } from "../../lib/timezone-utils";
@@ -37,11 +39,38 @@ export default function DiningHallPage() {
   });
 
   const expansion = useStationExpansion();
+  const { goals: nutritionGoals } = useNutritionGoals();
 
   // Local state
   const [collectionStatus, setCollectionStatus] = useState<Record<string, boolean>>({});
   const initializedLocationRef = useRef<string | null>(null);
   const initializedStationsRef = useRef<string | null>(null);
+
+  // Get user's allergen names from preferences
+  const userAllergenNames = useMemo(() => {
+    if (!nutritionGoals) return [];
+    return getUserAllergenNames({
+      dairy_allergy: nutritionGoals.dairy_allergy,
+      gluten_allergy: nutritionGoals.gluten_allergy,
+      nuts_allergy: nutritionGoals.nuts_allergy,
+      soy_allergy: nutritionGoals.soy_allergy,
+      eggs_allergy: nutritionGoals.eggs_allergy,
+      shellfish_allergy: nutritionGoals.shellfish_allergy,
+      fish_allergy: nutritionGoals.fish_allergy,
+      peanut_allergy: nutritionGoals.peanut_allergy,
+      vegan_preference: nutritionGoals.vegan_preference,
+      vegetarian_preference: nutritionGoals.vegetarian_preference,
+    });
+  }, [nutritionGoals]);
+
+  // Get user preferences for vegan/vegetarian checking
+  const userPreferences = useMemo(() => {
+    if (!nutritionGoals) return undefined;
+    return {
+      vegan_preference: nutritionGoals.vegan_preference,
+      vegetarian_preference: nutritionGoals.vegetarian_preference,
+    };
+  }, [nutritionGoals]);
 
   // ============================================================================
   // Collection Status Loading
@@ -346,6 +375,8 @@ export default function DiningHallPage() {
               onToggleAll={handleToggleAll}
               onItemPress={handleMenuItemPress}
               date={currentDate}
+              userAllergenNames={userAllergenNames}
+              userPreferences={userPreferences}
             />
           )}
         </ScrollView>

@@ -18,6 +18,8 @@ interface NutritionGoalsContextType {
     shellfish_allergy?: boolean;
     fish_allergy?: boolean;
     peanut_allergy?: boolean;
+    vegan_preference?: boolean;
+    vegetarian_preference?: boolean;
   }) => Promise<void>;
   refreshGoals: () => Promise<void>;
 }

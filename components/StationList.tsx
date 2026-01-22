@@ -1,8 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
+import { itemContainsIntolerance } from "../lib/allergenUtils";
 import { MenuItem, Station } from "../types/menu";
 import MenuItemCard from "./MenuItemCard";
+
+interface UserPreferences {
+  vegan_preference?: boolean;
+  vegetarian_preference?: boolean;
+}
 
 // ============================================================================
 // Utility
@@ -30,6 +36,8 @@ interface StationListProps {
   onToggleAll: () => void;
   onItemPress: (item: MenuItem) => void;
   date?: string;
+  userAllergenNames?: string[];
+  userPreferences?: UserPreferences;
 }
 
 export default function StationList({
@@ -40,8 +48,25 @@ export default function StationList({
   onToggleStation,
   onToggleAll,
   onItemPress,
-  date
+  date,
+  userAllergenNames = [],
+  userPreferences
 }: StationListProps) {
+  // Memoize intolerance checks for performance
+  const itemIntoleranceMap = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    stations.forEach(station => {
+      station.items.forEach(item => {
+        map[item.id] = itemContainsIntolerance(
+          item.allergens,
+          userAllergenNames,
+          item,
+          userPreferences
+        );
+      });
+    });
+    return map;
+  }, [stations, userAllergenNames, userPreferences]);
   return (
     <View className="py-4">
       {/* Header with Toggle All button */}
@@ -100,12 +125,18 @@ export default function StationList({
               <View className="ml-2 mb-2">
                 {uniqueItems.map((item) => {
                   const isCollection = collectionStatus[item.id] || false;
+                  const hasIntolerance = itemIntoleranceMap[item.id] || false;
                   return (
                     <TouchableOpacity
                       key={item.id}
                       onPress={() => onItemPress(item)}
                     >
-                      <MenuItemCard item={item} isCollection={isCollection} date={date} />
+                      <MenuItemCard 
+                        item={item} 
+                        isCollection={isCollection} 
+                        date={date}
+                        hasIntolerance={hasIntolerance}
+                      />
                     </TouchableOpacity>
                   );
                 })}

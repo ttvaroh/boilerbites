@@ -15,6 +15,7 @@ import ItemSearchComponent from "../components/ItemSearch";
 import SearchItemCard from "../components/SearchItemCard";
 import SortBy from "../components/SortBy";
 import { useNutritionGoals } from "../contexts/NutritionGoalsContext";
+import { getUserAllergenNames, itemContainsIntolerance } from "../lib/allergenUtils";
 import { supabase } from "../lib/supabase";
 import { createLocalDateFromString } from "../lib/timezone-utils";
 import { DateSearchFilters, DateSearchOptions, dateSearchService, DayMenuItem } from "../services/searchService";
@@ -67,13 +68,15 @@ const SearchItemWrapper = React.memo(({
   index, 
   onPress, 
   isCollection,
-  isCustomMeal
+  isCustomMeal,
+  hasIntolerance
 }: { 
   item: MenuItem; 
   index: number; 
   onPress: (item: MenuItem) => void; 
   isCollection: boolean;
   isCustomMeal?: boolean;
+  hasIntolerance?: boolean;
 }) => {
   const handlePress = React.useCallback(() => {
     onPress(item);
@@ -87,6 +90,7 @@ const SearchItemWrapper = React.memo(({
         meals={item.meals || []}
         isCollection={isCollection}
         isCustomMeal={isCustomMeal || false}
+        hasIntolerance={hasIntolerance}
       />
     </TouchableOpacity>
   );
@@ -328,22 +332,31 @@ export function SearchByDateComponent({
     });
   };
   
-  // Map nutrition preferences to allergen names for filtering
-  const getUserAllergens = () => {
+  // Get user's allergen names from preferences
+  const userAllergenNames = React.useMemo(() => {
     if (!nutritionGoals) return [];
-    
-    const allergens: string[] = [];
-    if (nutritionGoals.dairy_allergy) allergens.push('Dairy');
-    if (nutritionGoals.eggs_allergy) allergens.push('Eggs');
-    if (nutritionGoals.shellfish_allergy) allergens.push('Shellfish');
-    if (nutritionGoals.nuts_allergy) allergens.push('Tree Nuts');
-    if (nutritionGoals.gluten_allergy) allergens.push('Wheat');
-    if (nutritionGoals.soy_allergy) allergens.push('Soy');
-    if (nutritionGoals.fish_allergy) allergens.push('Fish');
-    if (nutritionGoals.peanut_allergy) allergens.push('Peanuts');
-    
-    return allergens;
-  };
+    return getUserAllergenNames({
+      dairy_allergy: nutritionGoals.dairy_allergy,
+      gluten_allergy: nutritionGoals.gluten_allergy,
+      nuts_allergy: nutritionGoals.nuts_allergy,
+      soy_allergy: nutritionGoals.soy_allergy,
+      eggs_allergy: nutritionGoals.eggs_allergy,
+      shellfish_allergy: nutritionGoals.shellfish_allergy,
+      fish_allergy: nutritionGoals.fish_allergy,
+      peanut_allergy: nutritionGoals.peanut_allergy,
+      vegan_preference: nutritionGoals.vegan_preference,
+      vegetarian_preference: nutritionGoals.vegetarian_preference,
+    });
+  }, [nutritionGoals]);
+
+  // Get user preferences for vegan/vegetarian checking
+  const userPreferences = React.useMemo(() => {
+    if (!nutritionGoals) return undefined;
+    return {
+      vegan_preference: nutritionGoals.vegan_preference,
+      vegetarian_preference: nutritionGoals.vegetarian_preference,
+    };
+  }, [nutritionGoals]);
   
   const {
     searchQuery,
@@ -364,15 +377,31 @@ export function SearchByDateComponent({
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('desc');
   const [isSortCleared, setIsSortCleared] = React.useState(false);
   
-  const [currentFilters, setCurrentFilters] = React.useState<SearchFilters>({
-    timeOfDay: "All",
-    diningHalls: [],
-    dietaryPreferences: {
-      vegetarian: false,
-      vegan: false,
-      glutenFree: false,
-    },
-    excludeAllergens: getUserAllergens(),
+  // Initialize filters with nutrition goals if available
+  const [currentFilters, setCurrentFilters] = React.useState<SearchFilters>(() => {
+    const initialAllergenNames = nutritionGoals ? getUserAllergenNames({
+      dairy_allergy: nutritionGoals.dairy_allergy,
+      gluten_allergy: nutritionGoals.gluten_allergy,
+      nuts_allergy: nutritionGoals.nuts_allergy,
+      soy_allergy: nutritionGoals.soy_allergy,
+      eggs_allergy: nutritionGoals.eggs_allergy,
+      shellfish_allergy: nutritionGoals.shellfish_allergy,
+      fish_allergy: nutritionGoals.fish_allergy,
+      peanut_allergy: nutritionGoals.peanut_allergy,
+      vegan_preference: nutritionGoals.vegan_preference,
+      vegetarian_preference: nutritionGoals.vegetarian_preference,
+    }) : [];
+    
+    return {
+      timeOfDay: "All",
+      diningHalls: [],
+      dietaryPreferences: {
+        vegetarian: nutritionGoals?.vegetarian_preference || false,
+        vegan: nutritionGoals?.vegan_preference || false,
+        glutenFree: nutritionGoals?.gluten_allergy || false,
+      },
+      excludeAllergens: initialAllergenNames,
+    };
   });
 
   const [refreshing, setRefreshing] = React.useState(false);
@@ -380,13 +409,17 @@ export function SearchByDateComponent({
   // Update filters when nutrition goals change
   React.useEffect(() => {
     if (nutritionGoals) {
-      const userAllergens = getUserAllergens();
       setCurrentFilters(prev => ({
         ...prev,
-        excludeAllergens: userAllergens,
+        excludeAllergens: userAllergenNames,
+        dietaryPreferences: {
+          vegetarian: nutritionGoals.vegetarian_preference || false,
+          vegan: nutritionGoals.vegan_preference || false,
+          glutenFree: nutritionGoals.gluten_allergy || false,
+        },
       }));
     }
-  }, [nutritionGoals]);
+  }, [nutritionGoals, userAllergenNames]);
 
   // Trigger search when debounced query, filters, or date changes
   React.useEffect(() => {
@@ -507,6 +540,13 @@ export function SearchByDateComponent({
 
   // Render item for FlatList - optimized with React.memo
   const renderItem = React.useCallback(({ item, index }: { item: MenuItem; index: number }) => {
+    const hasIntolerance = itemContainsIntolerance(
+      item.allergens,
+      userAllergenNames,
+      item,
+      userPreferences
+    );
+    
     return (
       <SearchItemWrapper
         item={item}
@@ -514,9 +554,10 @@ export function SearchByDateComponent({
         onPress={handleMenuItemPress}
         isCollection={collectionStatus[item.id] || false}
         isCustomMeal={customMealStatus[item.id] || false}
+        hasIntolerance={hasIntolerance}
       />
     );
-  }, [handleMenuItemPress, collectionStatus, customMealStatus]);
+  }, [handleMenuItemPress, collectionStatus, customMealStatus, userAllergenNames, userPreferences]);
 
   // Empty state component
   const ListEmptyComponent = React.useCallback(() => {

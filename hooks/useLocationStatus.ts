@@ -162,10 +162,6 @@ export function useLocationStatus(locations: Location[]) {
     if (locations.length === 0) return;
 
     const processLocations = async () => {
-      // Performance logging (temporary - remove after verification)
-      const startTime = performance.now();
-      let dbQueryCount = 0;
-      
       setIsProcessing(true);
       
       try {
@@ -196,7 +192,6 @@ export function useLocationStatus(locations: Location[]) {
                 if (!hasValidTimes) {
                   // If today's data is incomplete, try to fetch tomorrow's data
                   try {
-                    dbQueryCount++; // Track fallback query
                     const tomorrowMealHours = await fetchTomorrowMealHours(location.name);
                     const firstTomorrowMeal = tomorrowMealHours?.find(meal => meal.start_time);
                     
@@ -219,7 +214,6 @@ export function useLocationStatus(locations: Location[]) {
                 // PRIORITY 2: Fallback to database query only if location.meals is missing
                 // This should rarely happen if refreshLocations() works correctly
                 try {
-                  dbQueryCount++; // Track fallback query
                   const dbMealHours = await fetchMealHoursFromDatabase(location.name);
                   
                   if (dbMealHours) {
@@ -229,7 +223,6 @@ export function useLocationStatus(locations: Location[]) {
                     if (!hasValidTimes) {
                       // If today's data is incomplete, try to fetch tomorrow's data
                       try {
-                        dbQueryCount++; // Track fallback query
                         const tomorrowMealHours = await fetchTomorrowMealHours(location.name);
                         const firstTomorrowMeal = tomorrowMealHours?.find(meal => meal.start_time);
                         
@@ -298,19 +291,8 @@ export function useLocationStatus(locations: Location[]) {
         const onTheGo = processed.filter(loc => loc.type === 2);
 
         setProcessedLocations({ diningHalls, quickBites, onTheGo });
-        
-        // Performance logging (temporary - remove after verification)
-        const endTime = performance.now();
-        const totalTime = endTime - startTime;
-        const locationsUsingCache = locations.filter(loc => loc.meals && loc.meals.length > 0).length;
-        console.log(`[PERF] useLocationStatus completed in ${totalTime.toFixed(2)}ms`);
-        console.log(`[PERF] ${locationsUsingCache}/${locations.length} locations used cached data, ${dbQueryCount} fallback DB queries`);
       } catch (error) {
         console.error('Error processing locations:', error);
-        
-        // Performance logging on error
-        const endTime = performance.now();
-        console.log(`[PERF] useLocationStatus failed after ${(endTime - startTime).toFixed(2)}ms`);
       } finally {
         setIsProcessing(false);
       }

@@ -2,20 +2,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    Alert,
-    Animated,
-    Modal,
-    ScrollView,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Animated,
+  ScrollView,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 import BackgroundTemplate from "../components/BackgroundTemplate";
 import { useAuth } from "../contexts/AuthContext";
 import { useNutritionGoals } from "../contexts/NutritionGoalsContext";
-import { calculateSuggestedMacros } from "../lib/nutritionGoalsService";
 
 type AllergenItem = {
   id: string;
@@ -27,14 +24,6 @@ type AllergenItem = {
   color: string;
 };
 
-type GoalItem = {
-  id: string;
-  title: string;
-  current: number;
-  goal: number;
-  unit: string;
-  color: string;
-};
 
 export default function NutritionPreferencesScreen() {
   const { user } = useAuth();
@@ -50,19 +39,9 @@ export default function NutritionPreferencesScreen() {
   const [shellfishAllergy, setShellfishAllergy] = useState(nutritionGoals?.shellfish_allergy || false);
   const [fishAllergy, setFishAllergy] = useState(nutritionGoals?.fish_allergy || false);
   const [peanutAllergy, setPeanutAllergy] = useState(nutritionGoals?.peanut_allergy || false);
+  const [veganPreference, setVeganPreference] = useState(nutritionGoals?.vegan_preference || false);
+  const [vegetarianPreference, setVegetarianPreference] = useState(nutritionGoals?.vegetarian_preference || false);
   
-  // Daily goals - initialize from context or use defaults
-  const [calorieGoal, setCalorieGoal] = useState(nutritionGoals?.calories || 2000);
-  const [proteinGoal, setProteinGoal] = useState(nutritionGoals?.protein || 115);
-  const [carbsGoal, setCarbsGoal] = useState(nutritionGoals?.carbs || 288);
-  const [fatGoal, setFatGoal] = useState(nutritionGoals?.fat || 67);
-
-  // Modal state
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [tempCalories, setTempCalories] = useState("");
-  const [tempProtein, setTempProtein] = useState("");
-  const [tempCarbs, setTempCarbs] = useState("");
-  const [tempFat, setTempFat] = useState("");
 
   // Toast state
   const [toastVisible, setToastVisible] = useState(false);
@@ -93,169 +72,6 @@ export default function NutritionPreferencesScreen() {
     });
   };
 
-  const openEditModal = () => {
-    setTempCalories(calorieGoal.toString());
-    setTempProtein("");
-    setTempCarbs("");
-    setTempFat("");
-    setIsModalVisible(true);
-  };
-
-  const closeModal = () => {
-    setIsModalVisible(false);
-  };
-
-  // Calculate remaining calories for suggestions
-  const calculateRemainingCalories = () => {
-    const calories = parseInt(tempCalories) || calorieGoal;
-    const protein = parseInt(tempProtein) || 0;
-    const carbs = parseInt(tempCarbs) || 0;
-    const fat = parseInt(tempFat) || 0;
-    
-    const usedCalories = (protein * 4) + (carbs * 4) + (fat * 9);
-    return calories - usedCalories;
-  };
-
-  // Calculate dynamic suggestions based on what's already entered
-  const getDynamicSuggestions = () => {
-    const calories = parseInt(tempCalories) || calorieGoal;
-    const remainingCalories = calculateRemainingCalories();
-    
-    const hasProtein = tempProtein !== "";
-    const hasCarbs = tempCarbs !== "";
-    const hasFat = tempFat !== "";
-    
-    // Count how many macros are empty
-    const emptyCount = [hasProtein, hasCarbs, hasFat].filter(x => !x).length;
-    
-    if (emptyCount === 0) return { protein: 0, carbs: 0, fat: 0 };
-    if (emptyCount === 3) return calculateSuggestedMacros(calories);
-    
-    // Distribute remaining calories among empty macros
-    if (emptyCount === 2) {
-      if (hasProtein) {
-        // Split remaining between carbs and fat (40/30 ratio)
-        const carbCalories = remainingCalories * 0.57; // 40/(40+30)
-        const fatCalories = remainingCalories * 0.43; // 30/(40+30)
-        return {
-          protein: 0,
-          carbs: Math.round(carbCalories / 4),
-          fat: Math.round(fatCalories / 9),
-        };
-      } else if (hasCarbs) {
-        // Split remaining between protein and fat (30/30 ratio)
-        const proteinCalories = remainingCalories * 0.5;
-        const fatCalories = remainingCalories * 0.5;
-        return {
-          protein: Math.round(proteinCalories / 4),
-          carbs: 0,
-          fat: Math.round(fatCalories / 9),
-        };
-      } else if (hasFat) {
-        // Split remaining between protein and carbs (30/40 ratio)
-        const proteinCalories = remainingCalories * 0.43; // 30/(30+40)
-        const carbCalories = remainingCalories * 0.57; // 40/(30+40)
-        return {
-          protein: Math.round(proteinCalories / 4),
-          carbs: Math.round(carbCalories / 4),
-          fat: 0,
-        };
-      }
-    }
-    
-    // Only one macro is empty
-    if (!hasProtein) {
-      return {
-        protein: Math.max(0, Math.round(remainingCalories / 4)),
-        carbs: 0,
-        fat: 0,
-      };
-    } else if (!hasCarbs) {
-      return {
-        protein: 0,
-        carbs: Math.max(0, Math.round(remainingCalories / 4)),
-        fat: 0,
-      };
-    } else {
-      return {
-        protein: 0,
-        carbs: 0,
-        fat: Math.max(0, Math.round(remainingCalories / 9)),
-      };
-    }
-  };
-
-  // Calculate total calories from entered macros
-  const calculateEnteredCalories = () => {
-    const protein = parseInt(tempProtein) || 0;
-    const carbs = parseInt(tempCarbs) || 0;
-    const fat = parseInt(tempFat) || 0;
-    return (protein * 4) + (carbs * 4) + (fat * 9);
-  };
-
-  const handleSubmitGoals = () => {
-    const calories = parseInt(tempCalories);
-    const protein = parseInt(tempProtein);
-    const carbs = parseInt(tempCarbs);
-    const fat = parseInt(tempFat);
-
-    // Validation
-    if (!calories || calories < 500 || calories > 10000) {
-      Alert.alert("Invalid Input", "Please enter a valid calorie goal between 500-10,000.");
-      return;
-    }
-
-    if (!protein || protein < 0 || protein > 500) {
-      Alert.alert("Invalid Input", "Please enter a valid protein goal between 0-500g.");
-      return;
-    }
-
-    if (!carbs || carbs < 0 || carbs > 1000) {
-      Alert.alert("Invalid Input", "Please enter a valid carbs goal between 0-1,000g.");
-      return;
-    }
-
-    if (!fat || fat < 0 || fat > 300) {
-      Alert.alert("Invalid Input", "Please enter a valid fat goal between 0-300g.");
-      return;
-    }
-
-    // Check if macros are reasonable for the calorie goal
-    const totalMacroCalories = (protein * 4) + (carbs * 4) + (fat * 9);
-    const calorieDiscrepancy = Math.abs(totalMacroCalories - calories);
-    
-    if (calorieDiscrepancy > calories * 0.15) { // More than 15% difference
-      Alert.alert(
-        "Macro Mismatch",
-        `Your macros add up to ${totalMacroCalories} calories, but your goal is ${calories} calories. Continue anyway?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { 
-            text: "Continue", 
-            onPress: () => saveGoals(calories, protein, carbs, fat)
-          },
-        ]
-      );
-      return;
-    }
-
-    saveGoals(calories, protein, carbs, fat);
-  };
-
-  const saveGoals = async (calories: number, protein: number, carbs: number, fat: number) => {
-    try {
-      await updateGoals({ calories, protein, carbs, fat });
-      setCalorieGoal(calories);
-      setProteinGoal(protein);
-      setCarbsGoal(carbs);
-      setFatGoal(fat);
-      setIsModalVisible(false);
-      showToast("Your daily goals have been updated successfully!");
-    } catch (error) {
-      console.error('Error saving nutrition goals:', error);
-      Alert.alert("Error", "Failed to save your goals. Please try again.");
-    }
-  };
 
   const allergenItems: AllergenItem[] = [
     {
@@ -330,53 +146,37 @@ export default function NutritionPreferencesScreen() {
       onToggle: setShellfishAllergy,
       color: "#EF4444",
     },
-  ];
-
-  const goalItems: GoalItem[] = [
     {
-      id: "calories",
-      title: "Daily Calories",
-      current: 0,
-      goal: calorieGoal,
-      unit: "cal",
-      color: "#F59E0B",
+      id: "vegan",
+      icon: "leaf",
+      title: "Vegan",
+      subtitle: "No animal products",
+      value: veganPreference,
+      onToggle: setVeganPreference,
+      color: "#059669",
     },
     {
-      id: "protein",
-      title: "Protein",
-      current: 0,
-      goal: proteinGoal,
-      unit: "g",
-      color: "#3B82F6",
-    },
-    {
-      id: "carbs",
-      title: "Carbohydrates",
-      current: 0,
-      goal: carbsGoal,
-      unit: "g",
+      id: "vegetarian",
+      icon: "leaf-outline",
+      title: "Vegetarian",
+      subtitle: "No Meat, poultry, or fish",
+      value: vegetarianPreference,
+      onToggle: setVegetarianPreference,
       color: "#10B981",
     },
-    {
-      id: "fat",
-      title: "Fat",
-      current: 0,
-      goal: fatGoal,
-      unit: "g",
-      color: "#8B5CF6",
-    },
   ];
+
 
   const handleSavePreferences = async () => {
     if (!user) return;
 
     try {
-      // Save nutrition goals and allergen preferences together
+      // Save allergen preferences only (preserve existing goals)
       await updateGoals({
-        calories: calorieGoal,
-        protein: proteinGoal,
-        carbs: carbsGoal,
-        fat: fatGoal,
+        calories: nutritionGoals?.calories || 2000,
+        protein: nutritionGoals?.protein || 115,
+        carbs: nutritionGoals?.carbs || 288,
+        fat: nutritionGoals?.fat || 67,
         // Include allergen preferences
         dairy_allergy: dairyAllergy,
         gluten_allergy: glutenAllergy,
@@ -386,9 +186,16 @@ export default function NutritionPreferencesScreen() {
         shellfish_allergy: shellfishAllergy,
         fish_allergy: fishAllergy,
         peanut_allergy: peanutAllergy,
+        vegan_preference: veganPreference,
+        vegetarian_preference: vegetarianPreference,
       });
 
       showToast("Your nutrition preferences have been saved successfully!");
+      
+      // Route to home screen after successful save
+      setTimeout(() => {
+        router.push("/(tabs)");
+      }, 500); // Small delay to show toast
     } catch (error) {
       console.error("Error saving preferences:", error);
       Alert.alert("Error", "Failed to save preferences. Please try again.");
@@ -398,9 +205,9 @@ export default function NutritionPreferencesScreen() {
   return (
     <BackgroundTemplate paddingBottom={0}>
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="px-6 pt-16 pb-8">
+        <View className="px-6 pt-12 pb-8">
           {/* Header */}
-          <View className="flex-row items-center justify-between mb-6">
+          <View className="flex-row items-center justify-between mb-4">
             <View className="flex-row items-center flex-1">
               <TouchableOpacity
                 onPress={() => router.back()}
@@ -415,73 +222,22 @@ export default function NutritionPreferencesScreen() {
             </View>
           </View>
 
-          {/* Hero Section */}
-          <View className="bg-gradient-to-br from-purdueGold/20 to-yellow-600/10 rounded-2xl p-6 mb-6 border border-purdueGold/30">
-            <View className="flex-row items-center mb-3">
-              <View className="bg-purdueGold rounded-full p-3 mr-4">
-                <Ionicons name="nutrition" size={28} color="#000000" />
+          {/* Small Hero Section */}
+          <View className="bg-gradient-to-br from-purdueGold/20 to-yellow-600/10 rounded-xl p-3 mb-3 border border-purdueGold/30">
+            <View className="flex-row items-center">
+              <View className="bg-purdueGold rounded-full p-1.5 mr-2.5">
+                <Ionicons name="nutrition" size={14} color="#000000" />
               </View>
               <View className="flex-1">
-                <Text className="text-white text-xl font-sora-bold">
-                  Nutrition Settings
-                </Text>
-                <Text className="text-gray-300 text-sm font-sora mt-1">
-                  Set your daily goals and preferences
+                <Text className="text-white text-sm font-sora-semibold">
+                  Customize your food allergies and dietary preferences
                 </Text>
               </View>
             </View>
           </View>
 
-          {/* Daily Goals */}
-          <View className="mb-6">
-            <View className="flex-row items-center justify-between mb-3 px-1">
-              <Text className="text-gray-400 text-xs font-sora-semibold uppercase tracking-wider">
-                Daily Goals
-              </Text>
-              <TouchableOpacity
-                onPress={openEditModal}
-                className="bg-purdueGold/20 rounded-lg px-3 py-1.5 flex-row items-center"
-              >
-                <Ionicons name="create" size={14} color="#CFB991" />
-                <Text className="text-purdueGold text-xs font-sora-semibold ml-1">
-                  Edit All
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <View className="bg-gray-800/40 backdrop-blur-xl rounded-2xl border border-gray-700/30 overflow-hidden">
-              {goalItems.map((item, index) => (
-                <View
-                  key={item.id}
-                  className={`px-5 py-4 flex-row items-center ${
-                    index !== goalItems.length - 1 ? "border-b border-gray-700/30" : ""
-                  }`}
-                >
-                  <View
-                    className="rounded-full p-2.5 mr-4"
-                    style={{ backgroundColor: `${item.color}20` }}
-                  >
-                    <Ionicons name="flag" size={20} color={item.color} />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-white text-base font-sora-semibold">
-                      {item.title}
-                    </Text>
-                    <Text className="text-gray-400 text-xs font-sora mt-0.5">
-                      Goal: {item.goal} {item.unit}
-                    </Text>
-                  </View>
-                  <View className="bg-gray-700/30 rounded-lg px-3 py-1.5">
-                    <Text className="text-gray-300 text-sm font-sora-semibold">
-                      {item.goal} {item.unit}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          </View>
-          
           {/* Allergen Preferences */}
-          <View className="mb-6">
+          <View className="mb-4">
             <Text className="text-gray-400 text-xs font-sora-semibold uppercase tracking-wider mb-3 px-1">
               Food Allergies & Intolerances
             </Text>
@@ -489,15 +245,15 @@ export default function NutritionPreferencesScreen() {
               {allergenItems.map((item, index) => (
                 <View
                   key={item.id}
-                  className={`px-5 py-4 flex-row items-center ${
+                  className={`px-4 py-3 flex-row items-center ${
                     index !== allergenItems.length - 1 ? "border-b border-gray-700/30" : ""
                   }`}
                 >
                   <View
-                    className="rounded-full p-2.5 mr-4"
+                    className="rounded-full p-2.5 mr-3.5"
                     style={{ backgroundColor: `${item.color}20` }}
                   >
-                    <Ionicons name={item.icon} size={20} color={item.color} />
+                    <Ionicons name={item.icon} size={19} color={item.color} />
                   </View>
                   <View className="flex-1">
                     <Text className="text-white text-base font-sora-semibold">
@@ -545,221 +301,13 @@ export default function NutritionPreferencesScreen() {
                   About Your Preferences
                 </Text>
                 <Text className="text-blue-200 text-xs font-sora leading-5">
-                  Your nutrition goals and allergen preferences will help personalize your dining experience and keep you on track with your health goals.
+                  Your allergen preferences will help personalize your dining experience by filtering menu items based on your dietary needs.
                 </Text>
               </View>
             </View>
           </View>
         </View>
       </ScrollView>
-
-      {/* Edit Goals Modal */}
-      <Modal
-        visible={isModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={closeModal}
-      >
-        <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-gray-900 rounded-t-3xl px-6 pb-10 pt-6 max-h-[85%]">
-            {/* Modal Header */}
-            <View className="flex-row items-center justify-between mb-2">
-              <Text className="text-white text-2xl font-sora-bold">
-                Edit Daily Goals
-              </Text>
-              <TouchableOpacity
-                onPress={closeModal}
-                className="p-2"
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="close" size={28} color="#9CA3AF" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Calories */}
-              <View className="mb-5">
-                <Text className="text-white text-sm font-sora-semibold mb-2">
-                  Daily Calories
-                </Text>
-                <View className="bg-gray-800 rounded-xl border border-gray-700 flex-row items-center px-4">
-                  <Ionicons name="flame" size={20} color="#F59E0B" />
-                  <TextInput
-                    value={tempCalories}
-                    onChangeText={setTempCalories}
-                    placeholder={`${calorieGoal}`}
-                    placeholderTextColor="#6B7280"
-                    keyboardType="numeric"
-                    className="flex-1 text-white text-base font-sora py-4 ml-3"
-                  />
-                  <Text className="text-gray-400 text-sm font-sora">cal</Text>
-                </View>
-              </View>
-
-              {/* Protein */}
-              <View className="mb-5">
-                <View className="flex-row items-center justify-between mb-2">
-                  <Text className="text-white text-sm font-sora-semibold">
-                    Protein
-                  </Text>
-                  {tempProtein === "" && getDynamicSuggestions().protein > 0 && (
-                    <Text className="text-blue-400 text-xs font-sora">
-                      Suggested: {getDynamicSuggestions().protein}g
-                    </Text>
-                  )}
-                </View>
-                <View className="bg-gray-800 rounded-xl border border-gray-700 flex-row items-center px-4">
-                  <Ionicons name="fitness" size={20} color="#3B82F6" />
-                   <TextInput
-                     value={tempProtein}
-                     onChangeText={setTempProtein}
-                     placeholder={`${proteinGoal}g`}
-                     placeholderTextColor="#6B7280"
-                     keyboardType="numeric"
-                     className="flex-1 text-white text-base font-sora py-4 ml-3"
-                   />
-                  <Text className="text-gray-400 text-sm font-sora">g</Text>
-                </View>
-              </View>
-
-              {/* Carbohydrates */}
-              <View className="mb-5">
-                <View className="flex-row items-center justify-between mb-2">
-                  <Text className="text-white text-sm font-sora-semibold">
-                    Carbohydrates
-                  </Text>
-                  {tempCarbs === "" && getDynamicSuggestions().carbs > 0 && (
-                    <Text className="text-green-400 text-xs font-sora">
-                      Suggested: {getDynamicSuggestions().carbs}g
-                    </Text>
-                  )}
-                </View>
-                <View className="bg-gray-800 rounded-xl border border-gray-700 flex-row items-center px-4">
-                  <Ionicons name="leaf" size={20} color="#10B981" />
-                   <TextInput
-                     value={tempCarbs}
-                     onChangeText={setTempCarbs}
-                     placeholder={`${carbsGoal}g`}
-                     placeholderTextColor="#6B7280"
-                     keyboardType="numeric"
-                     className="flex-1 text-white text-base font-sora py-4 ml-3"
-                   />
-                  <Text className="text-gray-400 text-sm font-sora">g</Text>
-                </View>
-              </View>
-
-              {/* Fat */}
-              <View className="mb-5">
-                <View className="flex-row items-center justify-between mb-2">
-                  <Text className="text-white text-sm font-sora-semibold">
-                    Fat
-                  </Text>
-                  {tempFat === "" && getDynamicSuggestions().fat > 0 && (
-                    <Text className="text-purple-400 text-xs font-sora">
-                      Suggested: {getDynamicSuggestions().fat}g
-                    </Text>
-                  )}
-                </View>
-                <View className="bg-gray-800 rounded-xl border border-gray-700 flex-row items-center px-4">
-                  <Ionicons name="water" size={20} color="#8B5CF6" />
-                   <TextInput
-                     value={tempFat}
-                     onChangeText={setTempFat}
-                     placeholder={`${fatGoal}g`}
-                     placeholderTextColor="#6B7280"
-                     keyboardType="numeric"
-                     className="flex-1 text-white text-base font-sora py-4 ml-3"
-                   />
-                  <Text className="text-gray-400 text-sm font-sora">g</Text>
-                </View>
-              </View>
-
-              {/* Current Macros Calorie Display */}
-              {(tempProtein !== "" || tempCarbs !== "" || tempFat !== "") && (
-                <View className={`rounded-xl p-4 border mt-2 ${
-                  Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) <= (parseInt(tempCalories) || calorieGoal) * 0.05
-                    ? "bg-green-500/10 border-green-500/30"
-                    : Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) > (parseInt(tempCalories) || calorieGoal) * 0.15
-                    ? "bg-red-500/10 border-red-500/30"
-                    : "bg-yellow-500/10 border-yellow-500/30"
-                }`}>
-                  <View className="flex-row items-center justify-between">
-                    <Text className={`text-sm font-sora-semibold ${
-                      Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) <= (parseInt(tempCalories) || calorieGoal) * 0.05
-                        ? "text-green-300"
-                        : Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) > (parseInt(tempCalories) || calorieGoal) * 0.15
-                        ? "text-red-300"
-                        : "text-yellow-300"
-                    }`}>
-                      Current Macros
-                    </Text>
-                    <Text className={`text-base font-sora-bold ${
-                      Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) <= (parseInt(tempCalories) || calorieGoal) * 0.05
-                        ? "text-green-200"
-                        : Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) > (parseInt(tempCalories) || calorieGoal) * 0.15
-                        ? "text-red-200"
-                        : "text-yellow-200"
-                    }`}>
-                      {calculateEnteredCalories()} cal
-                    </Text>
-                  </View>
-                  <Text className={`text-xs font-sora mt-1 ${
-                    Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) <= (parseInt(tempCalories) || calorieGoal) * 0.05
-                      ? "text-green-400"
-                      : Math.abs(calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)) > (parseInt(tempCalories) || calorieGoal) * 0.15
-                      ? "text-red-400"
-                      : "text-yellow-400"
-                  }`}>
-                    {calculateEnteredCalories() < (parseInt(tempCalories) || calorieGoal)
-                      ? `${(parseInt(tempCalories) || calorieGoal) - calculateEnteredCalories()} cal remaining`
-                      : calculateEnteredCalories() > (parseInt(tempCalories) || calorieGoal)
-                      ? `${calculateEnteredCalories() - (parseInt(tempCalories) || calorieGoal)} cal over target`
-                      : "Perfect match!"
-                    }
-                  </Text>
-                </View>
-              )}
-
-              {/* Helper Info */}
-              <View className="bg-purdueGold/10 rounded-xl p-4 border border-purdueGold/30 mt-2 mb-6">
-                <View className="flex-row items-start">
-                  <Ionicons name="bulb" size={18} color="#CFB991" />
-                  <View className="flex-1 ml-3">
-                    <Text className="text-purdueGold text-xs font-sora-semibold mb-1">
-                      Smart Suggestions
-                    </Text>
-                    <Text className="text-yellow-200 text-xs font-sora leading-5">
-                      Suggestions update based on your calorie goal using a balanced 30/40/30 macro split (protein/carbs/fat).
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Action Buttons */}
-              <View className="space-y-3">
-                <TouchableOpacity
-                  onPress={handleSubmitGoals}
-                  className="bg-purdueGold rounded-xl py-4 flex-row items-center justify-center"
-                >
-                  <Ionicons name="checkmark-circle" size={22} color="#000000" />
-                  <Text className="text-black text-base font-sora-semibold ml-2">
-                    Save Goals
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={closeModal}
-                  className="bg-gray-800 rounded-xl py-4 flex-row items-center justify-center border border-gray-700 mt-2"
-                >
-                  <Text className="text-gray-300 text-base font-sora-semibold">
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
 
       {/* Toast Notification */}
       {toastVisible && (

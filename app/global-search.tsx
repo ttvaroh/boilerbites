@@ -14,6 +14,8 @@ import ErrorBoundary from "../components/ErrorBoundary";
 import ItemSearchComponent from "../components/ItemSearch";
 import SearchItemCard from "../components/SearchItemCard";
 import { useAuth } from "../contexts/AuthContext";
+import { useNutritionGoals } from "../contexts/NutritionGoalsContext";
+import { getUserAllergenNames, itemContainsIntolerance } from "../lib/allergenUtils";
 import { supabase } from "../lib/supabase";
 import { FatSecretSearchFilters, fatSecretSearchService } from "../services/searchService";
 
@@ -51,13 +53,15 @@ const SearchItemWrapper = React.memo(({
   index, 
   onPress, 
   isCollection,
-  isCustomMeal
+  isCustomMeal,
+  hasIntolerance
 }: { 
   item: MenuItem; 
   index: number; 
   onPress: (item: MenuItem) => void; 
   isCollection: boolean;
   isCustomMeal?: boolean;
+  hasIntolerance?: boolean;
 }) => {
   const handlePress = React.useCallback(() => {
     onPress(item);
@@ -72,6 +76,7 @@ const SearchItemWrapper = React.memo(({
         isCollection={isCollection}
         isCustomMeal={isCustomMeal || false}
         hideLocation={true}
+        hasIntolerance={hasIntolerance}
       />
     </TouchableOpacity>
   );
@@ -207,6 +212,7 @@ function useFatSecretSearch() {
 export default function GlobalSearchPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { goals: nutritionGoals } = useNutritionGoals();
   
   const {
     searchQuery,
@@ -226,6 +232,32 @@ export default function GlobalSearchPage() {
   } = useFatSecretSearch();
 
   const [refreshing, setRefreshing] = React.useState(false);
+
+  // Get user's allergen names from preferences
+  const userAllergenNames = React.useMemo(() => {
+    if (!nutritionGoals) return [];
+    return getUserAllergenNames({
+      dairy_allergy: nutritionGoals.dairy_allergy,
+      gluten_allergy: nutritionGoals.gluten_allergy,
+      nuts_allergy: nutritionGoals.nuts_allergy,
+      soy_allergy: nutritionGoals.soy_allergy,
+      eggs_allergy: nutritionGoals.eggs_allergy,
+      shellfish_allergy: nutritionGoals.shellfish_allergy,
+      fish_allergy: nutritionGoals.fish_allergy,
+      peanut_allergy: nutritionGoals.peanut_allergy,
+      vegan_preference: nutritionGoals.vegan_preference,
+      vegetarian_preference: nutritionGoals.vegetarian_preference,
+    });
+  }, [nutritionGoals]);
+
+  // Get user preferences for vegan/vegetarian checking
+  const userPreferences = React.useMemo(() => {
+    if (!nutritionGoals) return undefined;
+    return {
+      vegan_preference: nutritionGoals.vegan_preference,
+      vegetarian_preference: nutritionGoals.vegetarian_preference,
+    };
+  }, [nutritionGoals]);
 
   // Search custom foods and meals
   const searchCustomItems = React.useCallback(async (query: string): Promise<MenuItem[]> => {
@@ -426,6 +458,13 @@ export default function GlobalSearchPage() {
   }, [searchResults, checkCollectionStatusBatch]);
 
   const renderItem = React.useCallback(({ item, index }: { item: MenuItem; index: number }) => {
+    const hasIntolerance = itemContainsIntolerance(
+      item.allergens,
+      userAllergenNames,
+      item,
+      userPreferences
+    );
+    
     return (
       <SearchItemWrapper
         item={item}
@@ -433,9 +472,10 @@ export default function GlobalSearchPage() {
         onPress={handleMenuItemPress}
         isCollection={collectionStatus[item.id] || false}
         isCustomMeal={customMealStatus[item.id] || false}
+        hasIntolerance={hasIntolerance}
       />
     );
-  }, [handleMenuItemPress, collectionStatus, customMealStatus]);
+  }, [handleMenuItemPress, collectionStatus, customMealStatus, userAllergenNames, userPreferences]);
 
   const ListEmptyComponent = React.useCallback(() => {
     if (isSearching) {

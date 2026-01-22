@@ -33,9 +33,10 @@ interface MenuItemCardProps {
   meals?: string[];
   isCollection?: boolean;
   date?: string;
+  hasIntolerance?: boolean;
 }
 
-export default function MenuItemCard({ item, showDietaryTag = true, meals, isCollection = false, date }: MenuItemCardProps) {
+export default function MenuItemCard({ item, showDietaryTag = true, meals, isCollection = false, date, hasIntolerance = false }: MenuItemCardProps) {
   // Check if location is one of the 5 main dining halls
   const isMainDiningHall = (locationName: string): boolean => {
     const mainDiningHalls = ['Ford', 'Wiley', 'Windsor', 'Earhart', 'Hillenbrand'];
@@ -114,7 +115,12 @@ export default function MenuItemCard({ item, showDietaryTag = true, meals, isCol
   const dietaryIcons = getDietaryIcons();
 
   return (
-    <View className="bg-gray-800 rounded-xl py-2 px-4 mb-2 shadow-lg">
+    <View 
+      className="bg-gray-800 rounded-xl py-2 px-4 mb-2 shadow-lg"
+      style={{
+        opacity: hasIntolerance ? 0.5 : 1.0
+      }}
+    >
       <View className="flex-row">
         {/* Left portion - Main content */}
         <View className="flex-1">
@@ -226,10 +232,20 @@ export default function MenuItemCard({ item, showDietaryTag = true, meals, isCol
 
       {/* Collection indicator */}
       {isCollection && (
-        <View className="flex-row">
+        <View className="flex-row mt-2">
           <Ionicons name="albums-outline" size={16} color="#CFB991" />
           <Text className="text-purdueGold text-sm font-sora ml-1">
             Collection
+          </Text>
+        </View>
+      )}
+
+      {/* Allergen indicator */}
+      {hasIntolerance && (
+        <View className="flex-row items-center mt-2">
+          <Ionicons name="warning" size={14} color="#9CA3AF" />
+          <Text className="text-gray-400 text-xs font-sora ml-1.5">
+            Contains allergen
           </Text>
         </View>
       )}

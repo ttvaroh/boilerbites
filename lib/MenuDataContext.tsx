@@ -598,10 +598,6 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
 
   // Fetch locations with basic menu info for today
   const refreshLocations = async (): Promise<void> => {
-    // Performance logging (temporary - remove after verification)
-    const startTime = performance.now();
-    const queryStartTime = performance.now();
-    
     try {
       setLoading(true);
       setError(null);
@@ -710,22 +706,11 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
       // Sort locations using helper function
       const sortedLocations = sortLocations(locationsList);
       setLocations(sortedLocations);
-      
-      // Performance logging (temporary - remove after verification)
-      const endTime = performance.now();
-      const totalTime = endTime - startTime;
-      const queryTime = endTime - queryStartTime;
-      console.log(`[PERF] refreshLocations completed in ${totalTime.toFixed(2)}ms (queries: ${queryTime.toFixed(2)}ms)`);
-      console.log(`[PERF] Fetched ${locationsData?.length || 0} locations, ${allMenus?.length || 0} menus with meals`);
     } catch (error) {
       console.error("Error fetching locations:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred";
       setError(errorMessage);
-      
-      // Performance logging on error
-      const endTime = performance.now();
-      console.log(`[PERF] refreshLocations failed after ${(endTime - startTime).toFixed(2)}ms`);
     } finally {
       setLoading(false);
     }
