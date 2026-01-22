@@ -22,6 +22,20 @@ This document tracks all changes and improvements made to BoilerBites since the 
   - Cache preserved across location switches for instant switching back
 
 ### Features
+- **Vegan & Vegetarian Preferences**: Added vegan and vegetarian dietary preferences
+  - Users can select vegan or vegetarian preferences in nutrition settings
+  - Items that don't match preferences are automatically greyed out (but remain clickable) on dining hall and search screens
+  - Preferences stored as `vegan_preference` and `vegetarian_preference` in database
+  - Visual indicator shows "Contains allergen" for items that don't match preferences
+- **Allergen Marking System**: Enhanced allergen filtering with visual indicators
+  - Items containing user's allergens are now marked and darkened on dining hall screens
+  - Items remain clickable but visually indicate potential allergen concerns
+  - Works consistently across dining hall menus and search screens
+  - Grey warning indicator displays "Contains allergen" for marked items
+- **Auto-Filter in Search**: Search screen automatically applies dietary preferences
+  - Search screen automatically selects vegan, vegetarian, and gluten-free filters based on user preferences
+  - Filters are pre-populated when opening search screen
+  - Seamless integration with existing allergen exclusion system
 - **Password Reset**: Added "Forgot Password" functionality
   - Users can request password reset from sign-in screen
   - Password reset handled via web application (https://boilerbites.vercel.app/reset-password)
@@ -31,6 +45,16 @@ This document tracks all changes and improvements made to BoilerBites since the 
 - Fixed infinite loop issue in station expansion initialization
 - Fixed redundant database queries in dining hall page initialization
 - Fixed timezone mismatch in daily progress calculation
+- Fixed nutrition preferences screen initialization order issues
+
+### UI/UX Improvements
+- Redesigned nutrition preferences screen for better usability
+  - Removed large hero section, replaced with compact card
+  - Optimized spacing to show save button without scrolling
+  - Made allergen preference cards more compact while maintaining readability
+- Improved nutrition preferences screen navigation
+  - Automatically routes back after successful save
+  - Better user feedback with toast notifications
 
 ### Technical
 - Added detailed menu cache with meal-specific keys for instant meal navigation
@@ -38,6 +62,9 @@ This document tracks all changes and improvements made to BoilerBites since the 
 - Modified `switchLocation()` to preserve cache instead of clearing it
 - Added performance logging for monitoring query count and load times
 - Updated `.gitignore` to exclude collection ETL URLs file
+- Added `vegan_preference` and `vegetarian_preference` columns to `nutrition_preferences` table
+- Enhanced `itemContainsIntolerance()` utility to check vegan/vegetarian preferences
+- Updated allergen marking logic to work with both allergen arrays and boolean flags
 
 ---
 
@@ -185,7 +212,7 @@ This document tracks all changes and improvements made to BoilerBites since the 
 
 | Version | Release Date | Key Features |
 |---------|--------------|--------------|
-| 1.0.3 | [Current] | Home screen & menu loading optimizations, password reset, prefetching |
+| 1.0.3 | [Current] | Home screen & menu loading optimizations, vegan/vegetarian preferences, allergen marking, auto-filter in search, password reset, prefetching |
 | 1.0.2 | [Previous] | FatSecret API, Azure AD auth, Oracle proxy, custom meals, swipe to delete, barcode scanning, global food search, date navigation |
 | 1.0.1 | [Previous] | Settings, nutrition goals, allergen preferences, pull-to-refresh, caching, UI improvements |
 | 1.0.0 | Oct 21, 2025 | Initial TestFlight release |

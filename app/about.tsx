@@ -101,6 +101,18 @@ export default function AboutScreen() {
                   <View className="flex-row items-start">
                     <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
                     <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
+                      Enhanced allergen marking system - items with your allergens are visually indicated
+                    </Text>
+                  </View>
+                  <View className="flex-row items-start">
+                    <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
+                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
+                      Search screen now automatically applies your dietary preferences
+                    </Text>
+                  </View>
+                  <View className="flex-row items-start">
+                    <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
+                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
                       Added "Forgot Password" functionality for easier account recovery
                     </Text>
                   </View>
