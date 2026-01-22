@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Image, Linking, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import BackgroundTemplate from "../components/BackgroundTemplate";
 const boilerbitesLogo = require("../assets/images/logos/boilerbites-logo.png");
 const tomHeadshot = require("../assets/images/tommycancun.jpg");
@@ -89,43 +89,25 @@ export default function AboutScreen() {
               <View className="mb-4">
                 <View className="flex-row items-center mb-3">
                   <Ionicons name="sparkles" size={20} color="#CFB991" />
-                  <Text className="text-purdueGold text-sm font-sora-semibold ml-2">Version 1.6.0 - Latest Updates</Text>
+                  <Text className="text-purdueGold text-sm font-sora-semibold ml-2">Version 1.0.3 - Latest Updates</Text>
                 </View>
                 <View className="ml-7">
                   <View className="flex-row items-start">
                     <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
                     <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      Scan product barcodes to quickly find nutrition information
+                      Dramatically improved home screen loading (reduced from 3-8 seconds to under 1 second)
                     </Text>
                   </View>
                   <View className="flex-row items-start">
                     <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
                     <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      Swipe to delete food entries directly from your diary
+                      Added "Forgot Password" functionality for easier account recovery
                     </Text>
                   </View>
                   <View className="flex-row items-start">
                     <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
                     <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      Search for foods globally with FatSecret API integration
-                    </Text>
-                  </View>
-                  <View className="flex-row items-start">
-                    <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
-                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      Create custom meals by combining foods from Purdue, FatSecret, or collections
-                    </Text>
-                  </View>
-                  <View className="flex-row items-start">
-                    <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
-                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      Sign in with Microsoft Azure AD authentication
-                    </Text>
-                  </View>
-                  <View className="flex-row items-start">
-                    <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
-                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      Fixed timestamp and entry ordering issues in diary
+                      Fixed timezone mismatch in daily progress calculation
                     </Text>
                   </View>
                 </View>
@@ -140,16 +122,9 @@ export default function AboutScreen() {
                   <Ionicons name="chatbubbles" size={20} color="#CFB991" />
                   <Text className="text-purdueGold text-sm font-sora-semibold ml-2">Feedback & Support</Text>
                 </View>
-                <Text className="text-gray-300 text-sm font-sora leading-5 mb-6">
-                  Have suggestions or found a bug? Join our Discord community to share feedback and connect with other users!
+                <Text className="text-gray-300 text-sm font-sora leading-5">
+                  Have suggestions or found a bug? We'd love to hear from you! Contact us using the information below.
                 </Text>
-                <TouchableOpacity 
-                  onPress={() => Linking.openURL("https://discord.gg/FdebEjfF")}
-                  className="bg-[#5865F2] rounded-xl py-3 px-4 flex-row items-center justify-center"
-                >
-                  <Ionicons name="logo-discord" size={20} color="white" />
-                  <Text className="text-white text-sm font-sora-semibold ml-2">Join Discord Community</Text>
-                </TouchableOpacity>
               </View>
             </View>
           </View>
@@ -166,7 +141,7 @@ export default function AboutScreen() {
               <View className="space-y-3">
                 <View className="flex-row items-center">
                   <Ionicons name="mail" size={20} color="#CFB991" />
-                  <Text className="text-gray-300 text-sm font-sora ml-3">support@boilerbites.app</Text>
+                  <Text className="text-gray-300 text-sm font-sora ml-3">ttvaroh@purdue.edu</Text>
                 </View>
               </View>
             </View>
@@ -178,7 +153,7 @@ export default function AboutScreen() {
             <View className="bg-gray-800/60 backdrop-blur-xl rounded-2xl p-4 border border-gray-700/50">
               <View className="flex-row items-center justify-between">
                 <Text className="text-gray-300 text-base font-sora">App Version</Text>
-                <Text className="text-purdueGold text-base font-sora-semibold">1.6.0</Text>
+                <Text className="text-purdueGold text-base font-sora-semibold">1.0.3</Text>
               </View>
               <View className="flex-row items-center justify-between mt-3">
                 <Text className="text-gray-300 text-base font-sora">Build</Text>

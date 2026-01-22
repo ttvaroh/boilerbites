@@ -2,13 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    Alert,
-    Linking,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Linking,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import BackgroundTemplate from "../components/BackgroundTemplate";
 import { useAuth } from "../contexts/AuthContext";
@@ -46,7 +46,7 @@ export default function ContactSupportScreen() {
   }, [initialSubject, initialMessage]);
 
   const handleEmailSupport = () => {
-    const email = "support@yourapp.com"; // Replace with your support email
+    const email = "ttvaroh@purdue.edu";
     const mailto = `mailto:${email}?subject=${encodeURIComponent(subject || "Support Request")}&body=${encodeURIComponent(message || "")}`;
     
     Linking.canOpenURL(mailto)
@@ -115,19 +115,9 @@ export default function ContactSupportScreen() {
       title: "Email Support",
       description: "Send your questions and feedback to our support team",
       action: () => {
-        Linking.openURL("mailto:ttvaroh@icloud.com");
+        Linking.openURL("mailto:ttvaroh@purdue.edu");
       },
       color: "#CFB991",
-    },
-    {
-      id: "discord",
-      icon: "logo-discord",
-      title: "Join Our Discord",
-      description: "Chat with the community and get help",
-      action: () => {
-        Linking.openURL("https://discord.gg/FdebEjfF"); // Replace with your Discord invite link
-      },
-      color: "#5865F2",
     },
   ];
 
@@ -283,21 +273,6 @@ export default function ContactSupportScreen() {
                 </>
               )}
             </TouchableOpacity>
-          </View>
-
-          {/* Additional Info */}
-          <View className="bg-blue-500/10 rounded-xl p-4 border border-blue-500/20">
-            <View className="flex-row items-start">
-              <Ionicons name="information-circle" size={20} color="#60A5FA" />
-              <View className="flex-1 ml-3">
-                <Text className="text-blue-300 text-sm font-sora-semibold mb-1">
-                  Before contacting support
-                </Text>
-                <Text className="text-blue-200 text-xs font-sora leading-5">
-                  Check our FAQ section for instant answers to common questions. Most issues can be resolved quickly through our help center.
-                </Text>
-              </View>
-            </View>
           </View>
         </View>
       </ScrollView>
