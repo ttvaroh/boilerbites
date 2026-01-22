@@ -213,18 +213,28 @@ export default function SignUpScreen() {
           <View className="flex-1 h-px bg-gray-700" />
         </View>
 
-        {/* Azure Sign Up Button */}
+        {/* Azure Sign Up Button - Disabled */}
         <TouchableOpacity
-          onPress={handleAzureSignUp}
-          className="w-full bg-gray-800 border border-gray-700 py-4 rounded-xl mb-4 flex-row items-center justify-center"
-          activeOpacity={0.8}
-          disabled={loading}
+          onPress={() => {}}
+          className="w-full bg-gray-800/50 border border-gray-700/50 py-4 rounded-xl mb-2 flex-row items-center justify-center"
+          activeOpacity={1}
+          disabled={true}
         >
-          <Ionicons name="logo-microsoft" size={20} color="#FFFFFF" />
-          <Text className="text-white text-base font-sora-bold ml-2">
-            {loading ? "Signing Up..." : "Continue with Purdue.edu"}
+          <Ionicons name="logo-microsoft" size={20} color="#6B7280" />
+          <Text className="text-gray-500 text-base font-sora-bold ml-2">
+            Continue with Purdue.edu
           </Text>
         </TouchableOpacity>
+        
+        {/* Notice about Azure sign-up */}
+        <View className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 mb-4">
+          <View className="flex-row items-start">
+            <Ionicons name="information-circle" size={16} color="#F59E0B" style={{ marginTop: 2 }} />
+            <Text className="text-yellow-200 text-xs font-sora ml-2 flex-1 leading-4">
+              Purdue.edu sign-in is temporarily unavailable. We're working with Purdue IT to resolve this. Please use email/password or Apple Sign-In instead.
+            </Text>
+          </View>
+        </View>
 
         {/* Sign in with Apple Button (iOS only) */}
         {Platform.OS === 'ios' && (
