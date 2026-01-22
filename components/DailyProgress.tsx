@@ -6,11 +6,11 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import EditGoalsModal from './EditGoalsModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useNutritionCache } from '../contexts/NutritionCacheContext';
 import { useNutritionGoals } from '../contexts/NutritionGoalsContext';
 import { getTodayDateString } from '../lib/timezone-utils';
+import EditGoalsModal from './EditGoalsModal';
 
 interface DailyProgressProps {
   selectedDate?: Date;

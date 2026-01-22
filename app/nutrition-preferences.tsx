@@ -192,9 +192,9 @@ export default function NutritionPreferencesScreen() {
 
       showToast("Your nutrition preferences have been saved successfully!");
       
-      // Route to home screen after successful save
+      // Route back after successful save
       setTimeout(() => {
-        router.push("/(tabs)");
+        router.back();
       }, 500); // Small delay to show toast
     } catch (error) {
       console.error("Error saving preferences:", error);

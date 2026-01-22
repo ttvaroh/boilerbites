@@ -1,11 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
-    ScrollView,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View
+  ScrollView,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 import BackgroundTemplate from "../components/BackgroundTemplate";
 import { useAuth } from "../contexts/AuthContext";
