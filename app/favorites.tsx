@@ -227,6 +227,8 @@ export default function FavoritesPage() {
 
       if (!favoriteItems || favoriteItems.length === 0) {
         setGlobalFavorites([]);
+        hasAttemptedGlobalFetch.current = true;
+        setGlobalLoading(false);
         return;
       }
 
@@ -240,12 +242,8 @@ export default function FavoritesPage() {
       if (itemsError) {
         console.error('Error fetching item details:', itemsError);
         setError('Failed to load item details. Please try again.');
-        return;
-      }
-
-      if (itemsError) {
-        console.error('Error fetching item details:', itemsError);
-        setError('Failed to load item details. Please try again.');
+        hasAttemptedGlobalFetch.current = true;
+        setGlobalLoading(false);
         return;
       }
 
@@ -309,6 +307,8 @@ export default function FavoritesPage() {
 
       if (!favoriteItems || favoriteItems.length === 0) {
         setUpcomingFavorites([]);
+        hasAttemptedUpcomingFetch.current = true;
+        setUpcomingLoading(false);
         return;
       }
 
@@ -326,6 +326,8 @@ export default function FavoritesPage() {
       
       if (itemIds.length === 0) {
         setUpcomingFavorites([]);
+        hasAttemptedUpcomingFetch.current = true;
+        setUpcomingLoading(false);
         return;
       }
       

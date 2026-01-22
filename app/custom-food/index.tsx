@@ -278,6 +278,12 @@ export default function CustomFoodPage() {
                       </TouchableOpacity>
                     </View>
                   ))}
+                  <View className="mt-4 mb-2 flex-row items-center justify-center">
+                    <Ionicons name="information-circle-outline" size={14} color="#6B7280" />
+                    <Text className="text-gray-600 text-xs font-sora text-center ml-1">
+                      Tip: You can search for your custom meals in the search page
+                    </Text>
+                  </View>
                 </View>
               )}
             </View>
@@ -310,6 +316,12 @@ export default function CustomFoodPage() {
                       </TouchableOpacity>
                     </View>
                   ))}
+                  <View className="mt-4 mb-2 flex-row items-center justify-center">
+                    <Ionicons name="information-circle-outline" size={14} color="#6B7280" />
+                    <Text className="text-gray-600 text-xs font-sora text-center ml-1">
+                      Tip: You can search for your custom foods in the search page
+                    </Text>
+                  </View>
                 </View>
               )}
             </View>
