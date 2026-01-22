@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { supabase } from "../lib/supabase";
 
@@ -28,14 +28,9 @@ export default function IngredientsAndAllergens({
   const [ingredients, setIngredients] = useState<string | null>(null);
   const [loadingIngredients, setLoadingIngredients] = useState(false);
 
-  // Load ingredients when component mounts
-  useEffect(() => {
-    if (!ingredients && !loadingIngredients) {
-      loadIngredients();
-    }
-  }, []);
-
-  const loadIngredients = async () => {
+  const loadIngredients = useCallback(async () => {
+    if (!itemId) return;
+    
     setLoadingIngredients(true);
     try {
       const { data, error } = await supabase
@@ -59,7 +54,14 @@ export default function IngredientsAndAllergens({
     } finally {
       setLoadingIngredients(false);
     }
-  };
+  }, [itemId]);
+
+  // Load ingredients when component mounts or itemId changes
+  useEffect(() => {
+    // Reset ingredients state when itemId changes
+    setIngredients(null);
+    loadIngredients();
+  }, [loadIngredients]);
 
   return (
     <View className="bg-gray-800 rounded-xl p-4 mb-4"
