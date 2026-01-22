@@ -261,13 +261,22 @@ export default function CustomFoodPage() {
               ) : (
                 <View>
                   {myMeals.map((item: any) => (
-                    <TouchableOpacity
-                      key={item.id}
-                      onPress={() => router.push(`/custom-food/edit-meal?mealId=${item.id}&reload=true`)}
-                      activeOpacity={0.8}
-                    >
-                      <MenuItemCard item={item} showDietaryTag={true} />
-                    </TouchableOpacity>
+                    <View key={item.id} className="flex-row items-center mb-3">
+                      <TouchableOpacity
+                        onPress={() => router.push(`/nutrition/${item.id}`)}
+                        activeOpacity={0.8}
+                        className="flex-1"
+                      >
+                        <MenuItemCard item={item} showDietaryTag={true} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => router.push(`/custom-food/edit-meal?mealId=${item.id}&reload=true`)}
+                        className="ml-2 pt-0 p-2"
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="create-outline" size={24} color="#CFB991" />
+                      </TouchableOpacity>
+                    </View>
                   ))}
                 </View>
               )}
@@ -284,13 +293,22 @@ export default function CustomFoodPage() {
               ) : (
                 <View>
                   {myFoods.map((item: any) => (
-                    <TouchableOpacity
-                      key={item.id}
-                      onPress={() => router.push(`/custom-food/edit-custom-food?itemId=${item.id}&reload=true`)}
-                      activeOpacity={0.8}
-                    >
-                      <MenuItemCard item={item} showDietaryTag={true} />
-                    </TouchableOpacity>
+                    <View key={item.id} className="flex-row items-center mb-3">
+                      <TouchableOpacity
+                        onPress={() => router.push(`/nutrition/${item.id}`)}
+                        activeOpacity={0.8}
+                        className="flex-1"
+                      >
+                        <MenuItemCard item={item} showDietaryTag={true} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => router.push(`/custom-food/edit-custom-food?itemId=${item.id}&reload=true`)}
+                        className="ml-2 pt-0 p-2"
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="create-outline" size={24} color="#CFB991" />
+                      </TouchableOpacity>
+                    </View>
                   ))}
                 </View>
               )}

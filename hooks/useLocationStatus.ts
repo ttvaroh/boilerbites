@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { getDateStringFromToday, getTodayDateString } from '../lib/timezone-utils';
 import { MealHours, ProcessedLocation } from '../types/menu';
 import {
-    formatLocationHours,
-    getLocationLogo,
-    getPlaceholderMealHours,
-    isLocationOpen
+  formatLocationHours,
+  getLocationLogo,
+  getPlaceholderMealHours,
+  isLocationOpen
 } from '../utils/locationHelpers';
-import { getTodayDateString, getDateStringFromToday } from '../lib/timezone-utils';
 
 // ============================================================================
 // Database Query

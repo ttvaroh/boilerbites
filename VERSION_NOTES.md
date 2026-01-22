@@ -4,7 +4,44 @@ This document tracks all changes and improvements made to BoilerBites since the 
 
 ---
 
-## Version 1.6.0 - December 26, 2025
+## Version 1.0.3 - January 24, 2026
+
+### Performance Improvements
+- **Home Screen Loading**: Dramatically improved home screen load time (reduced from 3-8 seconds to < 1 second)
+  - Optimized `refreshLocations()` to use single batched query instead of 30+ sequential queries
+  - Reduced database queries from 45-60+ to just 2-3 queries (95% reduction)
+  - Implemented parallel query execution for location data
+  - Eliminated redundant data fetching in `useLocationStatus` hook
+- **Dining Hall Menu Loading**: Made menu loading nearly instant (< 100ms)
+  - Added aggressive prefetching - menus prefetch when user presses dining hall card
+  - Implemented meal-specific caching with keys: `locationName:date:mealType`
+  - Prefetches all meals (breakfast, lunch, dinner) in parallel for instant meal navigation
+  - Removed blocking loading states - always shows cached data or skeleton loaders
+  - Meal navigation (breakfast → lunch → dinner) now instant from cache
+  - Collection status loads in parallel with menu data
+  - Cache preserved across location switches for instant switching back
+
+### Features
+- **Password Reset**: Added "Forgot Password" functionality
+  - Users can request password reset from sign-in screen
+  - Password reset handled via web application (https://boilerbites.vercel.app/reset-password)
+  - Improved security by redirecting to web for password reset flow
+
+### Bug Fixes
+- Fixed infinite loop issue in station expansion initialization
+- Fixed redundant database queries in dining hall page initialization
+- Fixed timezone mismatch in daily progress calculation
+
+### Technical
+- Added detailed menu cache with meal-specific keys for instant meal navigation
+- Added `prefetchLocationMenu()` method for aggressive prefetching
+- Modified `switchLocation()` to preserve cache instead of clearing it
+- Added performance logging for monitoring query count and load times
+- Updated `.gitignore` to exclude collection ETL URLs file
+
+---
+
+## Version 1.0.2 - January 14, 2026
 
 ### Features
 - **Swipe to Delete**: Added swipe-to-delete functionality for food entries in the diary
@@ -20,61 +57,50 @@ This document tracks all changes and improvements made to BoilerBites since the 
 - **Oracle Proxy Setup**: Implemented Oracle proxy for FatSecret search functionality
 - **Azure AD Authentication**: Added Azure AD (Microsoft) authentication support
 - **OAuth Improvements**: Enhanced OAuth callback handling to prevent duplicate code exchange
+- **Open Food Facts Integration**: Added Open Food Facts global search with rate limiting
+- **FDC Food Search**: Integrated USDA FoodData Central (FDC) food search
+- **Global Food Search**: Users can now search for foods globally, not just Purdue dining hall items
+- **Search Improvements**: Enhanced search functionality with better filtering and results
+- **Date-Based Navigation**: Added date-based search and navigation for diary and nutrition tracking
+- **Meal Type Formatting**: Improved meal type display name formatting
+- **Custom Food Creation**: Enhanced custom food creation with improved SQL functions
+- **Menu Enhancements**: Improved menu and nutrition SQL functions
+- **About Screen Updates**: Updated About screen with updates and feedback section
+- **Performance Optimization**: Optimized menu data loading with single joined query
 
 ### Bug Fixes
 - Fixed delete entry functionality in diary
 - Fixed timestamp issues - entries now use dynamic timestamps instead of static times
 - Fixed entry ordering in diary to properly sort by creation time
 - Fixed infinite loop issue in authentication flow
-
-### Technical
-- Updated .gitignore to exclude SQL files in supabase-setup directory
-- Improved timestamp handling to use actual current time instead of static values
-
----
-
-## Version 1.5.0 - November 25, 2025
-
-### Features
-- **Open Food Facts Integration**: Added Open Food Facts global search with rate limiting
-- **FDC Food Search**: Integrated USDA FoodData Central (FDC) food search
-- **Global Food Search**: Users can now search for foods globally, not just Purdue dining hall items
-- **Search Improvements**: Enhanced search functionality with better filtering and results
-
-### Bug Fixes
 - Fixed search functionality issues
-- Improved UI/UX for search results
-
----
-
-## Version 1.4.0 - November 6, 2025
-
-### Features
-- **Date-Based Navigation**: Added date-based search and navigation for diary and nutrition tracking
-- **Meal Type Formatting**: Improved meal type display name formatting
-- **Custom Food Creation**: Enhanced custom food creation with improved SQL functions
-- **Menu Enhancements**: Improved menu and nutrition SQL functions
+- Fixed allergen sorting
+- Removed meal availability filter
+- Fixed collection item mapping
+- Improved station expansion functionality
 
 ### Improvements
 - Better date handling throughout the app
 - Improved navigation between dates in diary and nutrition views
-
----
-
-## Version 1.3.0 - October 26, 2025
-
-### Features
-- **About Screen Updates**: Updated About screen with updates and feedback section
-- **Performance Optimization**: Optimized menu data loading with single joined query
+- Improved UI/UX for search results
+- Refactored nutrition goal sourcing in DailyProgress component
+- Centralized meal config and mapping logic
+- Refactored dining hall menu view with hooks and components
+- Refined DiningHallCard layout and grid spacing
+- Added logos and enhanced dining hall features
+- Show and sort meals only for main dining halls
+- Refactored location status logic and added app refresh
 
 ### Technical
+- Updated .gitignore to exclude SQL files in supabase-setup directory
+- Improved timestamp handling to use actual current time instead of static values
 - Updated Expo and dependencies
 - Added iOS build scripts
 - Improved build configuration
 
 ---
 
-## Version 1.2.0 - October 25, 2025
+## Version 1.0.1 - December 15, 2025
 
 ### Features
 - **Settings Screen**: Added comprehensive settings and nutrition preferences screens
@@ -85,21 +111,6 @@ This document tracks all changes and improvements made to BoilerBites since the 
   - Enhanced allergen filtering throughout the app
 - **Profile Screen**: Added profile screen with user information
 - **Support Screen**: Added support screen for user assistance
-
-### Improvements
-- Refactored nutrition goal sourcing in DailyProgress component
-- Centralized meal config and mapping logic
-- Refactored dining hall menu view with hooks and components
-- Refined DiningHallCard layout and grid spacing
-- Added logos and enhanced dining hall features
-- Show and sort meals only for main dining halls
-- Refactored location status logic and added app refresh
-
----
-
-## Version 1.1.0 - October 23, 2025
-
-### Features
 - **Pull-to-Refresh**: Added pull-to-refresh functionality to diary and home pages
 - **Nutrition Caching**: Implemented nutrition and food entry caching for improved performance
 - **UI Enhancements**: Updated UI components and added developer info enhancements
@@ -174,12 +185,9 @@ This document tracks all changes and improvements made to BoilerBites since the 
 
 | Version | Release Date | Key Features |
 |---------|--------------|--------------|
-| 1.6.0 | Dec 18, 2025 | FatSecret API, Azure AD auth, Oracle proxy, custom meals, swipe to delete, barcode scanning |
-| 1.5.0 | Nov 25, 2025 | Open Food Facts, FDC search, global food search |
-| 1.4.0 | Nov 6, 2025 | Date-based navigation, custom food enhancements |
-| 1.3.0 | Oct 26, 2025 | About screen updates, performance optimizations |
-| 1.2.0 | Oct 25, 2025 | Settings, nutrition goals, allergen preferences |
-| 1.1.0 | Oct 23, 2025 | Pull-to-refresh, caching, UI improvements |
+| 1.0.3 | [Current] | Home screen & menu loading optimizations, password reset, prefetching |
+| 1.0.2 | [Previous] | FatSecret API, Azure AD auth, Oracle proxy, custom meals, swipe to delete, barcode scanning, global food search, date navigation |
+| 1.0.1 | [Previous] | Settings, nutrition goals, allergen preferences, pull-to-refresh, caching, UI improvements |
 | 1.0.0 | Oct 21, 2025 | Initial TestFlight release |
 
 ---

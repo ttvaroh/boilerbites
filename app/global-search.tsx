@@ -227,6 +227,49 @@ export default function GlobalSearchPage() {
 
   const [refreshing, setRefreshing] = React.useState(false);
 
+  // Search custom foods and meals
+  const searchCustomItems = React.useCallback(async (query: string): Promise<MenuItem[]> => {
+    if (!user?.id || !query.trim()) {
+      return [];
+    }
+
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const userId = auth?.user?.id;
+      
+      if (!userId) {
+        return [];
+      }
+
+      // Search custom foods and meals by searching items directly
+      // Custom foods/meals have user_id matching the current user
+      const { data: customItemsData, error: customItemsError } = await supabase
+        .from('item')
+        .select('*')
+        .eq('user_id', userId)
+        .ilike('name', `%${query.trim()}%`)
+        .limit(20);
+
+      if (customItemsError || !customItemsData) {
+        return [];
+      }
+
+      return customItemsData.map((item: any) => ({
+        ...item,
+        // Ensure all required MenuItem fields are present
+        allergens: item.allergens || [],
+        meals: [],
+      }));
+    } catch (err) {
+      console.error('Error searching custom foods/meals:', err);
+      return [];
+    }
+  }, [user?.id]);
+
+  // Track custom items for current query to combine with FatSecret results
+  const customItemsRef = React.useRef<MenuItem[]>([]);
+  const lastQueryRef = React.useRef<string>('');
+
   // Trigger search when debounced query changes
   React.useEffect(() => {
     setSearchResults([]);
@@ -234,13 +277,41 @@ export default function GlobalSearchPage() {
     
     if (debouncedQuery.trim() || hasSearched) {
       setHasSearched(true);
+      
+      // Search custom items and store in ref
+      searchCustomItems(debouncedQuery).then(items => {
+        customItemsRef.current = items;
+        lastQueryRef.current = debouncedQuery;
+      });
+      
       performSearch(debouncedQuery, false);
     } else {
+      customItemsRef.current = [];
+      lastQueryRef.current = '';
       performSearch('', false);
     }
-    // Only depend on debouncedQuery - performSearch is stable now
+    // Only depend on debouncedQuery - performSearch and searchCustomItems are stable now
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedQuery]);
+
+  // Combine custom items with FatSecret results when searchResults update
+  React.useEffect(() => {
+    if (searchResults.length > 0 && customItemsRef.current.length > 0 && lastQueryRef.current === debouncedQuery) {
+      // Check if custom items are already in results
+      const customItemIds = new Set(customItemsRef.current.map(item => item.id));
+      const hasCustomItems = searchResults.some(item => customItemIds.has(item.id));
+      
+      if (!hasCustomItems) {
+        // Combine custom items with FatSecret results (custom items first)
+        const combinedResults = [...customItemsRef.current, ...searchResults];
+        setSearchResults(combinedResults);
+      }
+    } else if (searchResults.length === 0 && customItemsRef.current.length > 0 && lastQueryRef.current === debouncedQuery) {
+      // If no FatSecret results but we have custom items, show them
+      setSearchResults(customItemsRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchResults, debouncedQuery]);
 
   const handleSearch = React.useCallback(async (query: string, filters?: any) => {
     setSearchQuery(query);
