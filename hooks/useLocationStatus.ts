@@ -162,66 +162,133 @@ export function useLocationStatus(locations: Location[]) {
     if (locations.length === 0) return;
 
     const processLocations = async () => {
+      // Performance logging (temporary - remove after verification)
+      const startTime = performance.now();
+      let dbQueryCount = 0;
+      
       setIsProcessing(true);
       
       try {
         const processed = await Promise.all(
           locations.map(async (location, index) => {
-            // Determine meal hours priority:
-            // 1. Database meal hours (most accurate)
-            // 2. Context meal data (from menu data)
-            // 3. Placeholder hours (fallback)
-            let mealHours: MealHours[] = [];
-            
-            const dbMealHours = await fetchMealHoursFromDatabase(location.name);
-            
-            if (dbMealHours) {
-              // Check if today's data has valid times
-              const hasValidTimes = dbMealHours.some(meal => meal.start_time && meal.end_time);
+            // Wrap in try-catch to ensure individual location failures don't block others
+            try {
+              // OPTIMIZED: Prioritize cached meal data from refreshLocations()
+              // This eliminates redundant database queries (15-30 queries -> 0 queries)
+              // Determine meal hours priority:
+              // 1. Context meal data (from refreshLocations - already fetched)
+              // 2. Database meal hours (fallback if context data missing)
+              // 3. Placeholder hours (final fallback)
+              let mealHours: MealHours[] = [];
               
-              if (!hasValidTimes) {
-                // If today's data is incomplete, try to fetch tomorrow's data
-                const tomorrowMealHours = await fetchTomorrowMealHours(location.name);
-                const firstTomorrowMeal = tomorrowMealHours?.find(meal => meal.start_time);
+              // PRIORITY 1: Use meal data already in locations array (from refreshLocations)
+              if (location.meals && location.meals.length > 0) {
+                mealHours = location.meals.map((meal) => ({
+                  meal_name: meal.name,
+                  start_time: meal.start_time,
+                  end_time: meal.end_time,
+                  open: meal.open,
+                }));
                 
-                if (firstTomorrowMeal) {
-                  // Use tomorrow's first meal for "Opens tomorrow at..." display
-                  mealHours = [{
-                    meal_name: firstTomorrowMeal.meal_name,
-                    start_time: firstTomorrowMeal.start_time,
-                    end_time: firstTomorrowMeal.end_time,
-                    open: false // Tomorrow's meal, so not open today
-                  }];
-                } else {
-                  mealHours = dbMealHours; // Fallback to today's data
+                // Check if today's data has valid times
+                const hasValidTimes = mealHours.some(meal => meal.start_time && meal.end_time);
+                
+                if (!hasValidTimes) {
+                  // If today's data is incomplete, try to fetch tomorrow's data
+                  try {
+                    dbQueryCount++; // Track fallback query
+                    const tomorrowMealHours = await fetchTomorrowMealHours(location.name);
+                    const firstTomorrowMeal = tomorrowMealHours?.find(meal => meal.start_time);
+                    
+                    if (firstTomorrowMeal) {
+                      // Use tomorrow's first meal for "Opens tomorrow at..." display
+                      mealHours = [{
+                        meal_name: firstTomorrowMeal.meal_name,
+                        start_time: firstTomorrowMeal.start_time,
+                        end_time: firstTomorrowMeal.end_time,
+                        open: false // Tomorrow's meal, so not open today
+                      }];
+                    }
+                    // Otherwise keep the incomplete today's data
+                  } catch (tomorrowError) {
+                    // If fetching tomorrow's data fails, keep today's incomplete data
+                    console.warn(`Error fetching tomorrow's meal hours for ${location.name}:`, tomorrowError);
+                  }
                 }
               } else {
-                mealHours = dbMealHours;
+                // PRIORITY 2: Fallback to database query only if location.meals is missing
+                // This should rarely happen if refreshLocations() works correctly
+                try {
+                  dbQueryCount++; // Track fallback query
+                  const dbMealHours = await fetchMealHoursFromDatabase(location.name);
+                  
+                  if (dbMealHours) {
+                    // Check if today's data has valid times
+                    const hasValidTimes = dbMealHours.some(meal => meal.start_time && meal.end_time);
+                    
+                    if (!hasValidTimes) {
+                      // If today's data is incomplete, try to fetch tomorrow's data
+                      try {
+                        dbQueryCount++; // Track fallback query
+                        const tomorrowMealHours = await fetchTomorrowMealHours(location.name);
+                        const firstTomorrowMeal = tomorrowMealHours?.find(meal => meal.start_time);
+                        
+                        if (firstTomorrowMeal) {
+                          // Use tomorrow's first meal for "Opens tomorrow at..." display
+                          mealHours = [{
+                            meal_name: firstTomorrowMeal.meal_name,
+                            start_time: firstTomorrowMeal.start_time,
+                            end_time: firstTomorrowMeal.end_time,
+                            open: false // Tomorrow's meal, so not open today
+                          }];
+                        } else {
+                          mealHours = dbMealHours; // Fallback to today's data
+                        }
+                      } catch (tomorrowError) {
+                        // If fetching tomorrow's data fails, use today's incomplete data
+                        console.warn(`Error fetching tomorrow's meal hours for ${location.name}:`, tomorrowError);
+                        mealHours = dbMealHours;
+                      }
+                    } else {
+                      mealHours = dbMealHours;
+                    }
+                  } else {
+                    // PRIORITY 3: Final fallback to placeholder hours
+                    mealHours = getPlaceholderMealHours();
+                  }
+                } catch (dbError) {
+                  // If database query fails, use placeholder hours
+                  console.warn(`Error fetching meal hours for ${location.name}:`, dbError);
+                  mealHours = getPlaceholderMealHours();
+                }
               }
-            } else if (location.meals && location.meals.length > 0) {
-              mealHours = location.meals.map((meal) => ({
-                meal_name: meal.name,
-                start_time: meal.start_time,
-                end_time: meal.end_time,
-                open: meal.open,
-              }));
-            } else {
-              mealHours = getPlaceholderMealHours();
+
+              const isOpen = isLocationOpen(mealHours);
+              const formattedHours = formatLocationHours(mealHours);
+              const logo = getLocationLogo(location.name, location.type);
+
+              return {
+                id: index + 1,
+                name: location.name,
+                type: location.type,
+                hours: formattedHours,
+                status: (isOpen ? "open" : "closed") as "open" | "closed",
+                image: logo,
+                mealHours: mealHours,
+              };
+            } catch (error) {
+              // If processing this location fails completely, return a fallback location
+              console.warn(`Error processing location ${location.name}:`, error);
+              return {
+                id: index + 1,
+                name: location.name,
+                type: location.type,
+                hours: "Hours unavailable",
+                status: "closed" as "open" | "closed",
+                image: getLocationLogo(location.name, location.type),
+                mealHours: getPlaceholderMealHours(),
+              };
             }
-
-            const isOpen = isLocationOpen(mealHours);
-            const formattedHours = formatLocationHours(mealHours);
-            const logo = getLocationLogo(location.name, location.type);
-
-            return {
-              id: index + 1,
-              name: location.name,
-              type: location.type,
-              hours: formattedHours,
-              status: (isOpen ? "open" : "closed") as "open" | "closed",
-              image: logo,
-              mealHours: mealHours,
-            };
           })
         );
 
@@ -231,8 +298,19 @@ export function useLocationStatus(locations: Location[]) {
         const onTheGo = processed.filter(loc => loc.type === 2);
 
         setProcessedLocations({ diningHalls, quickBites, onTheGo });
+        
+        // Performance logging (temporary - remove after verification)
+        const endTime = performance.now();
+        const totalTime = endTime - startTime;
+        const locationsUsingCache = locations.filter(loc => loc.meals && loc.meals.length > 0).length;
+        console.log(`[PERF] useLocationStatus completed in ${totalTime.toFixed(2)}ms`);
+        console.log(`[PERF] ${locationsUsingCache}/${locations.length} locations used cached data, ${dbQueryCount} fallback DB queries`);
       } catch (error) {
         console.error('Error processing locations:', error);
+        
+        // Performance logging on error
+        const endTime = performance.now();
+        console.log(`[PERF] useLocationStatus failed after ${(endTime - startTime).toFixed(2)}ms`);
       } finally {
         setIsProcessing(false);
       }

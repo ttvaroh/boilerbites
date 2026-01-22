@@ -1,12 +1,12 @@
 import {
-    createContext,
-    ReactNode,
-    useContext,
-    useEffect,
-    useState
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useState
 } from "react";
 import { isJWTExpiredError } from "./authUtils";
-import { mapMealNameToType } from "./mealConfig";
+import { getMealOrder, mapMealNameToType } from "./mealConfig";
 import { supabase } from "./supabase";
 import { getTodayDateString } from "./timezone-utils";
 
@@ -83,6 +83,7 @@ interface MenuDataContextType {
   getMenuForDate: (locationName: string, date: string) => Promise<MealsByDate | null>;
   getMealBasicInfo: (locationName: string, date: string) => Promise<MealsByDate | null>;
   getMealDetailedData: (locationName: string, date: string, mealType: string) => Promise<Meal | null>;
+  prefetchLocationMenu: (locationName: string) => Promise<void>;
   getAvailableLocations: () => Promise<string[]>;
   refreshLocations: () => Promise<void>;
   refreshAllData: () => Promise<void>;
@@ -107,15 +108,18 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
   const [error, setError] = useState<string | null>(null);
   const [loadingDates, setLoadingDates] = useState<Set<string>>(new Set());
   const [basicMealCache, setBasicMealCache] = useState<Map<string, MealsByDate>>(new Map());
+  // Detailed menu cache with meal-specific keys: "locationName:date:mealType"
+  const [detailedMenuCache, setDetailedMenuCache] = useState<Map<string, Meal>>(new Map());
 
-  // Switch to a new location and clear existing data
+  // Switch to a new location - preserve cache for instant switching back
   const switchLocation = async (locationName: string): Promise<void> => {
     if (currentLocation === locationName && menuData) {
       return; // Already on this location
     }
     
-    // Clear cache when switching locations
-    setBasicMealCache(new Map());
+    // OPTIMIZED: Don't clear cache when switching locations
+    // Preserve cache so users can switch back instantly
+    // Cache will naturally expire or can be cleared on explicit refresh
     
     // Clear existing data and switch
     setCurrentLocation(locationName);
@@ -196,6 +200,12 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
 
   // Get detailed data for a specific meal only
   const getMealDetailedData = async (locationName: string, date: string, mealType: string): Promise<Meal | null> => {
+    // OPTIMIZED: Check cache first with meal-specific key
+    const cacheKey = `${locationName}:${date}:${mealType}`;
+    if (detailedMenuCache.has(cacheKey)) {
+      return detailedMenuCache.get(cacheKey)!;
+    }
+    
     try {
       const { data: menuData, error: menuError } = await supabase
         .from("day_menu")
@@ -296,7 +306,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
         }
       }
       
-      return {
+      const mealData: Meal = {
         id: targetMeal.id,
         name: targetMeal.meal_name,
         start_time: targetMeal.start_time || "",
@@ -304,6 +314,11 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
         open: targetMeal.open,
         stations: stationsWithItems,
       };
+      
+      // OPTIMIZED: Cache the detailed meal data with meal-specific key
+      setDetailedMenuCache(prev => new Map(prev).set(cacheKey, mealData));
+      
+      return mealData;
     } catch (error) {
       console.error(`Error fetching detailed meal data for ${locationName} on ${date}:`, error);
       return null;
@@ -515,8 +530,78 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
     refreshLocations();
   }, []);
 
+  // Helper function to map locations and menus to LocationInfo[]
+  const mapLocationsToLocationInfo = (
+    locationsData: Array<{ name: string; type: number }>,
+    menuMap: Map<string, any>
+  ): LocationInfo[] => {
+    return locationsData.map((location) => {
+      const menu = menuMap.get(location.name);
+
+      if (!menu) {
+        return {
+          name: location.name,
+          type: location.type,
+          hasMenu: false,
+        };
+      }
+
+      // Process meal data from joined query
+      const meals: Meal[] = (menu.day_meal || [])
+        .sort((a: any, b: any) => (a.meal_order || 0) - (b.meal_order || 0))
+        .map((meal: any) => ({
+          id: meal.id,
+          name: meal.meal_name,
+          start_time: meal.start_time || "",
+          end_time: meal.end_time || "",
+          open: meal.open,
+          stations: [], // Empty for basic info
+        }));
+
+      return {
+        name: location.name,
+        type: location.type,
+        hasMenu: true,
+        menuId: menu.id,
+        isPublished: menu.is_published,
+        meals: meals.length > 0 ? meals : undefined,
+      };
+    });
+  };
+
+  // Helper function to sort locations (preserves existing sorting logic)
+  const sortLocations = (locationsList: LocationInfo[]): LocationInfo[] => {
+    const diningHallOrder = ['Ford', 'Wiley', 'Windsor', 'Earhart', 'Hillenbrand'];
+    
+    return locationsList.sort((a, b) => {
+      // Only sort dining halls (type 0)
+      if (a.type !== 0 || b.type !== 0) {
+        return 0; // Keep non-dining halls in their original order
+      }
+      
+      const aIndex = diningHallOrder.indexOf(a.name);
+      const bIndex = diningHallOrder.indexOf(b.name);
+      
+      // If both are in the order list, sort by their position
+      if (aIndex !== -1 && bIndex !== -1) {
+        return aIndex - bIndex;
+      }
+      
+      // If only one is in the order list, prioritize it
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      
+      // If neither is in the order list, maintain original order
+      return 0;
+    });
+  };
+
   // Fetch locations with basic menu info for today
   const refreshLocations = async (): Promise<void> => {
+    // Performance logging (temporary - remove after verification)
+    const startTime = performance.now();
+    const queryStartTime = performance.now();
+    
     try {
       setLoading(true);
       setError(null);
@@ -553,108 +638,94 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
         throw new Error(`Failed to fetch locations: ${locationsError.message}`);
       }
 
-      const locationsList: LocationInfo[] = [];
+      // OPTIMIZED: Single query to fetch all menus for today with joined meal data
+      // This replaces the N+1 query problem (30+ queries -> 1 query)
+      const { data: allMenus, error: menusError } = await supabase
+        .from("day_menu")
+        .select(`
+          id,
+          is_published,
+          location_name,
+          day_meal (
+            id,
+            meal_name,
+            meal_order,
+            start_time,
+            end_time,
+            open
+          )
+        `)
+        .eq("serve_date", today);
 
-      // Check which locations have menus for today and get basic meal info
-      for (const location of locationsData || []) {
+      // If JWT expired, try to refresh and retry once
+      if (menusError && isJWTExpiredError(menusError)) {
         try {
-          const { data: menu, error: menuError } = await supabase
-            .from("day_menu")
-            .select("id, is_published")
-            .eq("location_name", location.name)
-            .eq("serve_date", today)
-            .maybeSingle();
-
-          if (menuError || !menu) {
-            locationsList.push({
-              name: location.name,
-              type: location.type,
-              hasMenu: false,
-            });
-          } else {
-            // Get basic meal info for this location
-            const { data: mealsData, error: mealsError } = await supabase
-              .from("day_meal")
+          const { error: refreshError } = await supabase.auth.refreshSession();
+          if (!refreshError) {
+            // Retry the query after refresh
+            const retryResult = await supabase
+              .from("day_menu")
               .select(`
                 id,
-                meal_name,
-                meal_order,
-                start_time,
-                end_time,
-                open
+                is_published,
+                location_name,
+                day_meal (
+                  id,
+                  meal_name,
+                  meal_order,
+                  start_time,
+                  end_time,
+                  open
+                )
               `)
-              .eq("day_menu_id", menu.id)
-              .order("meal_order");
-
-            if (mealsError || !mealsData) {
-            locationsList.push({
-              name: location.name,
-              type: location.type,
-              hasMenu: true,
-              menuId: menu.id,
-              isPublished: menu.is_published,
-            });
-            } else {
-              const meals: Meal[] = mealsData.map((meal: any) => ({
-                id: meal.id,
-                name: meal.meal_name,
-                start_time: meal.start_time || "",
-                end_time: meal.end_time || "",
-                open: meal.open,
-                stations: [], // Empty for basic info
-              }));
-
-              locationsList.push({
-                name: location.name,
-                type: location.type,
-                hasMenu: true,
-                menuId: menu.id,
-                isPublished: menu.is_published,
-                meals: meals,
-              });
+              .eq("serve_date", today);
+            if (!retryResult.error) {
+              // Use retry result if successful
+              const menuMap: Map<string, any> = new Map(
+                (retryResult.data || []).map((menu: any) => [menu.location_name, menu])
+              );
+              const locationsList = mapLocationsToLocationInfo(locationsData || [], menuMap);
+              const sortedLocations = sortLocations(locationsList);
+              setLocations(sortedLocations);
+              return;
             }
           }
-        } catch (locationError) {
-          console.warn(`Error checking menu for ${location.name}:`, locationError);
-          locationsList.push({
-            name: location.name,
-            type: location.type,
-            hasMenu: false,
-          });
+        } catch (refreshErr) {
+          console.warn('Error refreshing session:', refreshErr);
         }
       }
 
-      // Sort dining halls in the desired order: Ford, Wiley, Windsor, Earhart, Hillenbrand
-      const diningHallOrder = ['Ford', 'Wiley', 'Windsor', 'Earhart', 'Hillenbrand'];
-      
-      const sortedLocations = locationsList.sort((a, b) => {
-        // Only sort dining halls (type 0)
-        if (a.type !== 0 || b.type !== 0) {
-          return 0; // Keep non-dining halls in their original order
-        }
-        
-        const aIndex = diningHallOrder.indexOf(a.name);
-        const bIndex = diningHallOrder.indexOf(b.name);
-        
-        // If both are in the order list, sort by their position
-        if (aIndex !== -1 && bIndex !== -1) {
-          return aIndex - bIndex;
-        }
-        
-        // If only one is in the order list, prioritize it
-        if (aIndex !== -1) return -1;
-        if (bIndex !== -1) return 1;
-        
-        // If neither is in the order list, maintain original order
-        return 0;
-      });
+      if (menusError) {
+        throw new Error(`Failed to fetch menus: ${menusError.message}`);
+      }
 
+      // Create a map of location_name -> menu data for efficient lookup
+      const menuMap: Map<string, any> = new Map(
+        (allMenus || []).map((menu: any) => [menu.location_name, menu])
+      );
+
+      // Map locations to LocationInfo[] structure (maintains backward compatibility)
+      const locationsList = mapLocationsToLocationInfo(locationsData || [], menuMap);
+
+      // Sort locations using helper function
+      const sortedLocations = sortLocations(locationsList);
       setLocations(sortedLocations);
+      
+      // Performance logging (temporary - remove after verification)
+      const endTime = performance.now();
+      const totalTime = endTime - startTime;
+      const queryTime = endTime - queryStartTime;
+      console.log(`[PERF] refreshLocations completed in ${totalTime.toFixed(2)}ms (queries: ${queryTime.toFixed(2)}ms)`);
+      console.log(`[PERF] Fetched ${locationsData?.length || 0} locations, ${allMenus?.length || 0} menus with meals`);
     } catch (error) {
       console.error("Error fetching locations:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred";
       setError(errorMessage);
+      
+      // Performance logging on error
+      const endTime = performance.now();
+      console.log(`[PERF] refreshLocations failed after ${(endTime - startTime).toFixed(2)}ms`);
     } finally {
       setLoading(false);
     }
@@ -709,6 +780,32 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
 
 
 
+  // Prefetch all meals for a location (for instant loading)
+  const prefetchLocationMenu = async (locationName: string): Promise<void> => {
+    try {
+      const today = getTodayDateString();
+      const mealOrder = getMealOrder(locationName);
+      
+      // Prefetch all meals in parallel - this will populate the detailed cache
+      // Each meal will be cached with key: "locationName:date:mealType"
+      await Promise.all(
+        mealOrder.map(async (mealType) => {
+          // Check cache first to avoid redundant queries
+          const cacheKey = `${locationName}:${today}:${mealType}`;
+          if (detailedMenuCache.has(cacheKey)) {
+            return; // Already cached
+          }
+          
+          // Fetch and cache the meal data
+          await getMealDetailedData(locationName, today, mealType);
+        })
+      );
+    } catch (error) {
+      // Silently fail - prefetching shouldn't block the UI
+      console.warn(`Error prefetching menu for ${locationName}:`, error);
+    }
+  };
+
   // Clear basic meal cache manually
   const clearBasicMealCache = () => {
     setBasicMealCache(new Map());
@@ -724,6 +821,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
     getMenuForDate,
     getMealBasicInfo,
     getMealDetailedData,
+    prefetchLocationMenu,
     getAvailableLocations,
     refreshLocations,
     refreshAllData,

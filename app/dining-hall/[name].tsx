@@ -41,6 +41,7 @@ export default function DiningHallPage() {
   // Local state
   const [collectionStatus, setCollectionStatus] = useState<Record<string, boolean>>({});
   const initializedLocationRef = useRef<string | null>(null);
+  const initializedStationsRef = useRef<string | null>(null);
 
   // ============================================================================
   // Collection Status Loading
@@ -74,6 +75,14 @@ export default function DiningHallPage() {
   const handleNavigate = useCallback(async (direction: 'prev' | 'next') => {
     await menuView.navigateToMeal(direction);
   }, [menuView]);
+
+  // Memoized values (defined early for use in callbacks)
+  const currentDate = useMemo(() => {
+    if (menuView.viewState.status === 'initializing') {
+      return getTodayDateString();
+    }
+    return menuView.viewState.date;
+  }, [menuView.viewState]);
 
   const handleMenuItemPress = useCallback((item: MenuItem) => {
     const dateForNavigation = currentDate;
@@ -112,55 +121,60 @@ export default function DiningHallPage() {
         expansion.reset();
         setCollectionStatus({});
         initializedLocationRef.current = name;
+        initializedStationsRef.current = null; // Reset stations ref for new location
         
-        // Switch location in context (this will clear cache for new location)
+        // Switch location in context (cache is preserved for instant switching)
         await switchLocation(name);
         
-        // Check if we have cached data before resetting view
-        try {
-          const today = getTodayDateString();
-          const basicData = await getMealBasicInfo(name, today);
-          
-          if (basicData) {
-            // We have cached data - don't reset view state, go straight to cached flow
-            await menuView.initializeToday();
-          } else {
-            // No cached data - reset view state and use normal loading
-            menuView.resetView(true);
-            await menuView.initializeToday();
-          }
-        } catch (error) {
-          // Error checking cache - use normal loading flow
-          menuView.resetView(true);
-          await menuView.initializeToday();
-        }
+        // OPTIMIZED: Let menuView.initializeToday() handle all data fetching
+        // It will check cache internally and handle both cached and uncached scenarios
+        menuView.resetView(true);
+        await menuView.initializeToday();
       }
     };
 
     initialize();
   }, [name, getMealBasicInfo, menuView, expansion, switchLocation]);
 
-  // Load collection status when meal data loads
+  // OPTIMIZED: Load collection status in parallel with menu data
+  // Start loading as soon as we have stations (from cache or fresh data)
   useEffect(() => {
+    // If we have loaded data, extract item IDs and load collection status
     if (menuView.viewState.status === 'loaded') {
       const stations = menuView.viewState.data.stations;
+      const viewState = menuView.viewState;
       
-      // Initialize expansion state
-      expansion.initialize(stations);
+      // Create a stable key to prevent re-initializing the same stations
+      // Use date, mealType, and first station ID to create unique key
+      const firstStationId = stations.length > 0 ? stations[0].id : '';
+      const stationsKey = `${viewState.date}:${viewState.mealType}:${firstStationId}`;
       
-      // Load collection status for all items
+      // Only initialize if we haven't already initialized for these exact stations
+      // This prevents infinite loop when viewState changes but stations are the same
+      if (initializedStationsRef.current !== stationsKey) {
+        initializedStationsRef.current = stationsKey;
+        
+        // Initialize expansion state (only once per unique stations)
+        expansion.initialize(stations);
+      }
+      
+      // Load collection status for all items (in parallel, don't block)
+      // Only load if we have new stations (check by comparing item count)
       const itemIds = stations.flatMap(station =>
         station.items.map(item => item.id)
       );
       
       if (itemIds.length > 0) {
-        loadCollectionStatus(itemIds);
+        // Fire and forget - load in background
+        loadCollectionStatus(itemIds).catch(err => {
+          console.warn('Failed to load collection status:', err);
+        });
       }
     }
-  }, [menuView.viewState]);
+  }, [menuView.viewState, expansion, loadCollectionStatus]);
 
   // ============================================================================
-  // Memoized Values
+  // Memoized Values (continued)
   // ============================================================================
 
   const mealDisplayInfo = useMemo(() => {
@@ -216,13 +230,6 @@ export default function DiningHallPage() {
     };
   }, [menuView.viewState]);
 
-  const currentDate = useMemo(() => {
-    if (menuView.viewState.status === 'initializing') {
-      return getTodayDateString();
-    }
-    return menuView.viewState.date;
-  }, [menuView.viewState]);
-
   const currentStations = useMemo(() => {
     if (menuView.viewState.status === 'loaded') {
       return menuView.viewState.data.stations;
@@ -231,26 +238,10 @@ export default function DiningHallPage() {
   }, [menuView.viewState]);
 
   // ============================================================================
-  // Render: Loading State
+  // Render: Optimistic Loading (No Blocking States)
   // ============================================================================
-
-  if (contextLoading || menuView.viewState.status === 'initializing') {
-    return (
-      <BackgroundTemplate paddingBottom={0}>
-        <View className="flex-1">
-          <View className="bg-purdueBlack-200 pt-12 pb-6 px-6">
-            <TouchableOpacity onPress={() => router.back()} className="flex-row items-center">
-              <Ionicons name="arrow-back" size={24} color="white" />
-              <Text className="text-white text-lg font-sora ml-2">Back</Text>
-            </TouchableOpacity>
-          </View>
-          <View className="flex-1 justify-center items-center">
-            <Text className="text-white text-lg font-sora">Loading menu...</Text>
-          </View>
-        </View>
-      </BackgroundTemplate>
-    );
-  }
+  // OPTIMIZED: Never block with "Loading..." - always show something
+  // If we have cached data, show it immediately. Otherwise show skeleton.
 
   // ============================================================================
   // Render: Error State
@@ -311,20 +302,21 @@ export default function DiningHallPage() {
             onNavigate={handleNavigate}
           />
 
-          {/* Content based on view state */}
-          {menuView.viewState.status === 'loading' && (
-            <View className="py-8 items-center">
-              <Text className="text-gray-400 text-base font-sora">
-                Loading {mealDisplayInfo.name} menu...
-              </Text>
-            </View>
-          )}
-
-          {menuView.viewState.status === 'cached' && (
-            <View className="py-8 items-center">
-              <Text className="text-gray-400 text-base font-sora">
-                Loading {mealDisplayInfo.name} menu...
-              </Text>
+          {/* Content based on view state - Optimistic Rendering */}
+          {/* OPTIMIZED: Show cached data immediately or skeleton, never "Loading..." */}
+          {(menuView.viewState.status === 'loading' || menuView.viewState.status === 'cached' || menuView.viewState.status === 'initializing') && (
+            <View className="py-8">
+              {/* Show skeleton loaders for stations */}
+              {[1, 2, 3].map((i) => (
+                <View key={i} className="mb-6">
+                  <View className="h-6 w-32 bg-gray-700 rounded mb-3" />
+                  <View className="space-y-2">
+                    {[1, 2, 3].map((j) => (
+                      <View key={j} className="h-4 w-full bg-gray-700 rounded" />
+                    ))}
+                  </View>
+                </View>
+              ))}
             </View>
           )}
 

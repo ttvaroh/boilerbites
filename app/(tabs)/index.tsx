@@ -14,7 +14,7 @@ import { useMenuData } from "../../lib/MenuDataContext";
 export default function HomePage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { locations, loading, error, refreshLocations } = useMenuData();
+  const { locations, loading, error, refreshLocations, prefetchLocationMenu } = useMenuData();
   const [refreshing, setRefreshing] = React.useState(false);
 
   // Process locations to determine status and format hours
@@ -25,8 +25,16 @@ export default function HomePage() {
   // ============================================================================
 
   const handleDiningHallPress = React.useCallback((name: string) => {
+    // OPTIMIZED: Prefetch menu data immediately (don't await - fire and forget)
+    // This starts loading data before navigation, making menu appear instantly
+    prefetchLocationMenu(name).catch(err => {
+      // Silently fail - prefetching shouldn't block navigation
+      console.warn(`Failed to prefetch menu for ${name}:`, err);
+    });
+    
+    // Navigate immediately - menu will load from cache or fresh data
     router.push(`/dining-hall/${encodeURIComponent(name)}`);
-  }, [router]);
+  }, [router, prefetchLocationMenu]);
 
   const handleRetry = React.useCallback(async () => {
     try {
