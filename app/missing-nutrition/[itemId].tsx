@@ -94,6 +94,16 @@ export default function MissingNutritionPage() {
     });
   };
 
+  const handleSearchGlobal = () => {
+    // Navigate to global search with the item name as query
+    router.push({
+      pathname: "/global-search",
+      params: { 
+        query: item.name
+      }
+    });
+  };
+
   return (
     <BackgroundTemplate paddingBottom={40}>
       <View className="flex-1">
@@ -195,6 +205,27 @@ export default function MissingNutritionPage() {
               </View>
             )}
 
+            {/* Search Global Button */}
+            <TouchableOpacity
+              onPress={handleSearchGlobal}
+              className="rounded-lg py-4 mb-4"
+              style={{
+                backgroundColor: "#D4AF37", // classic gold
+                shadowColor: "#D4AF37",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 3,
+              }}
+            >
+              <View className="flex-row items-center justify-center">
+                <Ionicons name="search" size={20} color="white" />
+                <Text className="text-white text-lg font-sora-bold ml-2">
+                  Find Nutrition Globally
+                </Text>
+              </View>
+            </TouchableOpacity>
+            
             {/* Request Button */}
             <TouchableOpacity
               onPress={handleRequestNutrition}
@@ -214,7 +245,7 @@ export default function MissingNutritionPage() {
 
             {/* Help Text */}
             <Text className="text-gray-400 text-sm font-sora text-center mt-4">
-              Help us improve by requesting nutrition information for this item
+              Search for similar items or help us improve by requesting nutrition information
             </Text>
         </View>
         </View>

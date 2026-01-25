@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as React from "react";
 import {
   ActivityIndicator,
@@ -213,6 +213,7 @@ export default function GlobalSearchPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { goals: nutritionGoals } = useNutritionGoals();
+  const { query: initialQuery } = useLocalSearchParams<{ query?: string }>();
   
   const {
     searchQuery,
@@ -230,6 +231,14 @@ export default function GlobalSearchPage() {
     hasMore,
     resetPagination
   } = useFatSecretSearch();
+
+  // Set initial search query from URL parameter
+  React.useEffect(() => {
+    if (initialQuery) {
+      setSearchQuery(initialQuery);
+      setHasSearched(true);
+    }
+  }, [initialQuery, setSearchQuery, setHasSearched]);
 
   const [refreshing, setRefreshing] = React.useState(false);
 
