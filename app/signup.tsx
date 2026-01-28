@@ -34,18 +34,32 @@ export default function SignUpScreen() {
     
     setLoading(true);
     
-    const { error } = await signUp(email, password, name);
+    const { error, data } = await signUp(email, password, name);
     
     setLoading(false);
     
     if (error) {
       Alert.alert("Sign Up Error", error.message);
     } else {
-      Alert.alert(
-        "Success", 
-        "Account created! Please check your email to verify your account.",
-        [{ text: "OK", onPress: () => router.replace("/signin") }]
-      );
+      // Check if this is a purdue.edu email (auto-verified)
+      const isPurdueEmail = email.toLowerCase().endsWith('@purdue.edu');
+      const isVerified = !!data?.user?.email_confirmed_at;
+      
+      if (isPurdueEmail && isVerified) {
+        // Purdue.edu emails are auto-verified
+        Alert.alert(
+          "Success", 
+          "Account created! Your Purdue.edu email has been automatically verified. You can sign in now.",
+          [{ text: "OK", onPress: () => router.replace("/signin") }]
+        );
+      } else {
+        // Regular email signup - needs verification
+        Alert.alert(
+          "Success", 
+          "Account created! Please check your email to verify your account.",
+          [{ text: "OK", onPress: () => router.replace("/signin") }]
+        );
+      }
     }
   };
 
