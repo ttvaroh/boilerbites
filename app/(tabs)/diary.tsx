@@ -388,7 +388,7 @@ export default function DiaryPage() {
             <Text className="text-lg font-sora-semibold text-white mb-4">
               {isToday() ? "Today's Summary" : `${formatDate(selectedDate)} Summary`}
             </Text>
-            <DailyProgress key={refreshKey} selectedDate={selectedDate} />
+            <DailyProgress key={`${refreshKey}-${selectedDate.toISOString()}`} selectedDate={selectedDate} />
           </View>
 
           <View className="mb-6">
