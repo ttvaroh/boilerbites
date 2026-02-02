@@ -89,7 +89,7 @@ export default function AboutScreen() {
               <View className="mb-4">
                 <View className="flex-row items-center mb-3">
                   <Ionicons name="sparkles" size={20} color="#CFB991" />
-                  <Text className="text-purdueGold text-sm font-sora-semibold ml-2">Version 1.0.3 - Latest Updates</Text>
+                  <Text className="text-purdueGold text-sm font-sora-semibold ml-2">Version 1.0.4 - Latest Updates</Text>
                 </View>
                 <View className="ml-7">
                   <View className="flex-row items-start">
@@ -113,13 +113,7 @@ export default function AboutScreen() {
                   <View className="flex-row items-start">
                     <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
                     <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      Added "Forgot Password" functionality for easier account recovery
-                    </Text>
-                  </View>
-                  <View className="flex-row items-start">
-                    <Text className="text-gray-400 text-sm font-sora mr-2">•</Text>
-                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      Fixed timezone mismatch in daily progress calculation
+                      Improved goal editing experience with unified modal design
                     </Text>
                   </View>
                 </View>
@@ -165,7 +159,7 @@ export default function AboutScreen() {
             <View className="bg-gray-800/60 backdrop-blur-xl rounded-2xl p-4 border border-gray-700/50">
               <View className="flex-row items-center justify-between">
                 <Text className="text-gray-300 text-base font-sora">App Version</Text>
-                <Text className="text-purdueGold text-base font-sora-semibold">1.0.3</Text>
+                <Text className="text-purdueGold text-base font-sora-semibold">1.0.4</Text>
               </View>
               <View className="flex-row items-center justify-between mt-3">
                 <Text className="text-gray-300 text-base font-sora">Build</Text>

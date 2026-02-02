@@ -4,6 +4,40 @@ This document tracks all changes and improvements made to BoilerBites since the 
 
 ---
 
+## Version 1.0.4 - January 2026
+
+### Features
+- **Edit Goals from Stats Screen**: Added edit button to Today's Progress card on the diary/stats screen
+  - Users can now edit their daily nutrition goals directly from the progress card
+  - Opens the same goal editing modal used in nutrition preferences
+  - Quick access to goal adjustments without navigating to settings
+- **Reusable Goal Editing Modal**: Created shared EditGoalsModal component
+  - Unified goal editing experience across stats screen and nutrition preferences
+  - Consistent color scheme matching Today's Progress card design
+  - Improved code maintainability with shared component
+- **Streamlined Nutrition Preferences**: Refined nutrition preferences screen
+  - Removed daily goals section (now accessible from stats screen)
+  - Focused screen on allergen and dietary preferences only
+  - Cleaner, more focused user experience
+- **Global Search from Missing Nutrition**: Added "Find Nutrition Globally" button to missing nutrition page
+  - Users can search for similar items when nutrition info is unavailable
+  - Automatically pre-fills search with item name
+  - Seamless navigation to global search with results ready
+
+### UI/UX Improvements
+- Enhanced Today's Progress card with edit button in bottom-right corner
+- Improved modal color scheme to match Today's Progress card (gray-800 background, purdueGold accents)
+- Updated macro input colors in goal editing modal (blue for protein, green for carbs, red for fat)
+- Better visual hierarchy in nutrition preferences screen
+
+### Technical
+- Extracted EditGoalsModal into reusable component
+- Added query parameter support to global search page for pre-filled searches
+- Refactored nutrition preferences to use shared modal component
+- Improved state management for goal editing across screens
+
+---
+
 ## Version 1.0.3 - January 24, 2026
 
 ### Performance Improvements
@@ -212,7 +246,8 @@ This document tracks all changes and improvements made to BoilerBites since the 
 
 | Version | Release Date | Key Features |
 |---------|--------------|--------------|
-| 1.0.3 | [Current] | Home screen & menu loading optimizations, vegan/vegetarian preferences, allergen marking, auto-filter in search, password reset, prefetching |
+| 1.0.4 | [Current] | Edit goals from stats screen, reusable goal editing modal, streamlined nutrition preferences, global search from missing nutrition |
+| 1.0.3 | [Previous] | Home screen & menu loading optimizations, vegan/vegetarian preferences, allergen marking, auto-filter in search, password reset, prefetching |
 | 1.0.2 | [Previous] | FatSecret API, Azure AD auth, Oracle proxy, custom meals, swipe to delete, barcode scanning, global food search, date navigation |
 | 1.0.1 | [Previous] | Settings, nutrition goals, allergen preferences, pull-to-refresh, caching, UI improvements |
 | 1.0.0 | Oct 21, 2025 | Initial TestFlight release |
