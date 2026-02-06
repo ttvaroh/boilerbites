@@ -15,8 +15,9 @@ import IngredientsAndAllergens from "../../components/IngredientsAndAllergens";
 import MacroBreakdown from "../../components/MacroBreakdown";
 import NutritionFacts from "../../components/NutritionFacts";
 import { useAuth } from "../../contexts/AuthContext";
+import { useNutritionCache } from "../../contexts/NutritionCacheContext";
 import { supabase } from "../../lib/supabase";
-import { createLocalDateFromString } from "../../lib/timezone-utils";
+import { createLocalDateFromString, getTodayDateString } from "../../lib/timezone-utils";
 
 interface MenuItem {
   id: string;
@@ -44,6 +45,7 @@ export default function NutritionPage() {
   const params = useLocalSearchParams<{ itemId: string | string[]; date?: string; source?: string }>();
   const router = useRouter();
   const { user, toggleFavorite, addFoodEntry } = useAuth();
+  const { clearNutritionData } = useNutritionCache();
   
   // Handle itemId which might be an array (expo-router sometimes returns arrays)
   const itemId = Array.isArray(params.itemId) ? params.itemId[0] : params.itemId;
@@ -303,6 +305,14 @@ export default function NutritionPage() {
         console.error("Add food entry error:", error);
         return;
       }
+
+      // Clear nutrition cache for the entry date to force DailyProgress to refetch
+      const entryDateObj = new Date(entryDate);
+      const isToday = entryDateObj.toDateString() === new Date().toDateString();
+      const dateString = isToday 
+        ? getTodayDateString() 
+        : entryDateObj.toISOString().split('T')[0];
+      clearNutritionData(dateString);
 
       // Show success toast and route back
       showToast("Item added to your food tracker!", "success");

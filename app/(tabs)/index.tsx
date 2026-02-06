@@ -85,7 +85,7 @@ export default function HomePage() {
         </Text>
         <View className="flex-row flex-wrap justify-start gap-2">
           {locations.map((hall) => (
-            <View key={hall.id} className="w-[31%]">
+            <View key={hall.id} className="w-[31.5%]">
               <DiningHallCard
                 name={hall.name}
                 hours={hall.hours}

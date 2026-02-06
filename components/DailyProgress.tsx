@@ -18,7 +18,7 @@ interface DailyProgressProps {
 
 const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
   const { user, getDailyNutrition } = useAuth();
-  const { getNutritionData, setNutritionData } = useNutritionCache();
+  const { getNutritionData, setNutritionData, getCacheInvalidationTime } = useNutritionCache();
   const { goals: nutritionGoals } = useNutritionGoals();
   const [nutritionData, setNutritionDataState] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -47,13 +47,18 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
   const getNutritionDataRef = useRef(getNutritionData);
   const setNutritionDataRef = useRef(setNutritionData);
   const getDailyNutritionRef = useRef(getDailyNutrition);
+  const getCacheInvalidationTimeRef = useRef(getCacheInvalidationTime);
+  
+  // Track cache invalidation times to detect when cache is cleared
+  const lastInvalidationTimeRef = useRef<number | null>(null);
   
   // Update refs when functions change
   useEffect(() => {
     getNutritionDataRef.current = getNutritionData;
     setNutritionDataRef.current = setNutritionData;
     getDailyNutritionRef.current = getDailyNutrition;
-  }, [getNutritionData, setNutritionData, getDailyNutrition]);
+    getCacheInvalidationTimeRef.current = getCacheInvalidationTime;
+  }, [getNutritionData, setNutritionData, getDailyNutrition, getCacheInvalidationTime]);
 
   // Modal state
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -98,6 +103,8 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
     // and only animate if they're actually different
     dataSetForDateRef.current = ''; // Reset data set tracking
     // Don't reset animatedToValuesRef - we want to track if we need to animate
+    // Reset invalidation time ref for new date
+    lastInvalidationTimeRef.current = null;
     
     // Fade out animation for smooth transition
     Animated.timing(fadeAnim, {
@@ -106,10 +113,10 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
       useNativeDriver: true,
     }).start();
     
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
     // Create new AbortController for this request
     const abortController = new AbortController();
@@ -168,15 +175,15 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
             return;
           }
           
-          if (error) {
-            console.error('Error fetching daily nutrition:', error);
+        if (error) {
+          console.error('Error fetching daily nutrition:', error);
             if (currentDateRef.current === fetchDate) {
               setLoading(false);
             }
-          } else {
+        } else {
             updateData(data);
-            // Cache the data for future use
-            if (data) {
+          // Cache the data for future use
+          if (data) {
               setNutritionDataRef.current(fetchDate, data);
             }
           }
@@ -188,7 +195,7 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
         }
         console.error('Error fetching daily nutrition:', error);
         if (currentDateRef.current === fetchDate && dataSetForDateRef.current !== fetchDate) {
-          setLoading(false);
+        setLoading(false);
         }
       }
     };
@@ -200,6 +207,52 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
       abortController.abort();
     };
   }, [user, dateString, fadeAnim, caloriesProgressAnim, proteinProgressAnim, carbsProgressAnim, fatProgressAnim]);
+
+  // Watch for cache invalidation and refetch when cache is cleared
+  useEffect(() => {
+    if (!user) return;
+
+    // Initialize last invalidation time for current date
+    const currentInvalidationTime = getCacheInvalidationTimeRef.current(dateString);
+    if (currentInvalidationTime !== null) {
+      lastInvalidationTimeRef.current = currentInvalidationTime;
+    }
+
+    const checkInvalidation = () => {
+      // Only check if we're still on the same date
+      if (currentDateRef.current !== dateString) {
+        return;
+      }
+
+      const invalidationTime = getCacheInvalidationTimeRef.current(dateString);
+      if (invalidationTime && 
+          invalidationTime !== lastInvalidationTimeRef.current) {
+        // Cache was invalidated, trigger a refetch
+        lastInvalidationTimeRef.current = invalidationTime;
+        const fetchFreshData = async () => {
+          try {
+            const { data, error } = await getDailyNutritionRef.current(dateString);
+            if (!error && data && currentDateRef.current === dateString) {
+              setNutritionDataState(data);
+              setNutritionDataRef.current(dateString, data);
+            }
+          } catch (error) {
+            console.error('Error refetching nutrition data after cache invalidation:', error);
+          }
+        };
+        fetchFreshData();
+      }
+    };
+
+    // Check immediately
+    checkInvalidation();
+
+    // Set up interval to check for cache invalidation (every 500ms)
+    // This allows DailyProgress to detect when cache is cleared from other screens
+    const interval = setInterval(checkInvalidation, 500);
+
+    return () => clearInterval(interval);
+  }, [dateString, user]);
 
   // Memoize data calculations to prevent unnecessary re-renders
   const proteinData = useMemo(() => ({ 
@@ -448,68 +501,68 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
       <Animated.View 
         className="bg-gray-800 rounded-xl p-6 mb-6" 
         style={{
-          shadowColor: "#CFB991",
-          shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
-          elevation: 5,
-          borderWidth: 1,
-          borderColor: "rgba(207, 185, 145, 0.2)",
+      shadowColor: "#CFB991",
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 5,
+      borderWidth: 1,
+      borderColor: "rgba(207, 185, 145, 0.2)",
           opacity: fadeAnim,
         }}
       >
-        <View className="flex-row items-center justify-between mb-4">
-          <Text className="text-lg font-sora-semibold text-white">
-            {selectedDate.toDateString() === new Date().toDateString() 
-              ? "Today's Progress" 
-              : "Daily Progress"
-            }
+      <View className="flex-row items-center justify-between mb-4">
+        <Text className="text-lg font-sora-semibold text-white">
+          {selectedDate.toDateString() === new Date().toDateString() 
+            ? "Today's Progress" 
+            : "Daily Progress"
+          }
+        </Text>
+        <Text className="text-sm text-gray-400">
+          {selectedDate.toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric' 
+          })}
+        </Text>
+      </View>
+      
+      <View className="flex-row justify-between mb-6">
+        <View className="flex-1 items-center">
+          <Text className="text-2xl font-sora-bold text-purdueGold">
+            {Math.round(caloriesConsumed).toLocaleString()}
           </Text>
-          <Text className="text-sm text-gray-400">
-            {selectedDate.toLocaleDateString('en-US', { 
-              month: 'short', 
-              day: 'numeric', 
-              year: 'numeric' 
-            })}
+          <Text className="text-xs text-gray-400">Consumed</Text>
+        </View>
+        <View className="flex-1 items-center">
+          <Text className="text-2xl font-sora-bold text-white">
+            {Math.round(caloriesRemaining).toLocaleString()}
           </Text>
+          <Text className="text-xs text-gray-400">Remaining</Text>
         </View>
-        
-        <View className="flex-row justify-between mb-6">
-          <View className="flex-1 items-center">
-            <Text className="text-2xl font-sora-bold text-purdueGold">
-              {Math.round(caloriesConsumed).toLocaleString()}
-            </Text>
-            <Text className="text-xs text-gray-400">Consumed</Text>
-          </View>
-          <View className="flex-1 items-center">
-            <Text className="text-2xl font-sora-bold text-white">
-              {Math.round(caloriesRemaining).toLocaleString()}
-            </Text>
-            <Text className="text-xs text-gray-400">Remaining</Text>
-          </View>
-        </View>
-        
-        <View className="w-full bg-gray-700 rounded-full h-3 mb-2">
+      </View>
+      
+      <View className="w-full bg-gray-700 rounded-full h-3 mb-2">
           <Animated.View 
-            className="bg-purdueGold h-3 rounded-full" 
+          className="bg-purdueGold h-3 rounded-full" 
             style={{ 
               width: caloriesProgressAnim.interpolate({
                 inputRange: [0, 100],
                 outputRange: ['0%', '100%'],
               })
             }}
-          />
-        </View>
-        <Text className="text-xs text-center text-gray-400 mb-6">
-          Goal: {Math.round(caloriesGoal).toLocaleString()} calories
-        </Text>
+        />
+      </View>
+      <Text className="text-xs text-center text-gray-400 mb-6">
+        Goal: {Math.round(caloriesGoal).toLocaleString()} calories
+      </Text>
 
-        {/* Macronutrient Breakdown */}
-        <View>
+      {/* Macronutrient Breakdown */}
+      <View>
           <MacroBar data={proteinData} label="Protein" animValue={proteinProgressAnim} />
           <MacroBar data={carbsData} label="Carbs" animValue={carbsProgressAnim} />
           <MacroBar data={fatData} label="Fat" animValue={fatProgressAnim} />
-        </View>
+      </View>
 
         {/* Edit Button - Bottom Right */}
         {selectedDate.toDateString() === new Date().toDateString() && (
@@ -528,7 +581,7 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
             >
               <Ionicons name="create" size={16} color="#CFB991" />
             </TouchableOpacity>
-          </View>
+    </View>
         )}
       </Animated.View>
 

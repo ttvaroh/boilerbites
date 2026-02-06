@@ -29,6 +29,7 @@ interface NutritionCacheContextType {
   getNutritionData: (date: string) => NutritionData | null;
   setNutritionData: (date: string, data: NutritionData) => void;
   clearNutritionData: (date?: string) => void;
+  getCacheInvalidationTime: (date: string) => number | null;
   
   // Food entries methods
   getFoodEntries: (date: string) => FoodEntry[] | null;
@@ -54,6 +55,7 @@ interface NutritionCacheProviderProps {
 export const NutritionCacheProvider: React.FC<NutritionCacheProviderProps> = ({ children }) => {
   const [nutritionCache, setNutritionCache] = useState<Record<string, NutritionData>>({});
   const [foodEntriesCache, setFoodEntriesCache] = useState<Record<string, FoodEntry[]>>({});
+  const [cacheInvalidationTimes, setCacheInvalidationTimes] = useState<Record<string, number>>({});
 
   // Nutrition data methods
   const getNutritionData = (date: string): NutritionData | null => {
@@ -74,9 +76,19 @@ export const NutritionCacheProvider: React.FC<NutritionCacheProviderProps> = ({ 
         delete newCache[date];
         return newCache;
       });
+      // Set invalidation time to trigger refetch
+      setCacheInvalidationTimes(prev => ({
+        ...prev,
+        [date]: Date.now()
+      }));
     } else {
       setNutritionCache({});
+      setCacheInvalidationTimes({});
     }
+  };
+
+  const getCacheInvalidationTime = (date: string): number | null => {
+    return cacheInvalidationTimes[date] || null;
   };
 
   // Food entries methods
@@ -119,6 +131,7 @@ export const NutritionCacheProvider: React.FC<NutritionCacheProviderProps> = ({ 
     getNutritionData,
     setNutritionData,
     clearNutritionData,
+    getCacheInvalidationTime,
     
     // Food entries methods
     getFoodEntries,
