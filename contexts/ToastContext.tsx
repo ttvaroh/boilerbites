@@ -1,5 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { createContext, useCallback, useContext, useRef, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useRef,
+  useState,
+} from "react";
 import { Animated, Text, View } from "react-native";
 
 interface ToastContextType {
@@ -58,11 +64,10 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
             pointerEvents="none"
             style={{
               position: "absolute",
-              bottom: 100,
+              bottom: 20,
               left: 20,
               right: 20,
-              backgroundColor:
-                toastType === "success" ? "#10B981" : "#EF4444",
+              backgroundColor: toastType === "success" ? "#10B981" : "#EF4444",
               borderRadius: 12,
               padding: 16,
               flexDirection: "row",
