@@ -17,10 +17,55 @@ export default function HealthConnectionsPage() {
   if (!user) {
     return (
       <BackgroundTemplate paddingBottom={0}>
+        <View className="px-6 pt-16">
+          <View className="flex-row items-center mb-6">
+            <TouchableOpacity
+              onPress={() => router.back()}
+              className="mr-4"
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text className="text-white text-2xl font-sora-bold">
+              Health App Connections
+            </Text>
+          </View>
+        </View>
         <View className="flex-1 justify-center items-center px-6">
-          <Text className="text-white text-lg font-sora text-center">
-            Please sign in to manage health app connections
+          <View
+            style={{
+              backgroundColor: "rgba(207, 185, 145, 0.1)",
+              borderWidth: 1,
+              borderColor: "rgba(207, 185, 145, 0.2)",
+            }}
+            className="w-16 h-16 rounded-full items-center justify-center mb-5"
+          >
+            <Ionicons name="fitness-outline" size={32} color="#CFB991" />
+          </View>
+          <Text className="text-white text-lg font-sora-semibold text-center mb-2">
+            Sign in to get started
           </Text>
+          <Text className="text-gray-400 text-sm font-sora text-center leading-5 mb-6 px-4">
+            Create an account or sign in to connect Apple Health, Fitbit, and
+            more.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.push("/signin")}
+            activeOpacity={0.8}
+            style={{
+              backgroundColor: "#CFB991",
+              shadowColor: "#CFB991",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+            }}
+            className="rounded-xl py-3.5 px-8 flex-row items-center"
+          >
+            <Text className="text-[#0a0a0a] text-sm font-sora-semibold mr-2">
+              Sign In
+            </Text>
+            <Ionicons name="arrow-forward" size={16} color="#0a0a0a" />
+          </TouchableOpacity>
         </View>
       </BackgroundTemplate>
     );

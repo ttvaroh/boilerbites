@@ -5,18 +5,20 @@ import {
     Sora_700Bold,
 } from "@expo-google-fonts/sora";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { ReactNode, useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import ErrorBoundary from "../components/ErrorBoundary";
+import WhatsNewModal from "../components/WhatsNewModal";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { NutritionCacheProvider } from "../contexts/NutritionCacheContext";
 import { NutritionGoalsProvider, useNutritionGoals } from "../contexts/NutritionGoalsContext";
 import { ToastProvider } from "../contexts/ToastContext";
 import "../global.css";
+import { useWhatsNew } from "../hooks/useWhatsNew";
 import { MenuDataProvider, useMenuData } from "../lib/MenuDataContext";
 import { supabase } from "../lib/supabase";
 
@@ -70,6 +72,31 @@ const AppRefreshManager = ({ children }: { children: ReactNode }) => {
   return <>{children}</>;
 };
 
+// Wrapper that manages the "What's New" modal after version updates
+const WhatsNewManager = ({ children }: { children: ReactNode }) => {
+  const router = useRouter();
+  const { visible, entry, dismiss } = useWhatsNew();
+
+  const handleCtaPress = () => {
+    if (entry?.ctaButton?.route) {
+      dismiss();
+      router.push(entry.ctaButton.route as any);
+    }
+  };
+
+  return (
+    <>
+      {children}
+      <WhatsNewModal
+        visible={visible}
+        entry={entry}
+        onDismiss={dismiss}
+        onCtaPress={handleCtaPress}
+      />
+    </>
+  );
+};
+
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
@@ -101,6 +128,7 @@ export default function RootLayout() {
                 <NutritionCacheProvider>
                   <MenuDataProvider>
                     <AppRefreshManager>
+                    <WhatsNewManager>
                     <Stack>
                       <Stack.Screen name="index" options={{ headerShown: false }} />
                       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -205,6 +233,7 @@ export default function RootLayout() {
                         options={{ headerShown: false }}
                       />
                     </Stack>
+                    </WhatsNewManager>
                     </AppRefreshManager>
                   </MenuDataProvider>
                 </NutritionCacheProvider>

@@ -1,12 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import BackgroundTemplate from "../components/BackgroundTemplate";
+import WhatsNewModal from "../components/WhatsNewModal";
+import { whatsNewEntries } from "../lib/whatsNewData";
 const boilerbitesLogo = require("../assets/images/logos/boilerbites-logo.png");
 const tomHeadshot = require("../assets/images/tommycancun.jpg");
 
+// Always use the latest changelog entry for the "View What's New" button
+const latestEntry = whatsNewEntries[whatsNewEntries.length - 1] ?? null;
+
 export default function AboutScreen() {
   const router = useRouter();
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
 
   return (
     <BackgroundTemplate paddingBottom={0}>
@@ -166,6 +173,29 @@ export default function AboutScreen() {
                   Contact us using the information below.
                 </Text>
               </View>
+
+              {/* Divider */}
+              <View className="h-px bg-gray-700/50 my-4" />
+
+              {/* View What's New Button */}
+              <TouchableOpacity
+                onPress={() => setShowWhatsNew(true)}
+                activeOpacity={0.7}
+                className="flex-row items-center justify-center py-2.5 rounded-xl"
+                style={{
+                  backgroundColor: "rgba(207, 185, 145, 0.1)",
+                  borderWidth: 1,
+                  borderColor: "rgba(207, 185, 145, 0.2)",
+                }}
+              >
+                <Ionicons name="sparkles" size={16} color="#CFB991" />
+                <Text
+                  style={{ color: "#CFB991" }}
+                  className="text-sm font-sora-semibold ml-2"
+                >
+                  View What's New Card
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -223,6 +253,17 @@ export default function AboutScreen() {
             </Text>
           </View>
         </ScrollView>
+
+        {/* What's New Modal (re-viewable from About) */}
+        <WhatsNewModal
+          visible={showWhatsNew}
+          entry={latestEntry}
+          onDismiss={() => setShowWhatsNew(false)}
+          onCtaPress={() => {
+            setShowWhatsNew(false);
+            router.push("/health-connections");
+          }}
+        />
       </View>
     </BackgroundTemplate>
   );
