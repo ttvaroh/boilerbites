@@ -34,14 +34,9 @@ export default function SignInScreen() {
 
   const handleAzureSignIn = async () => {
     setLoading(true);
-    console.log('[SignIn] Azure sign in button clicked');
-    
     const { error } = await signInWithAzure();
-    
     setLoading(false);
-    
     if (error) {
-      console.error('[SignIn] Azure sign in error:', error);
       Alert.alert("Sign In Error", error.message || "Failed to sign in with Azure");
     } else {
       router.replace("/profile");
@@ -50,14 +45,9 @@ export default function SignInScreen() {
 
   const handleAppleSignIn = async () => {
     setLoading(true);
-    console.log('[SignIn] Apple sign in button clicked');
-    
     const { error } = await signInWithApple();
-    
     setLoading(false);
-    
     if (error) {
-      console.error('[SignIn] Apple sign in error:', error);
       Alert.alert("Sign In Error", error.message || "Failed to sign in with Apple");
     } else {
       router.replace("/profile");

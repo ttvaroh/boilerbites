@@ -157,7 +157,7 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
               // Only update if data actually changed
               const dataKey = `${data.consumed_calories}-${data.consumed_protein_g}-${data.consumed_carbs_g}-${data.consumed_fat_g}`;
               const cachedKey = `${cachedData.consumed_calories}-${cachedData.consumed_protein_g}-${cachedData.consumed_carbs_g}-${cachedData.consumed_fat_g}`;
-              
+        
               if (dataKey !== cachedKey) {
                 // Data changed, update it
                 updateData(data);

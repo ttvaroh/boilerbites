@@ -2,13 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  Alert,
-  Animated,
-  ScrollView,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    Animated,
+    ScrollView,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import BackgroundTemplate from "../components/BackgroundTemplate";
 import { useAuth } from "../contexts/AuthContext";
@@ -235,7 +235,7 @@ export default function NutritionPreferencesScreen() {
               </View>
             </View>
           </View>
-
+          
           {/* Allergen Preferences */}
           <View className="mb-4">
             <Text className="text-gray-400 text-xs font-sora-semibold uppercase tracking-wider mb-3 px-1">

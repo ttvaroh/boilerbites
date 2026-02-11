@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useCallback, useEffect, useState } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { supabase } from "../lib/supabase";
 
 // Map database allergen names to UI-friendly names
@@ -15,20 +15,47 @@ const mapAllergensForDisplay = (allergens: string[]): string[] => {
   });
 };
 
+/**
+ * Format ingredients string for better readability
+ * - Removes collection ID prefix if present
+ * - Preserves the original structure
+ * - Returns formatted string ready for display
+ */
+const formatIngredients = (ingredients: string | null | undefined): string | null => {
+  if (!ingredients || !ingredients.trim()) {
+    return null;
+  }
+
+  let formatted = ingredients.trim();
+
+  // Remove collection ID prefix if present (format: [COLLECTION_ID:...])
+  formatted = formatted.replace(/^\[COLLECTION_ID:[^\]]+\]\s*/i, '');
+
+  return formatted;
+};
+
 interface IngredientsAndAllergensProps {
   itemId: string;
   allergens?: string[];
+  ingredients?: string | null; // Accept ingredients as prop instead of fetching
 }
 
 export default function IngredientsAndAllergens({
   itemId,
   allergens = [],
+  ingredients: ingredientsProp,
 }: IngredientsAndAllergensProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [ingredients, setIngredients] = useState<string | null>(null);
+  const [fetchedIngredients, setFetchedIngredients] = useState<string | null>(null);
   const [loadingIngredients, setLoadingIngredients] = useState(false);
 
-  const loadIngredients = useCallback(async () => {
+  // Fallback: fetch ingredients if not provided as prop
+  const fetchIngredients = useCallback(async () => {
+    if (ingredientsProp !== undefined) {
+      // Ingredients provided as prop, no need to fetch
+      return;
+    }
+
     if (!itemId) return;
     
     setLoadingIngredients(true);
@@ -37,31 +64,33 @@ export default function IngredientsAndAllergens({
         .from("item")
         .select("ingredients")
         .eq("id", itemId)
-        .maybeSingle(); // Use maybeSingle() instead of single() to handle no rows gracefully
+        .maybeSingle();
 
       if (error) {
-        // PGRST116 means no rows found, which is fine - just means no ingredients
         if (error.code !== 'PGRST116') {
-          console.error("Error loading ingredients:", error);
         }
-        setIngredients(null);
+        setFetchedIngredients(null);
       } else {
-        setIngredients(data?.ingredients || null);
+        setFetchedIngredients(data?.ingredients || null);
       }
     } catch (error) {
-      console.error("Error loading ingredients:", error);
-      setIngredients(null);
+      setFetchedIngredients(null);
     } finally {
       setLoadingIngredients(false);
     }
-  }, [itemId]);
+  }, [itemId, ingredientsProp]);
 
-  // Load ingredients when component mounts or itemId changes
   useEffect(() => {
-    // Reset ingredients state when itemId changes
-    setIngredients(null);
-    loadIngredients();
-  }, [loadIngredients]);
+    fetchIngredients();
+  }, [fetchIngredients]);
+
+  // Use prop if available, otherwise use fetched
+  const ingredients = ingredientsProp !== undefined ? ingredientsProp : fetchedIngredients;
+
+  // Format ingredients for display
+  const formattedIngredients = useMemo(() => {
+    return formatIngredients(ingredients);
+  }, [ingredients]);
 
   return (
     <View className="bg-gray-800 rounded-xl p-4 mb-4"
@@ -129,10 +158,16 @@ export default function IngredientsAndAllergens({
               <Text className="text-gray-300 text-sm font-sora text-center">
                 Loading ingredients...
               </Text>
-            ) : ingredients ? (
-              <Text className="text-gray-300 text-sm font-sora leading-6">
-                {ingredients}
-              </Text>
+            ) : formattedIngredients ? (
+              <ScrollView 
+                className="max-h-64"
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+              >
+                <Text className="text-gray-300 text-sm font-sora leading-6">
+                  {formattedIngredients}
+                </Text>
+              </ScrollView>
             ) : (
               <Text className="text-gray-400 text-sm font-sora text-center">
                 No ingredients available

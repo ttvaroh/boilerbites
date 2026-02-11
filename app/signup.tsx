@@ -65,14 +65,9 @@ export default function SignUpScreen() {
 
   const handleAzureSignUp = async () => {
     setLoading(true);
-    console.log('[SignUp] Azure sign up button clicked');
-    
     const { error } = await signInWithAzure();
-    
     setLoading(false);
-    
     if (error) {
-      console.error('[SignUp] Azure sign up error:', error);
       Alert.alert("Sign Up Error", error.message || "Failed to sign up with Azure");
     } else {
       router.replace("/profile");
@@ -81,14 +76,9 @@ export default function SignUpScreen() {
 
   const handleAppleSignUp = async () => {
     setLoading(true);
-    console.log('[SignUp] Apple sign up button clicked');
-    
     const { error } = await signInWithApple();
-    
     setLoading(false);
-    
     if (error) {
-      console.error('[SignUp] Apple sign up error:', error);
       Alert.alert("Sign Up Error", error.message || "Failed to sign up with Apple");
     } else {
       router.replace("/profile");

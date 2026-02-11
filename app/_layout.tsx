@@ -44,9 +44,7 @@ const AppRefreshManager = ({ children }: { children: ReactNode }) => {
         refreshGoals(),
         supabase.auth.refreshSession()
       ]);
-    } catch (error) {
-      console.error('❌ Error during app refresh:', error);
-    }
+    } catch (_) {}
   };
 
   useEffect(() => {
@@ -186,6 +184,14 @@ export default function RootLayout() {
                       />
                       <Stack.Screen
                         name="search-by-date"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="health-connections"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="auth/fitbit-callback"
                         options={{ headerShown: false }}
                       />
                       <Stack.Screen

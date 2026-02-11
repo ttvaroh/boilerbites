@@ -27,9 +27,7 @@ export default function AuthCallback() {
         if (!fullUrl) {
           try {
             fullUrl = await Linking.getInitialURL();
-          } catch (e) {
-            console.warn('[AuthCallback] Could not get initial URL:', e);
-          }
+          } catch (_) {}
         }
 
         // Check for hash fragment (implicit flow) - these should be handled by deep link handler
@@ -44,17 +42,13 @@ export default function AuthCallback() {
           const errorDescription = hashParams.get('error_description');
           
           if (error) {
-            console.error('[AuthCallback] OAuth error from hash:', error, errorDescription);
             router.replace('/signin');
             return;
           }
           
           if (accessToken) {
-            console.log('[AuthCallback] Access token found in hash fragment (fallback handler)');
             const refreshToken = hashParams.get('refresh_token');
-            
             if (!refreshToken) {
-              console.error('[AuthCallback] No refresh token found in hash fragment');
               router.replace('/signin');
               return;
             }
@@ -62,7 +56,6 @@ export default function AuthCallback() {
             // Check if session already exists (may have been set by deep link handler)
             const { data: { session: existingSession } } = await supabase.auth.getSession();
             if (existingSession) {
-              console.log('[AuthCallback] Session already exists, skipping hash processing');
               router.replace('/profile');
               return;
             }
@@ -74,13 +67,11 @@ export default function AuthCallback() {
             });
             
             if (setSessionError) {
-              console.error('[AuthCallback] Session set error:', setSessionError);
               router.replace('/signin');
               return;
             }
             
             if (sessionData.session) {
-              console.log('[AuthCallback] Session set successfully from hash fragment');
               router.replace('/profile');
               return;
             }
@@ -93,10 +84,7 @@ export default function AuthCallback() {
         const error = params.error as string;
         const errorDescription = params.error_description as string;
 
-        console.log('[AuthCallback] Callback received with params:', { code: !!code, error, errorDescription });
-
         if (error) {
-          console.error('[AuthCallback] OAuth error:', error, errorDescription);
           router.replace('/signin');
           return;
         }
@@ -104,42 +92,29 @@ export default function AuthCallback() {
         // Check if session already exists (may have been set by signInWithAzure or another handler)
         const { data: { session: existingSession } } = await supabase.auth.getSession();
         if (existingSession) {
-          console.log('[AuthCallback] Session already exists, skipping code exchange');
           router.replace('/profile');
           return;
         }
 
         if (code) {
-          console.log('[AuthCallback] Exchanging code for session...');
-          const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
-          
+          const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
           if (sessionError) {
-            // Check if error is due to code already being used (which is OK if session exists)
             const { data: { session: checkSession } } = await supabase.auth.getSession();
             if (checkSession) {
-              console.log('[AuthCallback] Code already used but session exists, proceeding');
               router.replace('/profile');
               return;
             }
-            
-            console.error('[AuthCallback] Session exchange error:', sessionError);
             router.replace('/signin');
             return;
           }
 
-          console.log('[AuthCallback] Session exchange successful');
-          // Redirect to profile - the auth state change will handle navigation
           router.replace('/profile');
         } else {
-          console.warn('[AuthCallback] No code found in callback');
           router.replace('/signin');
         }
-      } catch (error) {
-        console.error('[AuthCallback] Unexpected error:', error);
-        // Check if session exists despite the error
+      } catch (_) {
         const { data: { session: checkSession } } = await supabase.auth.getSession();
         if (checkSession) {
-          console.log('[AuthCallback] Session exists despite error, proceeding');
           router.replace('/profile');
           return;
         }
@@ -154,20 +129,11 @@ export default function AuthCallback() {
     // This handles the case where the app is already running and a deep link is received
     const urlListener = Linking.addEventListener('url', async ({ url }) => {
       if (url.includes('auth/callback') && url.includes('#')) {
-        console.log('[AuthCallback] Received URL event with hash fragment');
-        
-        // Check if session already exists (may have been processed by deep link handler)
         const { data: { session: existingSession } } = await supabase.auth.getSession();
         if (existingSession) {
-          console.log('[AuthCallback] Session already exists from URL event, skipping');
           router.replace('/profile');
           return;
         }
-        
-        // Process the URL event if no session exists yet
-        // This handles the case where the initial handleCallback() didn't catch it
-        // (e.g., if getInitialURL() returned null because app was already running)
-        console.log('[AuthCallback] Processing URL event with hash fragment');
         handleCallback(url);
       }
     });

@@ -138,35 +138,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const error = hashParams.get('error');
           const errorDescription = hashParams.get('error_description');
           
-          if (error) {
-            console.error('[AuthContext] Deep link OAuth error:', error, errorDescription);
-            return;
-          }
+          if (error) return;
           
           if (accessToken) {
-            
-            // Extract refresh token from hash fragment
             const refreshToken = hashParams.get('refresh_token');
+            if (!refreshToken) return;
             
-            if (!refreshToken) {
-              console.error('[AuthContext] No refresh token found in deep link hash');
-              return;
-            }
-            
-            // Set the session manually
-            const { data: sessionData, error: setSessionError } = await supabase.auth.setSession({
+            await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken,
             });
-            
-            if (setSessionError) {
-              console.error('[AuthContext] Deep link session set error:', setSessionError);
-            }
           }
         } else if (queryIndex !== -1) {
-          // Query parameters (code flow) - skip here, let route component handle it
-          // to prevent duplicate code exchange
-          console.log('[AuthContext] OAuth callback with query params detected - skipping (handled by route component)');
           return;
         }
       }
@@ -224,13 +207,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       });
 
-      if (error) {
-        console.error('[AuthContext] OAuth error:', error);
-        return { error };
-      }
+      if (error) return { error };
 
       if (!data?.url) {
-        console.error('[AuthContext] No OAuth URL returned');
         return { error: new Error('No OAuth URL returned from Supabase') };
       }
 
@@ -242,14 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         'boilerbites://auth/callback'
       );
 
-      // Log the full result for debugging
       if (result.type === 'cancel') {
-        console.warn('[AuthContext] Browser session cancelled');
-        console.warn('[AuthContext] This could mean:');
-        console.warn('  1. User closed the browser');
-        console.warn('  2. Azure returned an error (check Azure app registration)');
-        console.warn('  3. Redirect URL mismatch (check Supabase and Azure redirect URLs)');
-        console.warn('  4. Deep link not properly configured');
         return { error: new Error('Authentication cancelled. Please check Azure configuration and redirect URLs.') };
       }
 
@@ -270,45 +242,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const errorDescription = hashParams.get('error_description');
           
           if (error) {
-            console.error('[AuthContext] OAuth callback error:', error, errorDescription);
             return { error: new Error(errorDescription || error || 'OAuth authentication failed') };
           }
           
           if (accessToken) {
-            
-            // Extract all tokens from hash fragment
             const refreshToken = hashParams.get('refresh_token');
-            const expiresAt = hashParams.get('expires_at');
-            const expiresIn = hashParams.get('expires_in');
-            
             if (!refreshToken) {
-              console.error('[AuthContext] No refresh token found in hash fragment');
               return { error: new Error('No refresh token received') };
             }
             
-            // Set the session manually using the tokens
-            // Supabase needs the session object with access_token and refresh_token
             const { data: sessionData, error: setSessionError } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken,
             });
             
-            if (setSessionError) {
-              console.error('[AuthContext] Error setting session:', setSessionError);
-              return { error: setSessionError };
-            }
+            if (setSessionError) return { error: setSessionError };
             
             if (sessionData.session) {
-              // The session will be updated via the onAuthStateChange listener
               return { error: null };
-            } else {
-              console.warn('[AuthContext] Session was not set properly');
-              return { error: new Error('Failed to set session') };
             }
-          } else {
-            console.warn('[AuthContext] No access token found in hash fragment');
-            return { error: new Error('No access token received') };
+            return { error: new Error('Failed to set session') };
           }
+          return { error: new Error('No access token received') };
         } else if (queryIndex !== -1) {
           // Handle query parameters (authorization code flow)
           const url = new URL(callbackUrl);
@@ -316,42 +271,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const code = url.searchParams.get('code');
           const error = url.searchParams.get('error');
           const errorDescription = url.searchParams.get('error_description');
-          const errorUri = url.searchParams.get('error_uri');
 
           if (error) {
-            console.error('[AuthContext] OAuth callback error:', error, errorDescription);
-            console.error('[AuthContext] Error URI:', errorUri);
             return { error: new Error(errorDescription || error || 'OAuth authentication failed') };
           }
 
           if (code) {
-            // Exchange the code for a session
-            const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
-            
-            if (sessionError) {
-              console.error('[AuthContext] Session exchange error:', sessionError);
-              return { error: sessionError };
-            }
-
-            // The session will be updated via the onAuthStateChange listener
+            const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+            if (sessionError) return { error: sessionError };
             return { error: null };
-          } else {
-            console.warn('[AuthContext] No code found in callback URL');
-            return { error: new Error('No authorization code received') };
           }
-        } else {
-          console.warn('[AuthContext] No hash or query parameters found in callback URL');
-          return { error: new Error('Invalid callback URL format') };
+          return { error: new Error('No authorization code received') };
         }
-      } else {
-        console.error('[AuthContext] Unexpected browser result:', {
-          type: result.type,
-        });
-        return { error: new Error(`Authentication failed: ${result.type}`) };
+        return { error: new Error('Invalid callback URL format') };
       }
-
+      return { error: new Error(`Authentication failed: ${result.type}`) };
     } catch (error) {
-      console.error('[AuthContext] Unexpected error in signInWithAzure:', error);
       return { error: error as Error };
     }
   };
@@ -389,7 +324,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (signInError) {
-        console.error('[AuthContext] Supabase sign in error:', signInError);
         return { error: signInError };
       }
 
@@ -414,7 +348,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (updateError) {
           // Non-critical error - user is signed in, just name update failed
-          console.warn('[AuthContext] Failed to update user name:', updateError);
         }
       }
 
@@ -425,7 +358,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: new Error('Apple sign in was cancelled') };
       }
       
-      console.error('[AuthContext] Unexpected error in signInWithApple:', error);
       return { error: error as Error };
     }
   };
@@ -438,13 +370,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error) {
-        console.error('Error refreshing session:', error);
         return;
       }
       setSession(session);
       setUser(session?.user ?? null);
     } catch (error) {
-      console.error('Error in refreshSession:', error);
     }
   };
 
@@ -453,7 +383,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { error: new Error('User not authenticated') };
     }
 
-    const { error } = await supabase
+    const { data: insertedEntry, error } = await supabase
       .from('food_entry')
       .insert({
         user_id: user.id,
@@ -462,9 +392,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         created_at: foodEntry.created_at || getCurrentTimestampInESTTimezone(),
         meal_name: foodEntry.meal_name || 0, // Default to uncategorized
         source: foodEntry.source !== undefined ? foodEntry.source : 0, // Default to 0 (Purdue), 1 for FatSecret
-      });
+      })
+      .select()
+      .single();
 
-    return { error };
+    if (error) {
+      return { error };
+    }
+
+    // Sync to health apps asynchronously (don't block on errors)
+    if (insertedEntry) {
+      try {
+        // Fetch item data for health sync
+        const { data: itemData } = await supabase
+          .from('item')
+          .select('name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg')
+          .eq('id', foodEntry.item_id)
+          .single();
+
+        if (itemData) {
+          // Import HealthSyncManager dynamically to avoid circular dependencies
+          const { HealthSyncManager } = await import('../lib/health-integrations/HealthSyncManager');
+          const syncManager = HealthSyncManager.getInstance();
+
+          const foodEntryForSync = {
+            id: insertedEntry.id,
+            user_id: user.id,
+            item_id: foodEntry.item_id,
+            quantity: foodEntry.quantity,
+            created_at: insertedEntry.created_at,
+            meal_name: insertedEntry.meal_name,
+            source: insertedEntry.source,
+            item_name: itemData.name,
+            calories: itemData.calories,
+            protein_g: itemData.protein_g,
+            carbs_g: itemData.carbs_g,
+            fat_g: itemData.fat_g,
+            fiber_g: itemData.fiber_g,
+            sugar_g: itemData.sugar_g,
+            sodium_mg: itemData.sodium_mg,
+          };
+
+          syncManager.onFoodEntryAdded(user.id, foodEntryForSync).catch(() => {});
+        }
+      } catch (_) {}
+    }
+
+    return { error: null };
   };
 
   const removeFoodEntry = async (entryId: string) => {
@@ -472,13 +446,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { error: new Error('User not authenticated') };
     }
 
+    // Fetch entry (and item name for Fitbit fallback) before delete
+    const { data: entry, error: fetchError } = await supabase
+      .from('food_entry')
+      .select('id, created_at, item:item_id(name)')
+      .eq('id', entryId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (fetchError) return { error: fetchError };
+    if (!entry) return { error: new Error('Food entry not found') };
+
+    const itemName = (entry as { item?: { name?: string } })?.item?.name;
+
     const { error } = await supabase
       .from('food_entry')
       .delete()
       .eq('id', entryId)
-      .eq('user_id', user.id); // Ensure user can only delete their own entries
+      .eq('user_id', user.id);
 
-    return { error };
+    if (error) return { error };
+
+    // Notify health apps to remove this entry (non-blocking)
+    try {
+      const { HealthSyncManager } = await import('../lib/health-integrations/HealthSyncManager');
+      HealthSyncManager.getInstance()
+        .onFoodEntryRemoved(user.id, {
+          entryId,
+          created_at: entry.created_at,
+          foodName: itemName ?? undefined,
+        })
+        .catch(() => {});
+    } catch (_) {}
+
+    return { error: null };
   };
 
   const getDailyNutrition = async (date?: string) => {
@@ -513,7 +514,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .lte('created_at', end);
 
       if (entriesError) {
-        console.error('Error fetching food entries for daily nutrition:', entriesError);
         // Continue with zero values if query fails
       }
 
@@ -575,7 +575,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { data: result, error: null };
     } catch (error) {
-      console.error('Error in getDailyNutrition:', error);
       return { data: null, error: error as Error };
     }
   };
@@ -604,7 +603,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           fat: goals.fat || 67,
         });
       } catch (error) {
-        console.error('Error updating nutrition goals:', error);
         return { error: error as Error };
       }
     }
@@ -639,7 +637,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
       if (insertError) {
-        console.error('Error creating daily nutrition record:', insertError);
         return { error: insertError };
       }
     }
@@ -714,7 +711,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { error };
     } catch (error) {
-      console.error('Error in resetPasswordForEmail:', error);
       return { error: error as Error };
     }
   };
@@ -736,7 +732,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('user_id', userId);
 
       if (foodEntryError) {
-        console.error('Error deleting food entries:', foodEntryError);
         return { error: foodEntryError };
       }
 
@@ -747,7 +742,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('user_id', userId);
 
       if (favoriteError) {
-        console.error('Error deleting favorite items:', favoriteError);
         return { error: favoriteError };
       }
 
@@ -758,7 +752,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('user_id', userId);
 
       if (dailyNutritionError) {
-        console.error('Error deleting daily nutrition:', dailyNutritionError);
         return { error: dailyNutritionError };
       }
 
@@ -769,7 +762,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('user_id', userId);
 
       if (nutritionPrefsError) {
-        console.error('Error deleting nutrition preferences:', nutritionPrefsError);
         return { error: nutritionPrefsError };
       }
 
@@ -780,7 +772,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('user_id', userId);
 
       if (customItemsError) {
-        console.error('Error fetching custom items:', customItemsError);
         return { error: customItemsError };
       }
 
@@ -794,7 +785,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .in('collection_id', customItemIds);
 
         if (collectionItemError) {
-          console.error('Error deleting collection items:', collectionItemError);
           return { error: collectionItemError };
         }
       }
@@ -806,7 +796,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('created_by', userId);
 
       if (customFoodError) {
-        console.error('Error deleting custom foods:', customFoodError);
         return { error: customFoodError };
       }
 
@@ -820,7 +809,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .in('id', customItemIds);
 
         if (itemError) {
-          console.error('Error deleting custom items:', itemError);
           return { error: itemError };
         }
       }
@@ -839,7 +827,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const { error: adminError } = await supabase.auth.admin.deleteUser(userId);
           if (adminError) {
             // Both methods failed - sign out user and return error
-            console.warn('User deletion failed. All user data has been deleted, but user account remains. Error:', adminError);
             await supabase.auth.signOut();
             return { 
               error: new Error('User data deleted, but account deletion requires server-side setup. Please contact support to complete account deletion.') 
@@ -847,7 +834,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (adminErr) {
           // Admin API not available from client
-          console.warn('Admin API not available. All user data deleted, but user account remains.');
           await supabase.auth.signOut();
           return { 
             error: new Error('User data deleted, but account deletion requires server-side setup. Please contact support to complete account deletion.') 
@@ -860,7 +846,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { error: null };
     } catch (error) {
-      console.error('Error in deleteAccount:', error);
       return { error: error as Error };
     }
   };

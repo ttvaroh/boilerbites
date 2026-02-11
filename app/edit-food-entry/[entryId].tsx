@@ -75,7 +75,6 @@ export default function EditFoodEntryPage() {
           .single();
 
         if (entryError || !entryData) {
-          console.error('Error fetching food entry:', entryError);
           Alert.alert("Error", "Food entry not found.");
           router.back();
           return;
@@ -93,7 +92,6 @@ export default function EditFoodEntryPage() {
           .single();
 
         if (itemError || !itemData) {
-          console.error('Error fetching item:', itemError);
           // If item not found, try navigating to nutrition page with item_id
           // This handles cases where the item might have been deleted or doesn't exist
           if (entryData.item_id) {
@@ -129,7 +127,6 @@ export default function EditFoodEntryPage() {
           setIsFavorited(true);
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
         Alert.alert("Error", "Failed to load food entry.");
         router.back();
       } finally {
@@ -161,13 +158,14 @@ export default function EditFoodEntryPage() {
   };
 
   const handleUpdateEntry = async () => {
-    if (!user || !foodEntry) return;
+    if (!user || !foodEntry || !item) return;
 
+    const newQuantity = parseFloat(servingCount) || 1;
     try {
       const { error } = await supabase
         .from('food_entry')
         .update({
-          quantity: parseFloat(servingCount) || 1,
+          quantity: newQuantity,
           meal_name: selectedMeal,
         })
         .eq('id', foodEntry.id)
@@ -175,9 +173,37 @@ export default function EditFoodEntryPage() {
 
       if (error) {
         Alert.alert("Error", "Failed to update food entry. Please try again.");
-        console.error("Update food entry error:", error);
         return;
       }
+
+      // Sync update to health apps (Apple Health, Fitbit)
+      try {
+        const { HealthSyncManager } = await import('../../lib/health-integrations/HealthSyncManager');
+        const updatedEntryForSync = {
+          id: foodEntry.id,
+          user_id: user.id,
+          item_id: foodEntry.item_id,
+          quantity: newQuantity,
+          created_at: foodEntry.created_at,
+          meal_name: selectedMeal,
+          source: (foodEntry as { source?: number }).source ?? 0,
+          item_name: item.name,
+          calories: item.calories,
+          protein_g: item.protein_g,
+          carbs_g: item.carbs_g,
+          fat_g: item.fat_g,
+          fiber_g: item.fiber_g,
+          sugar_g: item.sugar_g,
+          sodium_mg: item.sodium_mg,
+        };
+        HealthSyncManager.getInstance()
+          .onFoodEntryUpdated(user.id, {
+            entryId: foodEntry.id,
+            previousCreatedAt: foodEntry.created_at,
+            updatedEntry: updatedEntryForSync,
+          })
+          .catch(() => {});
+      } catch (_) {}
 
       // Clear cache for the entry's date to force refetch
       const dateString = getDateStringForEntry(foodEntry.created_at);
@@ -188,7 +214,6 @@ export default function EditFoodEntryPage() {
       router.back();
     } catch (error) {
       Alert.alert("Error", "Failed to update food entry. Please try again.");
-      console.error("Update food entry error:", error);
     }
   };
 
@@ -208,7 +233,6 @@ export default function EditFoodEntryPage() {
               const { error } = await removeFoodEntry(foodEntry.id);
               if (error) {
                 Alert.alert("Error", "Failed to remove food entry. Please try again.");
-                console.error("Remove food entry error:", error);
                 return;
               }
 
@@ -221,7 +245,6 @@ export default function EditFoodEntryPage() {
               router.back();
             } catch (error) {
               Alert.alert("Error", "Failed to remove food entry. Please try again.");
-              console.error("Remove food entry error:", error);
             }
           }
         }
@@ -256,7 +279,6 @@ export default function EditFoodEntryPage() {
         // Revert the optimistic update on error
         setIsFavorited(previousFavoriteState);
         Alert.alert("Error", "Failed to update favorite. Please try again.");
-        console.error("Favorite toggle error:", error);
         return;
       }
 
@@ -266,7 +288,6 @@ export default function EditFoodEntryPage() {
       // Revert the optimistic update on error
       setIsFavorited(previousFavoriteState);
       Alert.alert("Error", "Failed to update favorite. Please try again.");
-      console.error("Favorite toggle error:", error);
     } finally {
       setFavoriteLoading(false);
     }
@@ -411,6 +432,7 @@ export default function EditFoodEntryPage() {
             <IngredientsAndAllergens
               itemId={item.id}
               allergens={item.allergens}
+              ingredients={item.ingredients}
             />
           </View>
         </ScrollView>

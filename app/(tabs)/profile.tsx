@@ -54,6 +54,10 @@ export default function ProfileScreen() {
     router.push("/contact-support-screen");
   };
 
+  const handleHealthConnections = () => {
+    router.push("/health-connections");
+  };
+
   if (loading) {
     return (
       <BackgroundTemplate paddingBottom={80}>
@@ -173,6 +177,28 @@ export default function ProfileScreen() {
                 </View>
                 <Text className="text-white text-base font-sora flex-1">
                   Edit Profile
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Health App Connections Section */}
+          <View className="mb-4">
+            <Text className="text-white text-lg font-sora-semibold mb-4">
+              Health & Fitness
+            </Text>
+            <View className="bg-gray-800/60 backdrop-blur-xl rounded-2xl border border-gray-700/50 overflow-hidden">
+              <TouchableOpacity 
+                onPress={handleHealthConnections}
+                className="flex-row items-center p-4"
+                activeOpacity={0.7}
+              >
+                <View className="bg-gray-700/50 rounded-full w-10 h-10 items-center justify-center mr-3">
+                  <Ionicons name="fitness-outline" size={20} color="#CFB991" />
+                </View>
+                <Text className="text-white text-base font-sora flex-1">
+                  Health App Connections
                 </Text>
                 <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
               </TouchableOpacity>

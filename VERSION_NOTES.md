@@ -4,7 +4,7 @@ This document tracks all changes and improvements made to BoilerBites since the 
 
 ---
 
-## Version 1.0.4 - 28 January 2026
+## Version 1.0.4 - January 28, 2026
 
 ### Features
 - **Edit Goals from Stats Screen**: Added edit button to Today's Progress card on the diary/stats screen

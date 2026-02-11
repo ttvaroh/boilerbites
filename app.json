@@ -2,7 +2,7 @@
   "expo": {
     "name": "BoilerBites",
     "slug": "boilerbites",
-    "version": "1.0.0",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/logos/boilerbites-logo.png",
     "scheme": "boilerbites",
@@ -13,7 +13,9 @@
       "bundleIdentifier": "com.ttvaroh.BoilerBites",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "We need camera access to scan barcodes for food products"
+        "NSCameraUsageDescription": "We need camera access to scan barcodes for food products",
+        "NSHealthShareUsageDescription": "BoilerBites needs access to your health data to sync nutrition information with the Health app.",
+        "NSHealthUpdateUsageDescription": "BoilerBites needs permission to write nutrition data to the Health app."
       }
     },
     "android": {
@@ -23,9 +25,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.ttvaroh.BoilerBites",
-      "permissions": [
-        "CAMERA"
-      ]
+      "permissions": ["CAMERA"]
     },
     "web": {
       "bundler": "metro",
@@ -50,7 +50,14 @@
           "cameraPermission": "Allow BoilerBites to access your camera to scan barcodes for food products."
         }
       ],
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "BoilerBites needs access to your health data to sync nutrition information with the Health app.",
+          "NSHealthUpdateUsageDescription": "BoilerBites needs permission to write nutrition data to the Health app."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

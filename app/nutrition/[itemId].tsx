@@ -158,7 +158,6 @@ export default function NutritionPage() {
           setIsFavorited(true);
         }
       } catch (error) {
-        console.error('Error checking favorite status:', error);
       }
     };
 
@@ -170,7 +169,6 @@ export default function NutritionPage() {
     const fetchItem = async () => {
       // Validate itemId
       if (!itemId || typeof itemId !== 'string' || itemId.trim().length === 0) {
-        console.error('Invalid itemId:', itemId);
         Alert.alert('Error', 'Invalid item ID. Please try again.');
         router.back();
         return;
@@ -187,7 +185,6 @@ export default function NutritionPage() {
           .single();
 
         if (error) {
-          console.error('Error fetching item:', error);
           router.replace(`/missing-nutrition/${itemId}`);
           return;
         }
@@ -196,6 +193,7 @@ export default function NutritionPage() {
           router.replace(`/missing-nutrition/${itemId}`);
           return;
         }
+
 
         // Check if this is a custom meal (is_collection = true AND user_id IS NOT NULL)
         const isCustomMeal = data.is_collection && data.user_id !== null;
@@ -210,7 +208,6 @@ export default function NutritionPage() {
 
         setItem(data);
       } catch (error) {
-        console.error('Error fetching item:', error);
         Alert.alert('Error', 'Failed to load food item. Please try again.');
         router.back();
       } finally {
@@ -302,7 +299,6 @@ export default function NutritionPage() {
 
       if (error) {
         showToast("Failed to add item to tracker. Please try again.", "error");
-        console.error("Add food entry error:", error);
         return;
       }
 
@@ -321,7 +317,6 @@ export default function NutritionPage() {
       }, 1000); // Small delay to show the toast
     } catch (error) {
       showToast("Failed to add item to tracker. Please try again.", "error");
-      console.error("Add food entry error:", error);
     }
   };
 
@@ -352,7 +347,6 @@ export default function NutritionPage() {
         // Revert the optimistic update on error
         setIsFavorited(previousFavoriteState);
         Alert.alert("Error", "Failed to update favorite. Please try again.");
-        console.error("Favorite toggle error:", error);
         return;
       }
 
@@ -362,7 +356,6 @@ export default function NutritionPage() {
       // Revert the optimistic update on error
       setIsFavorited(previousFavoriteState);
       Alert.alert("Error", "Failed to update favorite. Please try again.");
-      console.error("Favorite toggle error:", error);
     } finally {
       setFavoriteLoading(false);
     }
@@ -532,6 +525,7 @@ export default function NutritionPage() {
             <IngredientsAndAllergens
               itemId={item.id}
               allergens={item.allergens}
+              ingredients={item.ingredients}
             />
 
         </View>
