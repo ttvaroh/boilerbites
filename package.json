@@ -13,8 +13,10 @@
     "lint": "expo lint",
     "build:ios:production": "eas build --platform ios --profile production",
     "build:ios:preview": "eas build --platform ios --profile preview",
-    "populate-menu": "tsx -e \"import { populateMenuDataThreeDaysAhead } from './lib/supabase-setup/db-setup'; populateMenuDataThreeDaysAhead().then(() => console.log('Done')).catch(console.error)\"",
-    "populate-today": "tsx -e \"import { updateTodaysMenu } from './lib/supabase-setup/db-setup'; updateTodaysMenu().then(() => console.log('Done')).catch(console.error)\""
+    "populate-menu": "tsx -e \"import { populateMenuDataThreeDaysAhead } from './lib/legacy/db-setup'; populateMenuDataThreeDaysAhead().then(() => console.log('Done')).catch(console.error)\"",
+    "populate-today": "tsx -e \"import { updateTodaysMenu } from './lib/legacy/db-setup'; updateTodaysMenu().then(() => console.log('Done')).catch(console.error)\"",
+    "populate-menu-v3": "tsx -e \"import { populateMenuDataThreeDaysAheadV3 } from './lib/etl/db-setup-v3'; populateMenuDataThreeDaysAheadV3().then(() => console.log('Done')).catch(console.error)\"",
+    "populate-today-v3": "tsx -e \"import { updateTodaysMenuV3 } from './lib/etl/db-setup-v3'; updateTodaysMenuV3().then(() => console.log('Done')).catch(console.error)\""
   },
   "dependencies": {
     "@expo-google-fonts/sora": "^0.4.2",

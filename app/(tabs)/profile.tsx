@@ -1,6 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import BackgroundTemplate from "../../components/BackgroundTemplate";
 import OnboardingComponent from "../../components/OnboardingComponent";
 import { useAuth } from "../../contexts/AuthContext";
@@ -10,23 +17,19 @@ export default function ProfileScreen() {
   const router = useRouter();
 
   const handleSignOut = async () => {
-    Alert.alert(
-      "Sign Out",
-      "Are you sure you want to sign out?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: async () => {
+          await signOut();
         },
-        {
-          text: "Sign Out",
-          style: "destructive",
-          onPress: async () => {
-            await signOut();
-          },
-        },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleMenuSettings = () => {
@@ -63,7 +66,9 @@ export default function ProfileScreen() {
       <BackgroundTemplate paddingBottom={80}>
         <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color="#CFB991" />
-          <Text className="text-white text-base font-sora mt-4">Loading...</Text>
+          <Text className="text-white text-base font-sora mt-4">
+            Loading...
+          </Text>
         </View>
       </BackgroundTemplate>
     );
@@ -86,7 +91,9 @@ export default function ProfileScreen() {
             <View className="flex-row items-center">
               <View className="w-20 h-20 bg-purdueGold rounded-full items-center justify-center mr-4 shadow-lg">
                 <Text className="text-black text-2xl font-sora-bold">
-                  {(user?.user_metadata?.full_name || user?.email || "U")[0].toUpperCase()}
+                  {(user?.user_metadata?.full_name ||
+                    user?.email ||
+                    "U")[0].toUpperCase()}
                 </Text>
               </View>
               <View className="flex-1">
@@ -102,11 +109,11 @@ export default function ProfileScreen() {
 
           {/* Quick Actions Grid */}
           <View className="mb-4">
-            <Text className="text-white text-lg font-sora-semibold mb-4">
+            <Text className="text-white text-lg font-sora-semibold mb-3">
               Quick Actions
             </Text>
             <View className="flex-row justify-between mb-3">
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={handleMenuSettings}
                 className="bg-gray-800/60 backdrop-blur-xl rounded-2xl p-5 flex-1 mr-2 border border-gray-700/50"
                 activeOpacity={0.7}
@@ -122,7 +129,7 @@ export default function ProfileScreen() {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={handleFavorites}
                 className="bg-gray-800/60 backdrop-blur-xl rounded-2xl p-5 flex-1 ml-2 border border-gray-700/50"
                 activeOpacity={0.7}
@@ -139,7 +146,7 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={handleCustomFoods}
               className="bg-gray-800/60 backdrop-blur-xl rounded-2xl p-5 border border-gray-700/50"
               activeOpacity={0.7}
@@ -163,11 +170,11 @@ export default function ProfileScreen() {
 
           {/* Account Section */}
           <View className="mb-4">
-            <Text className="text-white text-lg font-sora-semibold mb-4">
+            <Text className="text-white text-lg font-sora-semibold mb-3">
               Account
             </Text>
             <View className="bg-gray-800/60 backdrop-blur-xl rounded-2xl border border-gray-700/50 overflow-hidden">
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={handleEditProfile}
                 className="flex-row items-center p-4 border-b border-gray-700/50"
                 activeOpacity={0.7}
@@ -180,16 +187,8 @@ export default function ProfileScreen() {
                 </Text>
                 <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
               </TouchableOpacity>
-            </View>
-          </View>
 
-          {/* Health App Connections Section */}
-          <View className="mb-4">
-            <Text className="text-white text-lg font-sora-semibold mb-4">
-              Health & Fitness
-            </Text>
-            <View className="bg-gray-800/60 backdrop-blur-xl rounded-2xl border border-gray-700/50 overflow-hidden">
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={handleHealthConnections}
                 className="flex-row items-center p-4"
                 activeOpacity={0.7}
@@ -207,17 +206,21 @@ export default function ProfileScreen() {
 
           {/* Support Section */}
           <View className="mb-6">
-            <Text className="text-white text-lg font-sora-semibold mb-4">
+            <Text className="text-white text-lg font-sora-semibold mb-3">
               Support
             </Text>
             <View className="bg-gray-800/60 backdrop-blur-xl rounded-2xl border border-gray-700/50 overflow-hidden">
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={handleContactSupport}
                 className="flex-row items-center p-4 border-b border-gray-700/50"
                 activeOpacity={0.7}
               >
                 <View className="bg-gray-700/50 rounded-full w-10 h-10 items-center justify-center mr-3">
-                  <Ionicons name="chatbubble-outline" size={20} color="#CFB991" />
+                  <Ionicons
+                    name="chatbubble-outline"
+                    size={20}
+                    color="#CFB991"
+                  />
                 </View>
                 <Text className="text-white text-base font-sora flex-1">
                   Contact Us
@@ -225,13 +228,17 @@ export default function ProfileScreen() {
                 <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={handleAbout}
                 className="flex-row items-center p-4"
                 activeOpacity={0.7}
               >
                 <View className="bg-gray-700/50 rounded-full w-10 h-10 items-center justify-center mr-3">
-                  <Ionicons name="information-circle-outline" size={20} color="#CFB991" />
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={20}
+                    color="#CFB991"
+                  />
                 </View>
                 <Text className="text-white text-base font-sora flex-1">
                   About
