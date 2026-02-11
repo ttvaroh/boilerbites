@@ -40,14 +40,30 @@ yarn-error.*
 
 .examples/
 
-# Supabase
+# Supabase SQL functions (database implementation)
 supabase/.temp/
 .supabase-setup/
-lib/supabase-setup/*.sql
+lib/sql/*.sql
+lib/legacy/*.sql
 
-# Collection ETL
+# ETL pipeline (API queries, data transforms, DB population)
+lib/etl/
+lib/legacy/*.ts
+
+# Collection ETL (API interaction scripts)
+lib/collection-etl/*.py
 lib/collection-etl/output.sql
 lib/collection-etl/urls.txt
+
+# API implementation (GraphQL endpoints, queries, headers)
+lib/api.ts
+
+# Internal API documentation
+docs/internal/*
+
+# Python
+__pycache__/
+*.pyc
 
 # iOS and Android build folders
 ios/

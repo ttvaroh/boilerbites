@@ -3,7 +3,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
-  Animated,
   ScrollView,
   Text,
   TextInput,
@@ -16,8 +15,12 @@ import MacroBreakdown from "../../components/MacroBreakdown";
 import NutritionFacts from "../../components/NutritionFacts";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNutritionCache } from "../../contexts/NutritionCacheContext";
+import { useToast } from "../../contexts/ToastContext";
 import { supabase } from "../../lib/supabase";
-import { createLocalDateFromString, getTodayDateString } from "../../lib/timezone-utils";
+import {
+  createLocalDateFromString,
+  getTodayDateString,
+} from "../../lib/timezone-utils";
 
 interface MenuItem {
   id: string;
@@ -42,30 +45,37 @@ interface MenuItem {
 }
 
 export default function NutritionPage() {
-  const params = useLocalSearchParams<{ itemId: string | string[]; date?: string; source?: string }>();
+  const params = useLocalSearchParams<{
+    itemId: string | string[];
+    date?: string;
+    source?: string;
+  }>();
   const router = useRouter();
   const { user, toggleFavorite, addFoodEntry } = useAuth();
   const { clearNutritionData } = useNutritionCache();
-  
+  const { showToast } = useToast();
+
   // Handle itemId which might be an array (expo-router sometimes returns arrays)
-  const itemId = Array.isArray(params.itemId) ? params.itemId[0] : params.itemId;
+  const itemId = Array.isArray(params.itemId)
+    ? params.itemId[0]
+    : params.itemId;
   const date = Array.isArray(params.date) ? params.date[0] : params.date;
-  const source = Array.isArray(params.source) ? params.source[0] : params.source;
+  const source = Array.isArray(params.source)
+    ? params.source[0]
+    : params.source;
   const initialDateParam = date;
-  
+
   // Check if this is a FatSecret item
-  const isFatSecretItem = source === 'fatsecret' || (itemId && typeof itemId === 'string' && itemId.startsWith('fatsecret_'));
+  const isFatSecretItem =
+    source === "fatsecret" ||
+    (itemId && typeof itemId === "string" && itemId.startsWith("fatsecret_"));
   const [servingCount, setServingCount] = useState("1");
   const [selectedMeal, setSelectedMeal] = useState(0); // 0 = uncategorized, 1 = breakfast, 2 = lunch, 3 = dinner, 4 = snack
   const [item, setItem] = useState<MenuItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [isFavorited, setIsFavorited] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
-  const [toastType, setToastType] = useState<"success" | "error">("success");
-  const [toastAnimation] = useState(new Animated.Value(0));
-  
+
   // Parse initial date parameter
   const initialDate = React.useMemo(() => {
     if (initialDateParam) {
@@ -77,15 +87,15 @@ export default function NutritionPage() {
     }
     return new Date();
   }, [initialDateParam]);
-  
+
   // Internal date state for navigation
   const [selectedDate, setSelectedDate] = useState(initialDate);
-  
+
   // Update selectedDate when the date param changes
   useEffect(() => {
     setSelectedDate(initialDate);
   }, [initialDate]);
-  
+
   // Date navigation functions
   const goToPreviousDay = () => {
     const newDate = new Date(selectedDate);
@@ -115,13 +125,13 @@ export default function NutritionPage() {
     if (date.toDateString() === today.toDateString()) {
       return "Today";
     }
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      month: 'long', 
-      day: 'numeric' 
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
     });
   };
-  
+
   // Convert selectedDate to ISO string for food entry
   // Use current time to ensure unique timestamps for proper ordering
   const entryDate = React.useMemo(() => {
@@ -129,14 +139,19 @@ export default function NutritionPage() {
     // Otherwise, use the selected date at the current time of day
     const now = new Date();
     const isToday = selectedDate.toDateString() === now.toDateString();
-    
+
     if (isToday) {
       // Use current time for today's entries
       return now.toISOString();
     } else {
       // For past/future dates, preserve the date but use current time
       const dateForEntry = new Date(selectedDate);
-      dateForEntry.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+      dateForEntry.setHours(
+        now.getHours(),
+        now.getMinutes(),
+        now.getSeconds(),
+        now.getMilliseconds(),
+      );
       return dateForEntry.toISOString();
     }
   }, [selectedDate]);
@@ -148,17 +163,16 @@ export default function NutritionPage() {
 
       try {
         const { data: favorites, error } = await supabase
-          .from('favorite_item')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('item_id', item.id)
+          .from("favorite_item")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("item_id", item.id)
           .single();
 
         if (!error && favorites) {
           setIsFavorited(true);
         }
-      } catch (error) {
-      }
+      } catch (error) {}
     };
 
     checkFavoriteStatus();
@@ -168,20 +182,20 @@ export default function NutritionPage() {
   useEffect(() => {
     const fetchItem = async () => {
       // Validate itemId
-      if (!itemId || typeof itemId !== 'string' || itemId.trim().length === 0) {
-        Alert.alert('Error', 'Invalid item ID. Please try again.');
+      if (!itemId || typeof itemId !== "string" || itemId.trim().length === 0) {
+        Alert.alert("Error", "Invalid item ID. Please try again.");
         router.back();
         return;
       }
-      
+
       try {
         setLoading(true);
-        
+
         // Fetch item from database (Purdue or FatSecret)
         const { data, error } = await supabase
-          .from('item')
-          .select('*')
-          .eq('id', itemId.trim())
+          .from("item")
+          .select("*")
+          .eq("id", itemId.trim())
           .single();
 
         if (error) {
@@ -194,10 +208,9 @@ export default function NutritionPage() {
           return;
         }
 
-
         // Check if this is a custom meal (is_collection = true AND user_id IS NOT NULL)
         const isCustomMeal = data.is_collection && data.user_id !== null;
-        
+
         // For custom meals, allow display even without serving_size since they have aggregated nutrition
         // For regular Purdue items, serving_size is required
         // FatSecret items may not have serving_size, so we allow them too
@@ -208,7 +221,7 @@ export default function NutritionPage() {
 
         setItem(data);
       } catch (error) {
-        Alert.alert('Error', 'Failed to load food item. Please try again.');
+        Alert.alert("Error", "Failed to load food item. Please try again.");
         router.back();
       } finally {
         setLoading(false);
@@ -223,7 +236,9 @@ export default function NutritionPage() {
     return (
       <BackgroundTemplate paddingBottom={40}>
         <View className="flex-1 justify-center items-center">
-          <Text className="text-white text-lg font-sora">Loading nutrition info...</Text>
+          <Text className="text-white text-lg font-sora">
+            Loading nutrition info...
+          </Text>
         </View>
       </BackgroundTemplate>
     );
@@ -239,36 +254,17 @@ export default function NutritionPage() {
   // Format date for display in the add button
   const formatDateForDisplay = () => {
     if (isToday()) {
-      return 'Adding to Today';
+      return "Add to Today";
     } else {
-      return `Adding to ${selectedDate.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: selectedDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+      return `Add to ${selectedDate.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year:
+          selectedDate.getFullYear() !== new Date().getFullYear()
+            ? "numeric"
+            : undefined,
       })}`;
     }
-  };
-
-  const showToast = (message: string, type: "success" | "error") => {
-    setToastMessage(message);
-    setToastType(type);
-    setToastVisible(true);
-    
-    Animated.sequence([
-      Animated.timing(toastAnimation, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.delay(2000),
-      Animated.timing(toastAnimation, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setToastVisible(false);
-    });
   };
 
   const handleAddToTracker = async () => {
@@ -278,8 +274,8 @@ export default function NutritionPage() {
         "You need to be logged in to add items to your food tracker.",
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Sign In", onPress: () => router.push("/signin") }
-        ]
+          { text: "Sign In", onPress: () => router.push("/signin") },
+        ],
       );
       return;
     }
@@ -305,16 +301,14 @@ export default function NutritionPage() {
       // Clear nutrition cache for the entry date to force DailyProgress to refetch
       const entryDateObj = new Date(entryDate);
       const isToday = entryDateObj.toDateString() === new Date().toDateString();
-      const dateString = isToday 
-        ? getTodayDateString() 
-        : entryDateObj.toISOString().split('T')[0];
+      const dateString = isToday
+        ? getTodayDateString()
+        : entryDateObj.toISOString().split("T")[0];
       clearNutritionData(dateString);
 
-      // Show success toast and route back
+      // Navigate back immediately, then show success toast on previous screen
+      router.back();
       showToast("Item added to your food tracker!", "success");
-      setTimeout(() => {
-        router.back();
-      }, 1000); // Small delay to show the toast
     } catch (error) {
       showToast("Failed to add item to tracker. Please try again.", "error");
     }
@@ -327,8 +321,8 @@ export default function NutritionPage() {
         "You need to be logged in to add items to your favorites.",
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Sign In", onPress: () => router.push("/signin") }
-        ]
+          { text: "Sign In", onPress: () => router.push("/signin") },
+        ],
       );
       return;
     }
@@ -341,8 +335,10 @@ export default function NutritionPage() {
 
     try {
       setFavoriteLoading(true);
-      const { error, isFavorited: newFavoriteState } = await toggleFavorite(item.id);
-      
+      const { error, isFavorited: newFavoriteState } = await toggleFavorite(
+        item.id,
+      );
+
       if (error) {
         // Revert the optimistic update on error
         setIsFavorited(previousFavoriteState);
@@ -386,9 +382,9 @@ export default function NutritionPage() {
               <TouchableOpacity onPress={goToPreviousDay} className="p-2 -ml-2">
                 <Ionicons name="chevron-back" size={20} color="white" />
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                onPress={goToToday} 
+
+              <TouchableOpacity
+                onPress={goToToday}
                 className="flex-1 items-center justify-center"
                 style={{ alignItems: "center", justifyContent: "center" }}
               >
@@ -406,7 +402,7 @@ export default function NutritionPage() {
                   </Text>
                 )}
               </TouchableOpacity>
-              
+
               <TouchableOpacity onPress={goToNextDay} className="p-2 -mr-2">
                 <Ionicons name="chevron-forward" size={20} color="white" />
               </TouchableOpacity>
@@ -416,7 +412,8 @@ export default function NutritionPage() {
 
         {/* Main Content */}
         <ScrollView className="flex-1 px-6">
-          <View className="bg-gray-800 rounded-xl p-6 mt-4 mb-6 shadow-lg"
+          <View
+            className="bg-gray-800 rounded-xl p-6 mt-4 mb-6 shadow-lg"
             style={{
               shadowColor: "#CFB991",
               shadowOffset: { width: 0, height: 0 },
@@ -444,7 +441,8 @@ export default function NutritionPage() {
                 />
               </TouchableOpacity>
             </View>
-            {(item.serving_size || (item.is_collection && item.user_id !== null)) && (
+            {(item.serving_size ||
+              (item.is_collection && item.user_id !== null)) && (
               <Text className="text-gray-300 text-sm font-sora mb-2">
                 Serving Size: {item.serving_size || "1 meal"}
               </Text>
@@ -496,7 +494,9 @@ export default function NutritionPage() {
                   >
                     <Text
                       className={`text-sm font-sora ${
-                        selectedMeal === meal.value ? "text-black" : "text-white"
+                        selectedMeal === meal.value
+                          ? "text-black"
+                          : "text-white"
                       }`}
                     >
                       {meal.label}
@@ -516,10 +516,7 @@ export default function NutritionPage() {
             />
 
             {/* Amount Per Serving Component */}
-            <NutritionFacts
-              item={item}
-              servingCount={servingCountNum}
-            />
+            <NutritionFacts item={item} servingCount={servingCountNum} />
 
             {/* Allergens and Ingredients Component */}
             <IngredientsAndAllergens
@@ -527,21 +524,20 @@ export default function NutritionPage() {
               allergens={item.allergens}
               ingredients={item.ingredients}
             />
-
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
       </View>
       <View className="px-6">
-      {/* Add to Tracker Button */}
+        {/* Add to Tracker Button */}
         <TouchableOpacity
           onPress={handleAddToTracker}
           className="bg-purdueGold rounded-lg py-4 mt-6"
           style={{
-              shadowColor: "#CFB991",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.3,
-              shadowRadius: 4,
-              elevation: 3,
+            shadowColor: "#CFB991",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 4,
+            elevation: 3,
           }}
         >
           <Text className="text-white text-lg font-sora-bold text-center">
@@ -550,45 +546,6 @@ export default function NutritionPage() {
         </TouchableOpacity>
       </View>
 
-      {/* Toast Notification */}
-      {toastVisible && (
-        <Animated.View
-          style={{
-            position: 'absolute',
-            bottom: 50,
-            left: 20,
-            right: 20,
-            backgroundColor: toastType === 'success' ? '#10B981' : '#EF4444',
-            borderRadius: 12,
-            padding: 16,
-            flexDirection: 'row',
-            alignItems: 'center',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            elevation: 8,
-            transform: [
-              {
-                translateY: toastAnimation.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [100, 0],
-                }),
-              },
-            ],
-            opacity: toastAnimation,
-          }}
-        >
-          <Ionicons
-            name={toastType === 'success' ? 'checkmark-circle' : 'alert-circle'}
-            size={24}
-            color="white"
-          />
-          <Text className="text-white text-base font-sora-semibold ml-3 flex-1">
-            {toastMessage}
-          </Text>
-        </Animated.View>
-      )}
     </BackgroundTemplate>
   );
 }

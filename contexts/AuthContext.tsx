@@ -383,59 +383,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { error: new Error('User not authenticated') };
     }
 
+    const entryData = {
+      user_id: user.id,
+      item_id: foodEntry.item_id,
+      quantity: foodEntry.quantity,
+      created_at: foodEntry.created_at || getCurrentTimestampInESTTimezone(),
+      meal_name: foodEntry.meal_name || 0, // Default to uncategorized
+      source: foodEntry.source !== undefined ? foodEntry.source : 0, // Default to 0 (Purdue), 1 for FatSecret
+    };
+
+    // Critical path: insert and only fetch the generated ID (for health sync linking)
     const { data: insertedEntry, error } = await supabase
       .from('food_entry')
-      .insert({
-        user_id: user.id,
-        item_id: foodEntry.item_id,
-        quantity: foodEntry.quantity,
-        created_at: foodEntry.created_at || getCurrentTimestampInESTTimezone(),
-        meal_name: foodEntry.meal_name || 0, // Default to uncategorized
-        source: foodEntry.source !== undefined ? foodEntry.source : 0, // Default to 0 (Purdue), 1 for FatSecret
-      })
-      .select()
+      .insert(entryData)
+      .select('id')
       .single();
 
     if (error) {
       return { error };
     }
 
-    // Sync to health apps asynchronously (don't block on errors)
-    if (insertedEntry) {
-      try {
-        // Fetch item data for health sync
-        const { data: itemData } = await supabase
-          .from('item')
-          .select('name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg')
-          .eq('id', foodEntry.item_id)
-          .single();
+    // Health sync runs fully in the background — does NOT block the return.
+    // This IIFE is intentionally not awaited so the caller gets an instant response.
+    const entryId = insertedEntry?.id;
+    if (entryId) {
+      (async () => {
+        try {
+          // Fetch item nutrition data for health app sync
+          const { data: itemData } = await supabase
+            .from('item')
+            .select('name, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg')
+            .eq('id', foodEntry.item_id)
+            .single();
 
-        if (itemData) {
-          // Import HealthSyncManager dynamically to avoid circular dependencies
-          const { HealthSyncManager } = await import('../lib/health-integrations/HealthSyncManager');
-          const syncManager = HealthSyncManager.getInstance();
+          if (itemData) {
+            // Import HealthSyncManager dynamically to avoid circular dependencies
+            const { HealthSyncManager } = await import('../lib/health-integrations/HealthSyncManager');
+            const syncManager = HealthSyncManager.getInstance();
 
-          const foodEntryForSync = {
-            id: insertedEntry.id,
-            user_id: user.id,
-            item_id: foodEntry.item_id,
-            quantity: foodEntry.quantity,
-            created_at: insertedEntry.created_at,
-            meal_name: insertedEntry.meal_name,
-            source: insertedEntry.source,
-            item_name: itemData.name,
-            calories: itemData.calories,
-            protein_g: itemData.protein_g,
-            carbs_g: itemData.carbs_g,
-            fat_g: itemData.fat_g,
-            fiber_g: itemData.fiber_g,
-            sugar_g: itemData.sugar_g,
-            sodium_mg: itemData.sodium_mg,
-          };
+            const foodEntryForSync = {
+              id: entryId,
+              user_id: user.id,
+              item_id: foodEntry.item_id,
+              quantity: foodEntry.quantity,
+              created_at: entryData.created_at,
+              meal_name: entryData.meal_name,
+              source: entryData.source,
+              item_name: itemData.name,
+              calories: itemData.calories,
+              protein_g: itemData.protein_g,
+              carbs_g: itemData.carbs_g,
+              fat_g: itemData.fat_g,
+              fiber_g: itemData.fiber_g,
+              sugar_g: itemData.sugar_g,
+              sodium_mg: itemData.sodium_mg,
+            };
 
-          syncManager.onFoodEntryAdded(user.id, foodEntryForSync).catch(() => {});
-        }
-      } catch (_) {}
+            syncManager.onFoodEntryAdded(user.id, foodEntryForSync).catch(() => {});
+          }
+        } catch (_) {}
+      })();
     }
 
     return { error: null };

@@ -15,6 +15,7 @@ import ErrorBoundary from "../components/ErrorBoundary";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { NutritionCacheProvider } from "../contexts/NutritionCacheContext";
 import { NutritionGoalsProvider, useNutritionGoals } from "../contexts/NutritionGoalsContext";
+import { ToastProvider } from "../contexts/ToastContext";
 import "../global.css";
 import { MenuDataProvider, useMenuData } from "../lib/MenuDataContext";
 import { supabase } from "../lib/supabase";
@@ -95,10 +96,11 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
         <SafeAreaProvider>
           <AuthProvider>
-            <AppWithNutritionGoals>
-              <NutritionCacheProvider>
-                <MenuDataProvider>
-                  <AppRefreshManager>
+            <ToastProvider>
+              <AppWithNutritionGoals>
+                <NutritionCacheProvider>
+                  <MenuDataProvider>
+                    <AppRefreshManager>
                     <Stack>
                       <Stack.Screen name="index" options={{ headerShown: false }} />
                       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -203,10 +205,11 @@ export default function RootLayout() {
                         options={{ headerShown: false }}
                       />
                     </Stack>
-                  </AppRefreshManager>
-                </MenuDataProvider>
-              </NutritionCacheProvider>
-            </AppWithNutritionGoals>
+                    </AppRefreshManager>
+                  </MenuDataProvider>
+                </NutritionCacheProvider>
+              </AppWithNutritionGoals>
+            </ToastProvider>
           </AuthProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>

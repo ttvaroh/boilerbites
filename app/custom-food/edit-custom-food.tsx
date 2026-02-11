@@ -3,7 +3,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   Alert,
-  Animated,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -11,13 +10,14 @@ import {
 } from "react-native";
 import BackgroundTemplate from "../../components/BackgroundTemplate";
 import CustomFoodForm from "../../components/CustomFoodForm";
+import { useToast } from "../../contexts/ToastContext";
 import { editCustomItem, removeCustomFood } from "../../lib/api";
 import { supabase } from "../../lib/supabase";
 
 export default function EditCustomFoodPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const { itemId } = useLocalSearchParams<{ itemId: string }>();
-
 
   // Form state (primary)
   const [name, setName] = useState("");
@@ -39,34 +39,6 @@ export default function EditCustomFoodPage() {
   const [proteinPer100Cals, setProteinPer100Cals] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  // Toast state
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
-  const [toastType, setToastType] = useState<"success" | "error">("success");
-  const [toastAnimation] = useState(new Animated.Value(0));
-
-  const showToast = (message: string, type: "success" | "error") => {
-    setToastMessage(message);
-    setToastType(type);
-    setToastVisible(true);
-    
-    Animated.sequence([
-      Animated.timing(toastAnimation, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.delay(1000),
-      Animated.timing(toastAnimation, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setToastVisible(false);
-    });
-  };
 
   // Load existing item data
   useEffect(() => {
@@ -148,10 +120,8 @@ export default function EditCustomFoodPage() {
       });
 
       if (result.success) {
+        router.back();
         showToast("Item updated successfully!", "success");
-        setTimeout(() => {
-          router.back();
-        }, 500);
       } else {
         showToast(result.error || "Failed to update item", "error");
       }
@@ -182,10 +152,8 @@ export default function EditCustomFoodPage() {
               const result = await removeCustomFood(itemId);
 
               if (result.success) {
+                router.back();
                 showToast("Item deleted successfully!", "success");
-                setTimeout(() => {
-                  router.back();
-                }, 500);
               } else {
                 showToast(result.error || "Failed to delete item", "error");
               }
@@ -267,45 +235,6 @@ export default function EditCustomFoodPage() {
         </View>
       </ScrollView>
 
-      {/* Toast Notification */}
-      {toastVisible && (
-        <Animated.View
-          style={{
-            position: 'absolute',
-            bottom: 50,
-            left: 20,
-            right: 20,
-            backgroundColor: toastType === 'success' ? '#10B981' : '#EF4444',
-            borderRadius: 12,
-            padding: 16,
-            flexDirection: 'row',
-            alignItems: 'center',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            elevation: 8,
-            transform: [
-              {
-                translateY: toastAnimation.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [100, 0],
-                }),
-              },
-            ],
-            opacity: toastAnimation,
-          }}
-        >
-          <Ionicons
-            name={toastType === 'success' ? 'checkmark-circle' : 'alert-circle'}
-            size={24}
-            color="white"
-          />
-          <Text className="text-white text-base font-sora-semibold ml-3 flex-1">
-            {toastMessage}
-          </Text>
-        </Animated.View>
-      )}
     </BackgroundTemplate>
   );
 }
