@@ -4,6 +4,40 @@ This document tracks all changes and improvements made to BoilerBites since the 
 
 ---
 
+## Version 1.0.5 - February 11, 2026
+
+### Features
+- **Health App Connections**: Connect BoilerBites to Apple Health and Fitbit for unified nutrition tracking
+  - **Apple Health (iOS)**: Sync your food entries to the Health app—calories, protein, carbs, fat, fiber, sugar, and sodium are written to HealthKit. Export-only; we don't read your other health data.
+  - **Fitbit**: Connect via OAuth and automatically sync your BoilerBites food log to your Fitbit food log. Add, edit, and delete actions in BoilerBites are reflected in Fitbit.
+  - **Profile → Account → Health App Connections**: Connect or disconnect at any time. Optional; you can use the app without connecting any health apps.
+  - Sync runs automatically when you add, edit, or remove food entries (when auto-sync is enabled).
+- **Working Ingredients**: Ingredients and allergens now load and display correctly across the app
+  - **IngredientsAndAllergens** component shows ingredient lists on item detail (nutrition page), edit food entry, and wherever item details are shown
+  - Ingredients are passed from menu/item data (including V3 API where available) and formatted for readability
+  - Collection ID prefixes are stripped so ingredients display cleanly for collection-derived items
+
+### UI/UX Improvements
+- **Profile**: Edit Profile and Health App Connections are combined into one **Account** section for cleaner navigation
+- **Health Connections screen**: Dedicated page with Apple Health and Fitbit cards, "How it works" and "Privacy & Security" notes
+- **About**: Updated What's New and version to 1.0.5
+
+### Bug Fixes
+- **Fitbit sync**: Fixed edited entries creating duplicates in Fitbit—updates now remove the old Fitbit log before adding the new one, and we only add when the old entry was successfully removed
+- **Fitbit delete**: When you delete a food entry in BoilerBites, it now correctly removes the corresponding entry from Fitbit (including fallback by food name when sync metadata was missing)
+- **Production**: Removed developer console logs from health integrations, auth, and related flows for a polished release build
+
+### Privacy & Legal
+- **Privacy policy**: Updated with health data sections (what we collect for health connections, how we use it, Fitbit and Apple Health third-party disclosure, data retention, and how to disconnect/revoke)
+- **Terms of Service**: New terms-of-service page (same site style as privacy) including health features disclaimer ("not medical advice"), optional sync description, and standard ToS sections
+
+### Technical
+- Health sync orchestration via `HealthSyncManager`; `FitbitService` (OAuth, token refresh, Create/Delete Food Log API, fallback delete by name); `AppleHealthService` (HealthKit write, delete by metadata)
+- Database: `health_app_connections`, `health_app_synced_entries` (Fitbit logId mapping), `health_app_sync_log`
+- Documentation: `docs/internal/HEALTH_APP_CONNECTIONS_SUMMARY.md`, `docs/FITBIT_API_SETUP.md`, `docs/APPLE_HEALTH_SETUP.md`, `docs/APP_STORE_SUBMISSION.md` health checklist
+
+---
+
 ## Version 1.0.4 - January 28, 2026
 
 ### Features
@@ -246,7 +280,8 @@ This document tracks all changes and improvements made to BoilerBites since the 
 
 | Version | Release Date | Key Features |
 |---------|--------------|--------------|
-| 1.0.4 | [Current] | Edit goals from stats screen, reusable goal editing modal, streamlined nutrition preferences, global search from missing nutrition |
+| 1.0.5 | Feb 11, 2026 | Health App Connections (Apple Health + Fitbit), working ingredients display, Fitbit sync fixes, privacy/terms updates |
+| 1.0.4 | [Previous] | Edit goals from stats screen, reusable goal editing modal, streamlined nutrition preferences, global search from missing nutrition |
 | 1.0.3 | [Previous] | Home screen & menu loading optimizations, vegan/vegetarian preferences, allergen marking, auto-filter in search, password reset, prefetching |
 | 1.0.2 | [Previous] | FatSecret API, Azure AD auth, Oracle proxy, custom meals, swipe to delete, barcode scanning, global food search, date navigation |
 | 1.0.1 | [Previous] | Settings, nutrition goals, allergen preferences, pull-to-refresh, caching, UI improvements |
