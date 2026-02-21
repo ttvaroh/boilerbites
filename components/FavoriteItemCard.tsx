@@ -1,5 +1,6 @@
 import { FontAwesome6, Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
+import { getTodayDateString, getDateStringFromToday, createLocalDateFromString } from "../lib/timezone-utils";
 
 interface FavoriteItem {
   id: string;
@@ -47,26 +48,20 @@ export default function FavoriteItemCard({
 }: FavoriteItemCardProps) {
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    
-    // Compare dates by string format (YYYY-MM-DD) to avoid timezone issues
-    const dateStr = date.toISOString().split('T')[0];
-    const todayStr = today.toISOString().split('T')[0];
-    
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-    
-    if (dateStr === todayStr) {
+    // dateString is YYYY-MM-DD; compare as strings in local timezone
+    const todayStr = getTodayDateString();
+    const tomorrowStr = getDateStringFromToday(1);
+
+    if (dateString === todayStr) {
       return 'Today';
-    } else if (dateStr === tomorrowStr) {
+    } else if (dateString === tomorrowStr) {
       return 'Tomorrow';
     } else {
-      return date.toLocaleDateString('en-US', { 
-        weekday: 'short', 
-        month: 'short', 
-        day: 'numeric' 
+      const date = createLocalDateFromString(dateString);
+      return date.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
       });
     }
   };
