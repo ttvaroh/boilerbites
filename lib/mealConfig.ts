@@ -131,6 +131,15 @@ export function getMealOrder(locationName: string): MealType[] {
   return getMealConfig(locationName).mealOrder;
 }
 
+/** Approximate current meal by local hour (EST-ish). Used for prefetching only the relevant meal. */
+export function getCurrentMealTypeByHour(): MealType {
+  const hour = new Date().getHours();
+  if (hour < 10) return 'breakfast';
+  if (hour < 14) return 'lunch';
+  if (hour < 17) return 'lateLunch';
+  return 'dinner';
+}
+
 // Helper function to map database meal name to meal type
 export function mapMealNameToType(locationName: string, mealName: string): MealType | null {
   const config = getMealConfig(locationName);

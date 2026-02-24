@@ -13,6 +13,7 @@ import BackgroundTemplate from "../components/BackgroundTemplate";
 import FavoriteItemCard from "../components/FavoriteItemCard";
 import { useAuth } from "../contexts/AuthContext";
 import { getItemAppearances } from "../lib/api";
+import { getCachedFavorites, setCachedFavorites } from "../lib/favoritesCache";
 import { supabase } from "../lib/supabase";
 import { getTodayDateString } from "../lib/timezone-utils";
 
@@ -67,7 +68,7 @@ export default function FavoritesPage() {
   >({});
 
   const checkCollectionStatusBatch = React.useCallback(
-    async (itemIds: string[]) => {
+    async (itemIds: string[]): Promise<Record<string, boolean>> => {
       try {
         const { data: itemsData, error } = await supabase
           .from("item")
@@ -80,10 +81,12 @@ export default function FavoritesPage() {
             newStatus[item.id] = item.is_collection || false;
           });
           setCollectionStatus((prev) => ({ ...prev, ...newStatus }));
+          return newStatus;
         }
       } catch (error) {
         console.error("Error checking collection status batch:", error);
       }
+      return {};
     },
     [],
   );
@@ -93,14 +96,17 @@ export default function FavoritesPage() {
     "id,name,vegetarian,vegan,gluten,allergens,serving_size,calories,protein_g,carbs_g,fat_g,fiber_g,sugar_g,sodium_mg,protein_per_100cals,last_verified,is_collection,source";
 
   // Single consolidated load: 1× getFavorites, 1× item (Purdue), 1× item (Global), 1× day_station_item.
-  const loadAllFavorites = React.useCallback(async () => {
-    if (!user) return;
+  const loadAllFavorites = React.useCallback(
+    async (isBackgroundRefetch = false) => {
+      if (!user) return;
 
-    try {
-      setLoading(true);
-      setUpcomingLoading(true);
-      setGlobalLoading(true);
-      setError(null);
+      try {
+        if (!isBackgroundRefetch) {
+          setLoading(true);
+          setUpcomingLoading(true);
+          setGlobalLoading(true);
+          setError(null);
+        }
 
       const { data: favoriteItems, error: favoritesError } =
         await getFavorites();
@@ -327,18 +333,29 @@ export default function FavoritesPage() {
         ...globalFavoritesWithDetails.map((f) => f.id),
       ];
       const uniqueIds = Array.from(new Set(allIds));
+      let collectionStatusMap: Record<string, boolean> = {};
       if (uniqueIds.length > 0) {
-        checkCollectionStatusBatch(uniqueIds);
+        collectionStatusMap = await checkCollectionStatusBatch(uniqueIds);
       }
+      setCachedFavorites(user.id, {
+        favorites: favoritesWithDetails,
+        upcomingFavorites: sortedUpcoming,
+        globalFavorites: globalFavoritesWithDetails,
+        collectionStatus: collectionStatusMap,
+      });
     } catch (err) {
       console.error("Favorites fetch error:", err);
       setError("Failed to load favorites. Please try again.");
     } finally {
-      setLoading(false);
-      setUpcomingLoading(false);
-      setGlobalLoading(false);
-    }
-  }, [user, getFavorites, checkCollectionStatusBatch]);
+        if (!isBackgroundRefetch) {
+          setLoading(false);
+          setUpcomingLoading(false);
+          setGlobalLoading(false);
+        }
+      }
+    },
+    [user, getFavorites, checkCollectionStatusBatch],
+  );
 
   const fetchFavorites = React.useCallback(() => loadAllFavorites(), [loadAllFavorites]);
   const fetchGlobalFavorites = React.useCallback(() => loadAllFavorites(), [loadAllFavorites]);
@@ -382,31 +399,41 @@ export default function FavoritesPage() {
     }
   };
 
-  // Single load on mount (consolidated: 1× favorite_item, 2× item, 1× day_station_item, 1× collection batch)
+  // Single load on mount: use cache if valid (within TTL), then optionally refetch in background (stale-while-revalidate)
   React.useEffect(() => {
-    if (user) {
-      loadAllFavorites();
-    } else {
+    if (!user) {
       setLoading(false);
       setUpcomingLoading(false);
       setGlobalLoading(false);
+      return;
     }
+    const cached = getCachedFavorites(user.id);
+    if (cached) {
+      setFavorites(cached.favorites);
+      setUpcomingFavorites(cached.upcomingFavorites);
+      setGlobalFavorites(cached.globalFavorites);
+      setCollectionStatus(cached.collectionStatus);
+      setLoading(false);
+      setUpcomingLoading(false);
+      setGlobalLoading(false);
+      setError(null);
+      hasAttemptedGlobalFetch.current = true;
+      loadAllFavorites(true); // Stale-while-revalidate: refresh in background
+      return;
+    }
+    loadAllFavorites();
   }, [user, loadAllFavorites]);
 
-  // Handle pull-to-refresh
+  // Handle pull-to-refresh (swipe down to reload all favorites)
   const onRefresh = React.useCallback(async () => {
     if (!user) return;
     setRefreshing(true);
     try {
-      if (activeTab === "purdue") {
-        await Promise.all([fetchFavorites(), fetchUpcomingFavorites()]);
-      } else if (activeTab === "global") {
-        await fetchGlobalFavorites();
-      }
+      await loadAllFavorites();
     } finally {
       setRefreshing(false);
     }
-  }, [user, activeTab]);
+  }, [user, loadAllFavorites]);
 
   // Show loading state (only if user exists)
   if (loading && user) {
@@ -556,6 +583,7 @@ export default function FavoritesPage() {
         {/* Content */}
         <ScrollView
           className="flex-1 px-6"
+          contentContainerStyle={{ flexGrow: 1 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl

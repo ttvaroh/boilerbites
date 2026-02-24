@@ -15,7 +15,10 @@ import ErrorBoundary from "../components/ErrorBoundary";
 import WhatsNewModal from "../components/WhatsNewModal";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { NutritionCacheProvider } from "../contexts/NutritionCacheContext";
-import { NutritionGoalsProvider, useNutritionGoals } from "../contexts/NutritionGoalsContext";
+import {
+    NutritionGoalsProvider,
+    useNutritionGoals,
+} from "../contexts/NutritionGoalsContext";
 import { ToastProvider } from "../contexts/ToastContext";
 import "../global.css";
 import { useWhatsNew } from "../hooks/useWhatsNew";
@@ -45,18 +48,24 @@ const AppRefreshManager = ({ children }: { children: ReactNode }) => {
       await Promise.all([
         refreshLocations(),
         refreshGoals(),
-        supabase.auth.refreshSession()
+        supabase.auth.refreshSession(),
       ]);
     } catch (_) {}
   };
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === "active"
+      ) {
         // App has come to foreground
         const now = Date.now();
-        if (backgroundTimestamp.current && (now - backgroundTimestamp.current) >= 300000) {
-          // 5 minutes = 300000ms
+        if (
+          backgroundTimestamp.current &&
+          now - backgroundTimestamp.current >= 900000
+        ) {
+          // 15 minutes = 900000ms (reduced egress from foreground refresh)
           handleAppRefresh();
         }
       } else if (nextAppState.match(/inactive|background/)) {
@@ -120,7 +129,7 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0a0a0a" }}>
         <SafeAreaProvider>
           <AuthProvider>
             <ToastProvider>
@@ -128,112 +137,118 @@ export default function RootLayout() {
                 <NutritionCacheProvider>
                   <MenuDataProvider>
                     <AppRefreshManager>
-                    <WhatsNewManager>
-                    <Stack>
-                      <Stack.Screen name="index" options={{ headerShown: false }} />
-                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                      <Stack.Screen
-                        name="dining-hall/[name]"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="nutrition/[itemId]"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="missing-nutrition/[itemId]"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="edit-food-entry/[entryId]"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="signin"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="signup"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="forgot-password"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="auth/callback"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="favorites"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="collection/[collectionId]"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="custom-food/index"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="custom-food/edit-custom-food"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="custom-food/create-food"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="custom-food/create-meal"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="custom-food/edit-meal"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="edit-profile"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="contact-support-screen"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="nutrition-preferences"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="menu-settings"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="about"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="search-by-date"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="health-connections"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="auth/fitbit-callback"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="global-search"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="[...unmatched]"
-                        options={{ headerShown: false }}
-                      />
-                    </Stack>
-                    </WhatsNewManager>
+                      <WhatsNewManager>
+                        <Stack>
+                          <Stack.Screen
+                            name="index"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="(tabs)"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="dining-hall/[name]"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="nutrition/[itemId]"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="missing-nutrition/[itemId]"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="edit-food-entry/[entryId]"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="signin"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="signup"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="forgot-password"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="auth/callback"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="favorites"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="collection/[collectionId]"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="custom-food/index"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="custom-food/edit-custom-food"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="custom-food/create-food"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="custom-food/create-meal"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="custom-food/edit-meal"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="edit-profile"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="contact-support-screen"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="nutrition-preferences"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="menu-settings"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="about"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="search-by-date"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="health-connections"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="auth/fitbit-callback"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="global-search"
+                            options={{ headerShown: false }}
+                          />
+                          <Stack.Screen
+                            name="[...unmatched]"
+                            options={{ headerShown: false }}
+                          />
+                        </Stack>
+                      </WhatsNewManager>
                     </AppRefreshManager>
                   </MenuDataProvider>
                 </NutritionCacheProvider>

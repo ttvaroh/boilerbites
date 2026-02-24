@@ -363,6 +363,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
+    const { invalidateFavoritesCache } = await import('../lib/favoritesCache');
+    invalidateFavoritesCache();
     await supabase.auth.signOut();
   };
 
@@ -547,7 +549,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Get goals from user_daily_nutrition table if it exists, otherwise use defaults
       const { data: existingData, error: fetchError } = await supabase
         .from('user_daily_nutrition')
-        .select('*')
+        .select('id, goal_calories, goal_protein_g, goal_carbs_g, goal_fat_g')
         .eq('user_id', user.id)
         .eq('date', targetDate)
         .single();
@@ -676,6 +678,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('user_id', user.id)
         .eq('item_id', itemId);
 
+      if (!error) {
+        const { invalidateFavoritesCache } = await import('../lib/favoritesCache');
+        invalidateFavoritesCache(user.id);
+      }
       return { error, isFavorited: false };
     } else {
       // Add to favorites
@@ -686,6 +692,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           item_id: itemId,
         });
 
+      if (!error) {
+        const { invalidateFavoritesCache } = await import('../lib/favoritesCache');
+        invalidateFavoritesCache(user.id);
+      }
       return { error, isFavorited: true };
     }
   };
@@ -697,7 +707,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { data, error } = await supabase
       .from('favorite_item')
-      .select('*')
+      .select('id, item_id, user_id, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
