@@ -14,10 +14,7 @@ import FavoriteItemCard from "../components/FavoriteItemCard";
 import { useAuth } from "../contexts/AuthContext";
 import { getItemAppearances } from "../lib/api";
 import { supabase } from "../lib/supabase";
-import {
-  getDateStringFromToday,
-  getTodayDateString,
-} from "../lib/timezone-utils";
+import { getTodayDateString } from "../lib/timezone-utils";
 
 interface FavoriteItem {
   id: string;
@@ -65,394 +62,9 @@ export default function FavoritesPage() {
   );
   const [refreshing, setRefreshing] = React.useState(false);
   const hasAttemptedGlobalFetch = React.useRef(false);
-
-  // Fetch user's favorite items
-  const fetchFavorites = async () => {
-    if (!user) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Get favorite items from AuthContext
-      const { data: favoriteItems, error: favoritesError } =
-        await getFavorites();
-
-      if (favoritesError) {
-        console.error("Error fetching favorites:", favoritesError);
-        setError("Failed to load favorites. Please try again.");
-        setLoading(false);
-        return;
-      }
-
-      if (!favoriteItems || favoriteItems.length === 0) {
-        setFavorites([]);
-        setLoading(false);
-        return;
-      }
-
-      // Get full item details for each favorite, filtered to only Purdue items
-      // Filter by source = 0 (Purdue) and exclude FatSecret items (IDs starting with 'fatsecret_')
-      const itemIds = favoriteItems
-        .map((fav) => fav.item_id)
-        .filter((id) => !id.startsWith("fatsecret_"));
-
-      if (itemIds.length === 0) {
-        setFavorites([]);
-        setLoading(false);
-        return;
-      }
-
-      const { data: items, error: itemsError } = await supabase
-        .from("item")
-        .select("*")
-        .in("id", itemIds)
-        .eq("source", 0);
-
-      if (itemsError) {
-        console.error("Error fetching item details:", itemsError);
-        setError("Failed to load item details. Please try again.");
-        return;
-      }
-
-      // Check availability for today and next 5 days (local timezone)
-      const today = getTodayDateString();
-      const endDate = getDateStringFromToday(5);
-
-      const { data: availabilityData } = await supabase
-        .from("day_station_item")
-        .select(
-          `
-          item_id,
-          day_station!inner(
-            day_meal!inner(
-              meal_name,
-              day_menu!inner(
-                location_name,
-                serve_date,
-                is_published
-              )
-            )
-          )
-        `,
-        )
-        .in("item_id", itemIds)
-        .gte("day_station.day_meal.day_menu.serve_date", today)
-        .lte("day_station.day_meal.day_menu.serve_date", endDate)
-        .eq("day_station.day_meal.day_menu.is_published", true);
-
-      // Create availability map
-      const availabilityMap = new Map<
-        string,
-        { locations: string[]; meals: string[]; dates: string[] }
-      >();
-      if (availabilityData) {
-        availabilityData.forEach((avail: any) => {
-          const itemId = avail.item_id;
-          const dayStation = avail.day_station as any;
-          const location = dayStation?.day_meal?.day_menu?.location_name;
-          const meal = dayStation?.day_meal?.meal_name;
-          const date = dayStation?.day_meal?.day_menu?.serve_date;
-
-          if (!availabilityMap.has(itemId)) {
-            availabilityMap.set(itemId, {
-              locations: [],
-              meals: [],
-              dates: [],
-            });
-          }
-
-          const current = availabilityMap.get(itemId)!;
-          if (location && !current.locations.includes(location)) {
-            current.locations.push(location);
-          }
-          if (meal && !current.meals.includes(meal)) {
-            current.meals.push(meal);
-          }
-          if (date && !current.dates.includes(date)) {
-            current.dates.push(date);
-          }
-        });
-      }
-
-      // Combine favorite data with item details and availability
-      // Only include items that are Purdue items (source = 0 and not FatSecret IDs)
-      const favoritesWithDetails: FavoriteItem[] = favoriteItems
-        .filter((fav) => !fav.item_id.startsWith("fatsecret_"))
-        .map((fav) => {
-          const item = items?.find((i: any) => i.id === fav.item_id);
-          const availability = availabilityMap.get(fav.item_id);
-
-          // Only include if item exists and is a Purdue item (source = 0)
-          if (!item || item.source !== 0) {
-            return null as any;
-          }
-
-          const isAvailableToday =
-            availability?.dates?.includes(today) || false;
-
-          return {
-            id: fav.item_id,
-            name: item.name || "Unknown Item",
-            vegetarian: item.vegetarian,
-            vegan: item.vegan,
-            gluten: item.gluten,
-            allergens: item.allergens || [],
-            serving_size: item.serving_size,
-            calories: item.calories,
-            protein_g: item.protein_g,
-            carbs_g: item.carbs_g,
-            fat_g: item.fat_g,
-            fiber_g: item.fiber_g,
-            sugar_g: item.sugar_g,
-            sodium_mg: item.sodium_mg,
-            protein_per_100cals: item.protein_per_100cals,
-            last_verified: item.last_verified,
-            ingredients: item.ingredients,
-            is_collection: item.is_collection,
-            favorited_at: fav.created_at,
-            is_available_today: isAvailableToday,
-            available_locations: availability?.locations || [],
-            available_meals: availability?.meals || [],
-            available_dates: availability?.dates || [],
-          } as FavoriteItem;
-        })
-        .filter((item): item is FavoriteItem => item !== null);
-
-      setFavorites(favoritesWithDetails);
-    } catch (err) {
-      console.error("Favorites fetch error:", err);
-      setError("Failed to load favorites. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch global favorites (FatSecret items)
-  const fetchGlobalFavorites = async () => {
-    if (!user) return;
-
-    try {
-      setGlobalLoading(true);
-      setError(null);
-
-      const { data: favoriteItems, error: favoritesError } =
-        await getFavorites();
-
-      if (favoritesError) {
-        console.error("Error fetching favorites:", favoritesError);
-        setError("Failed to load favorites. Please try again.");
-        return;
-      }
-
-      if (!favoriteItems || favoriteItems.length === 0) {
-        setGlobalFavorites([]);
-        hasAttemptedGlobalFetch.current = true;
-        setGlobalLoading(false);
-        return;
-      }
-
-      const itemIds = favoriteItems.map((fav) => fav.item_id);
-      const { data: items, error: itemsError } = await supabase
-        .from("item")
-        .select("*")
-        .in("id", itemIds)
-        .eq("source", 1);
-
-      if (itemsError) {
-        console.error("Error fetching item details:", itemsError);
-        setError("Failed to load item details. Please try again.");
-        hasAttemptedGlobalFetch.current = true;
-        setGlobalLoading(false);
-        return;
-      }
-
-      const globalFavoritesWithDetails: FavoriteItem[] = favoriteItems
-        .filter((fav) => items?.some((i: any) => i.id === fav.item_id))
-        .map((fav) => {
-          const item = items?.find((i: any) => i.id === fav.item_id);
-          return {
-            id: fav.item_id,
-            name: item?.name || "Unknown Item",
-            vegetarian: item?.vegetarian,
-            vegan: item?.vegan,
-            gluten: item?.gluten,
-            allergens: item?.allergens || [],
-            serving_size: item?.serving_size,
-            calories: item?.calories,
-            protein_g: item?.protein_g,
-            carbs_g: item?.carbs_g,
-            fat_g: item?.fat_g,
-            fiber_g: item?.fiber_g,
-            sugar_g: item?.sugar_g,
-            sodium_mg: item?.sodium_mg,
-            protein_per_100cals: item?.protein_per_100cals,
-            last_verified: item?.last_verified,
-            ingredients: item?.ingredients,
-            is_collection: item?.is_collection,
-            favorited_at: fav.created_at,
-            is_available_today: false,
-            available_locations: [],
-            available_meals: [],
-            available_dates: [],
-          };
-        });
-
-      setGlobalFavorites(globalFavoritesWithDetails);
-      hasAttemptedGlobalFetch.current = true;
-    } catch (err) {
-      console.error("Global favorites fetch error:", err);
-      setError("Failed to load global favorites. Please try again.");
-      hasAttemptedGlobalFetch.current = true;
-    } finally {
-      setGlobalLoading(false);
-    }
-  };
-
-  // Fetch upcoming favorite items via V3 API itemByItemId appearances (all dates API returns)
-  const fetchUpcomingFavorites = async () => {
-    if (!user) return;
-
-    try {
-      setUpcomingLoading(true);
-      setError(null);
-
-      const { data: favoriteItems, error: favoritesError } =
-        await getFavorites();
-
-      if (favoritesError) {
-        console.error("Error fetching favorites:", favoritesError);
-        setError("Failed to load favorites. Please try again.");
-        return;
-      }
-
-      if (!favoriteItems || favoriteItems.length === 0) {
-        setUpcomingFavorites([]);
-        setUpcomingLoading(false);
-        return;
-      }
-
-      const startDate = getTodayDateString();
-      const todayStr = getTodayDateString();
-
-      const itemIds = favoriteItems
-        .map((fav) => fav.item_id)
-        .filter((id) => !id.startsWith("fatsecret_"));
-
-      if (itemIds.length === 0) {
-        setUpcomingFavorites([]);
-        setUpcomingLoading(false);
-        return;
-      }
-
-      const { data: items, error: itemsError } = await supabase
-        .from("item")
-        .select("*")
-        .in("id", itemIds)
-        .eq("source", 0);
-
-      if (itemsError) {
-        console.error("Error fetching item details:", itemsError);
-        setError("Failed to load item details. Please try again.");
-        return;
-      }
-
-      const upcomingFavoritesWithDetails: FavoriteItem[] = [];
-
-      for (const fav of favoriteItems.filter(
-        (f) => !f.item_id.startsWith("fatsecret_"),
-      )) {
-        const item = items?.find((i: any) => i.id === fav.item_id);
-        if (!item || item.source !== 0) continue;
-
-        const appearances = await getItemAppearances(fav.item_id);
-        if (!appearances || appearances.length === 0) continue;
-
-        // Extract YYYY-MM-DD from ISO date; keep all dates from today onward (no end limit)
-        const byDate = new Map<
-          string,
-          { locations: Set<string>; meals: Set<string> }
-        >();
-        for (const occ of appearances) {
-          const dateStr = occ.date.slice(0, 10);
-          if (dateStr < startDate) continue;
-          if (!byDate.has(dateStr)) {
-            byDate.set(dateStr, { locations: new Set(), meals: new Set() });
-          }
-          const entry = byDate.get(dateStr)!;
-          if (occ.locationName) entry.locations.add(occ.locationName);
-          if (occ.mealName) entry.meals.add(occ.mealName);
-        }
-
-        for (const [date, { locations, meals }] of byDate.entries()) {
-          upcomingFavoritesWithDetails.push({
-            id: `${fav.item_id}-${date}`,
-            originalItemId: fav.item_id,
-            name: item.name || "Unknown Item",
-            vegetarian: item.vegetarian,
-            vegan: item.vegan,
-            gluten: item.gluten,
-            allergens: item.allergens || [],
-            serving_size: item.serving_size,
-            calories: item.calories,
-            protein_g: item.protein_g,
-            carbs_g: item.carbs_g,
-            fat_g: item.fat_g,
-            fiber_g: item.fiber_g,
-            sugar_g: item.sugar_g,
-            sodium_mg: item.sodium_mg,
-            protein_per_100cals: item.protein_per_100cals,
-            last_verified: item.last_verified,
-            ingredients: item.ingredients,
-            is_collection: item.is_collection,
-            favorited_at: fav.created_at,
-            is_available_today: date === todayStr,
-            available_locations: Array.from(locations),
-            available_meals: Array.from(meals),
-            available_dates: [date],
-          });
-        }
-      }
-
-      const sortedUpcomingFavorites = upcomingFavoritesWithDetails.sort(
-        (a, b) => {
-          const strA = a.available_dates?.[0] || "";
-          const strB = b.available_dates?.[0] || "";
-          return strA.localeCompare(strB);
-        },
-      );
-
-      setUpcomingFavorites(sortedUpcomingFavorites);
-    } catch (err) {
-      console.error("Upcoming favorites fetch error:", err);
-      setError("Failed to load upcoming favorites. Please try again.");
-    } finally {
-      setUpcomingLoading(false);
-    }
-  };
-
   const [collectionStatus, setCollectionStatus] = React.useState<
     Record<string, boolean>
   >({});
-
-  const checkCollectionStatus = React.useCallback(async (itemId: string) => {
-    try {
-      const { data: itemData, error } = await supabase
-        .from("item")
-        .select("is_collection")
-        .eq("id", itemId)
-        .single();
-
-      if (!error && itemData) {
-        setCollectionStatus((prev) => ({
-          ...prev,
-          [itemId]: itemData.is_collection,
-        }));
-      }
-    } catch (error) {
-      console.error("Error checking if item is collection:", error);
-    }
-  }, []);
 
   const checkCollectionStatusBatch = React.useCallback(
     async (itemIds: string[]) => {
@@ -476,6 +88,281 @@ export default function FavoritesPage() {
     [],
   );
 
+  // Columns for list/cards only (exclude ingredients to reduce egress)
+  const ITEM_SELECT_COLUMNS =
+    "id,name,vegetarian,vegan,gluten,allergens,serving_size,calories,protein_g,carbs_g,fat_g,fiber_g,sugar_g,sodium_mg,protein_per_100cals,last_verified,is_collection,source";
+
+  // Single consolidated load: 1× getFavorites, 1× item (Purdue), 1× item (Global), 1× day_station_item.
+  const loadAllFavorites = React.useCallback(async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      setUpcomingLoading(true);
+      setGlobalLoading(true);
+      setError(null);
+
+      const { data: favoriteItems, error: favoritesError } =
+        await getFavorites();
+
+      if (favoritesError) {
+        console.error("Error fetching favorites:", favoritesError);
+        setError("Failed to load favorites. Please try again.");
+        setFavorites([]);
+        setUpcomingFavorites([]);
+        setGlobalFavorites([]);
+        hasAttemptedGlobalFetch.current = true;
+        return;
+      }
+
+      if (!favoriteItems || favoriteItems.length === 0) {
+        setFavorites([]);
+        setUpcomingFavorites([]);
+        setGlobalFavorites([]);
+        hasAttemptedGlobalFetch.current = true;
+        return;
+      }
+
+      const purdueIds = favoriteItems
+        .map((f) => f.item_id)
+        .filter((id) => !id.startsWith("fatsecret_"));
+      const allItemIds = favoriteItems.map((f) => f.item_id);
+      const today = getTodayDateString();
+
+      const [purdueItemsRes, globalItemsRes, appearancesPerItem] =
+        await Promise.all([
+          purdueIds.length > 0
+            ? supabase
+                .from("item")
+                .select(ITEM_SELECT_COLUMNS)
+                .in("id", purdueIds)
+                .eq("source", 0)
+            : Promise.resolve({ data: [], error: null }),
+          supabase
+            .from("item")
+            .select(ITEM_SELECT_COLUMNS)
+            .in("id", allItemIds)
+            .eq("source", 1),
+          purdueIds.length > 0
+            ? Promise.all(
+                purdueIds.map(async (id) => ({
+                  id,
+                  appearances: (await getItemAppearances(id)) ?? [],
+                })),
+              )
+            : Promise.resolve([]),
+        ]);
+
+      const purdueItems = purdueItemsRes.data ?? [];
+      const globalItems = globalItemsRes.data ?? [];
+      if (purdueItemsRes.error) {
+        setError("Failed to load item details. Please try again.");
+        setFavorites([]);
+        setUpcomingFavorites([]);
+        setLoading(false);
+        setUpcomingLoading(false);
+        setGlobalLoading(false);
+        return;
+      }
+      if (globalItemsRes.error) {
+        setError("Failed to load global item details. Please try again.");
+        hasAttemptedGlobalFetch.current = true;
+      }
+
+      // Build availability from GraphQL appearances (no date window)
+      const availabilityMap = new Map<
+        string,
+        { locations: string[]; meals: string[]; dates: string[] }
+      >();
+      for (const { id: itemId, appearances } of appearancesPerItem) {
+        const locations: string[] = [];
+        const meals: string[] = [];
+        const dates: string[] = [];
+        for (const occ of appearances) {
+          const dateStr = occ.date.slice(0, 10);
+          if (!dates.includes(dateStr)) dates.push(dateStr);
+          if (occ.locationName && !locations.includes(occ.locationName))
+            locations.push(occ.locationName);
+          if (occ.mealName && !meals.includes(occ.mealName))
+            meals.push(occ.mealName);
+        }
+        if (locations.length || meals.length || dates.length) {
+          availabilityMap.set(itemId, { locations, meals, dates });
+        }
+      }
+
+      const favoritesWithDetails: FavoriteItem[] = favoriteItems
+        .filter((fav) => !fav.item_id.startsWith("fatsecret_"))
+        .map((fav) => {
+          const item = purdueItems.find((i: any) => i.id === fav.item_id);
+          const availability = availabilityMap.get(fav.item_id);
+          if (!item || item.source !== 0) return null as any;
+          return {
+            id: fav.item_id,
+            name: item.name || "Unknown Item",
+            vegetarian: item.vegetarian,
+            vegan: item.vegan,
+            gluten: item.gluten,
+            allergens: item.allergens || [],
+            serving_size: item.serving_size,
+            calories: item.calories,
+            protein_g: item.protein_g,
+            carbs_g: item.carbs_g,
+            fat_g: item.fat_g,
+            fiber_g: item.fiber_g,
+            sugar_g: item.sugar_g,
+            sodium_mg: item.sodium_mg,
+            protein_per_100cals: item.protein_per_100cals,
+            last_verified: item.last_verified,
+            ingredients: undefined,
+            is_collection: item.is_collection,
+            favorited_at: fav.created_at,
+            is_available_today: availability?.dates?.includes(today) ?? false,
+            available_locations: availability?.locations ?? [],
+            available_meals: availability?.meals ?? [],
+            available_dates: availability?.dates ?? [],
+          } as FavoriteItem;
+        })
+        .filter((item): item is FavoriteItem => item !== null);
+
+      const globalFavoritesWithDetails: FavoriteItem[] = favoriteItems
+        .filter((fav) => globalItems.some((i: any) => i.id === fav.item_id))
+        .map((fav) => {
+          const item = globalItems.find((i: any) => i.id === fav.item_id);
+          return {
+            id: fav.item_id,
+            name: item?.name || "Unknown Item",
+            vegetarian: item?.vegetarian,
+            vegan: item?.vegan,
+            gluten: item?.gluten,
+            allergens: item?.allergens || [],
+            serving_size: item?.serving_size,
+            calories: item?.calories,
+            protein_g: item?.protein_g,
+            carbs_g: item?.carbs_g,
+            fat_g: item?.fat_g,
+            fiber_g: item?.fiber_g,
+            sugar_g: item?.sugar_g,
+            sodium_mg: item?.sodium_mg,
+            protein_per_100cals: item?.protein_per_100cals,
+            last_verified: item?.last_verified,
+            ingredients: undefined,
+            is_collection: item?.is_collection,
+            favorited_at: fav.created_at,
+            is_available_today: false,
+            available_locations: [],
+            available_meals: [],
+            available_dates: [],
+          };
+        });
+
+      setFavorites(favoritesWithDetails);
+      setGlobalFavorites(globalFavoritesWithDetails);
+      hasAttemptedGlobalFetch.current = true;
+
+      const upcomingFavoritesWithDetails: FavoriteItem[] = [];
+      const appearancesByItemId = new Map(
+        appearancesPerItem.map((x) => [x.id, x.appearances]),
+      );
+      for (const fav of favoriteItems.filter(
+        (f) => !f.item_id.startsWith("fatsecret_"),
+      )) {
+        const item = purdueItems.find((i: any) => i.id === fav.item_id);
+        if (!item || item.source !== 0) continue;
+        const appearances = appearancesByItemId.get(fav.item_id) ?? [];
+        if (appearances.length === 0) continue;
+        const byDate = new Map<
+          string,
+          { locations: Set<string>; meals: Set<string> }
+        >();
+        for (const occ of appearances) {
+          const dateStr = occ.date.slice(0, 10);
+          if (dateStr < today) continue;
+          if (!byDate.has(dateStr)) {
+            byDate.set(dateStr, { locations: new Set(), meals: new Set() });
+          }
+          const entry = byDate.get(dateStr)!;
+          if (occ.locationName) entry.locations.add(occ.locationName);
+          if (occ.mealName) entry.meals.add(occ.mealName);
+        }
+        for (const [date, { locations, meals }] of byDate.entries()) {
+          upcomingFavoritesWithDetails.push({
+            id: `${fav.item_id}-${date}`,
+            originalItemId: fav.item_id,
+            name: item.name || "Unknown Item",
+            vegetarian: item.vegetarian,
+            vegan: item.vegan,
+            gluten: item.gluten,
+            allergens: item.allergens || [],
+            serving_size: item.serving_size,
+            calories: item.calories,
+            protein_g: item.protein_g,
+            carbs_g: item.carbs_g,
+            fat_g: item.fat_g,
+            fiber_g: item.fiber_g,
+            sugar_g: item.sugar_g,
+            sodium_mg: item.sodium_mg,
+            protein_per_100cals: item.protein_per_100cals,
+            last_verified: item.last_verified,
+            ingredients: undefined,
+            is_collection: item.is_collection,
+            favorited_at: fav.created_at,
+            is_available_today: date === today,
+            available_locations: Array.from(locations),
+            available_meals: Array.from(meals),
+            available_dates: [date],
+          });
+        }
+      }
+      const sortedUpcoming = upcomingFavoritesWithDetails.sort((a, b) => {
+        const strA = a.available_dates?.[0] || "";
+        const strB = b.available_dates?.[0] || "";
+        return strA.localeCompare(strB);
+      });
+      setUpcomingFavorites(sortedUpcoming);
+
+      const allIds = [
+        ...favoritesWithDetails.map((f) => f.originalItemId || f.id),
+        ...sortedUpcoming.map((f) => f.originalItemId || f.id),
+        ...globalFavoritesWithDetails.map((f) => f.id),
+      ];
+      const uniqueIds = Array.from(new Set(allIds));
+      if (uniqueIds.length > 0) {
+        checkCollectionStatusBatch(uniqueIds);
+      }
+    } catch (err) {
+      console.error("Favorites fetch error:", err);
+      setError("Failed to load favorites. Please try again.");
+    } finally {
+      setLoading(false);
+      setUpcomingLoading(false);
+      setGlobalLoading(false);
+    }
+  }, [user, getFavorites, checkCollectionStatusBatch]);
+
+  const fetchFavorites = React.useCallback(() => loadAllFavorites(), [loadAllFavorites]);
+  const fetchGlobalFavorites = React.useCallback(() => loadAllFavorites(), [loadAllFavorites]);
+  const fetchUpcomingFavorites = React.useCallback(() => loadAllFavorites(), [loadAllFavorites]);
+
+  const checkCollectionStatus = React.useCallback(async (itemId: string) => {
+    try {
+      const { data: itemData, error } = await supabase
+        .from("item")
+        .select("is_collection")
+        .eq("id", itemId)
+        .single();
+
+      if (!error && itemData) {
+        setCollectionStatus((prev) => ({
+          ...prev,
+          [itemId]: itemData.is_collection,
+        }));
+      }
+    } catch (error) {
+      console.error("Error checking if item is collection:", error);
+    }
+  }, []);
+
   // Handle menu item press
   const handleMenuItemPress = async (item: FavoriteItem) => {
     // Use originalItemId for navigation if it exists (for upcoming tab cards), otherwise use id
@@ -495,39 +382,16 @@ export default function FavoritesPage() {
     }
   };
 
-  // Check collection status when favorites change
-  React.useEffect(() => {
-    const allItems = [...favorites, ...upcomingFavorites, ...globalFavorites];
-    const itemIds = allItems.map((item) => item.originalItemId || item.id);
-    if (itemIds.length > 0) {
-      checkCollectionStatusBatch(itemIds);
-    }
-  }, [favorites, upcomingFavorites, globalFavorites]);
-
-  // Load favorites and upcoming (for Purdue tab) on mount
+  // Single load on mount (consolidated: 1× favorite_item, 2× item, 1× day_station_item, 1× collection batch)
   React.useEffect(() => {
     if (user) {
-      fetchFavorites();
-      fetchUpcomingFavorites();
-      fetchGlobalFavorites();
+      loadAllFavorites();
     } else {
       setLoading(false);
       setUpcomingLoading(false);
       setGlobalLoading(false);
     }
-  }, [user]);
-
-  // Fetch global favorites when switching to Global tab (only if not already attempted)
-  React.useEffect(() => {
-    if (
-      activeTab === "global" &&
-      user &&
-      !hasAttemptedGlobalFetch.current &&
-      !globalLoading
-    ) {
-      fetchGlobalFavorites();
-    }
-  }, [activeTab, user, globalLoading]);
+  }, [user, loadAllFavorites]);
 
   // Handle pull-to-refresh
   const onRefresh = React.useCallback(async () => {
