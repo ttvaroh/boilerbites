@@ -6,6 +6,7 @@
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
+import { getLocalDateStringFromTimestamp } from '../../timezone-utils';
 import { supabase } from '../../supabase';
 import {
   FoodEntryForSync,
@@ -444,7 +445,7 @@ export class FitbitService extends BaseHealthAppService {
       if (row?.external_id) {
         logIdToDelete = row.external_id;
       } else if (payload.foodName && payload.created_at) {
-        const date = payload.created_at.split('T')[0];
+        const date = getLocalDateStringFromTimestamp(payload.created_at);
         const dayLogs = await this.getFoodLogByDate(accessToken, date);
         const normalizedName = payload.foodName.trim();
         const match = dayLogs.find((f) => f.name === normalizedName || f.name.includes(normalizedName) || normalizedName.includes(f.name));
@@ -565,7 +566,7 @@ export class FitbitService extends BaseHealthAppService {
       sugar: foodEntry.sugar_g ? foodEntry.sugar_g * multiplier : undefined,
       sodium: foodEntry.sodium_mg ? foodEntry.sodium_mg * multiplier : undefined,
       meal_type: mealType,
-      date: foodEntry.created_at.split('T')[0],
+      date: getLocalDateStringFromTimestamp(foodEntry.created_at),
       quantity: foodEntry.quantity,
     };
   }
