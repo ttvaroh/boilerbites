@@ -40,11 +40,35 @@ interface MenuItem {
   last_verified?: string;
   ingredients?: string;
   is_collection?: boolean;
+  is_custom_meal?: boolean;
   location_name?: string;
   meal_name?: string;
   station_name?: string;
   meals?: string[];
 }
+
+const HYDRATION_DEBOUNCE_MS = 250;
+const HYDRATION_BATCH_SIZE = 100;
+
+const chunkArray = <T,>(items: T[], size: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+};
+
+const getResolvedCollectionState = (
+  item: MenuItem,
+  collectionStatus: Record<string, boolean>,
+  customMealStatus: Record<string, boolean>,
+) => {
+  const isCollection =
+    item.is_collection !== undefined ? item.is_collection : (collectionStatus[item.id] ?? false);
+  const isCustomMeal =
+    item.is_custom_meal !== undefined ? item.is_custom_meal : (customMealStatus[item.id] ?? false);
+  return { isCollection, isCustomMeal };
+};
 
 interface SearchFilters {
   timeOfDay: string;
@@ -137,6 +161,7 @@ function convertDayMenuItemsToMenuItems(data: DayMenuItem[]): MenuItem[] {
         last_verified: undefined,
         ingredients: item.ingredients || undefined,
         is_collection: item.is_collection || undefined,
+        is_custom_meal: item.is_custom_meal || undefined,
         location_name: item.location_name,
         meal_name: item.meal_name,
         station_name: item.station_name,
@@ -481,28 +506,40 @@ export function SearchByDateComponent({
 
   const [collectionStatus, setCollectionStatus] = React.useState<Record<string, boolean>>({});
   const [customMealStatus, setCustomMealStatus] = React.useState<Record<string, boolean>>({});
+  const hydrationTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastHydrationSignatureRef = React.useRef<string>('');
+  const hydrationRequestIdRef = React.useRef(0);
 
-  const checkCollectionStatusBatch = React.useCallback(async (itemIds: string[]) => {
+  const checkCollectionStatusBatch = React.useCallback(async (itemIds: string[], requestId: number) => {
     try {
-      const { data: itemsData, error } = await supabase
-        .from('item')
-        .select('id, is_collection, user_id')
-        .in('id', itemIds);
+      const newCollectionStatus: Record<string, boolean> = {};
+      const newCustomMealStatus: Record<string, boolean> = {};
 
-      if (!error && itemsData) {
-        const newCollectionStatus: Record<string, boolean> = {};
-        const newCustomMealStatus: Record<string, boolean> = {};
-        
+      for (const chunk of chunkArray(itemIds, HYDRATION_BATCH_SIZE)) {
+        const { data: itemsData, error } = await supabase
+          .from('item')
+          .select('id, is_collection, user_id')
+          .in('id', chunk);
+
+        // Ignore stale responses from older requests.
+        if (requestId !== hydrationRequestIdRef.current) {
+          return;
+        }
+
+        if (error || !itemsData) {
+          continue;
+        }
+
         itemsData.forEach((item: any) => {
           const isCollection = item.is_collection || false;
           const isCustomMeal = isCollection && item.user_id !== null;
           const isSystemCollection = isCollection && item.user_id === null;
-          
-          // Only mark as collection if it's a system collection (not custom meal)
           newCollectionStatus[item.id] = isSystemCollection;
           newCustomMealStatus[item.id] = isCustomMeal;
         });
-        
+      }
+
+      if (requestId === hydrationRequestIdRef.current) {
         setCollectionStatus(prev => ({ ...prev, ...newCollectionStatus }));
         setCustomMealStatus(prev => ({ ...prev, ...newCustomMealStatus }));
       }
@@ -512,14 +549,17 @@ export function SearchByDateComponent({
   }, []);
 
   const handleMenuItemPress = React.useCallback(async (item: MenuItem) => {
+    const { isCollection: resolvedIsCollection, isCustomMeal: resolvedIsCustomMeal } =
+      getResolvedCollectionState(item, collectionStatus, customMealStatus);
+
     // Check if this item is a system collection (not custom meal)
-    if (collectionStatus[item.id] && !customMealStatus[item.id]) {
+    if (resolvedIsCollection && !resolvedIsCustomMeal) {
       router.push(`/collection/${item.id}?date=${dateString}`);
       return;
     }
 
     // Custom meals should always go to nutrition page (they have aggregated nutrition)
-    const isCustomMeal = customMealStatus[item.id] || false;
+    const isCustomMeal = resolvedIsCustomMeal;
     
     // Custom meals and items with serving_size go to nutrition page
     // Items without serving_size (and not custom meals) go to missing nutrition page
@@ -532,10 +572,43 @@ export function SearchByDateComponent({
 
   // Check collection status when search results change
   React.useEffect(() => {
-    const itemIds = searchResults.map(item => item.id);
-    if (itemIds.length > 0) {
-      checkCollectionStatusBatch(itemIds);
+    if (hydrationTimeoutRef.current) {
+      clearTimeout(hydrationTimeoutRef.current);
+      hydrationTimeoutRef.current = null;
     }
+
+    const unresolvedIds = Array.from(
+      new Set(
+        searchResults
+          .filter((item) => item.is_collection === undefined || item.is_custom_meal === undefined)
+          .map((item) => item.id)
+          .filter((id) => collectionStatus[id] === undefined || customMealStatus[id] === undefined),
+      ),
+    ).sort();
+
+    if (unresolvedIds.length === 0) {
+      lastHydrationSignatureRef.current = '';
+      return;
+    }
+
+    const signature = unresolvedIds.join('|');
+    if (signature === lastHydrationSignatureRef.current) {
+      return;
+    }
+    lastHydrationSignatureRef.current = signature;
+
+    hydrationTimeoutRef.current = setTimeout(() => {
+      const requestId = hydrationRequestIdRef.current + 1;
+      hydrationRequestIdRef.current = requestId;
+      checkCollectionStatusBatch(unresolvedIds, requestId);
+    }, HYDRATION_DEBOUNCE_MS);
+
+    return () => {
+      if (hydrationTimeoutRef.current) {
+        clearTimeout(hydrationTimeoutRef.current);
+        hydrationTimeoutRef.current = null;
+      }
+    };
   }, [searchResults, checkCollectionStatusBatch]);
 
   // Render item for FlatList - optimized with React.memo
@@ -552,8 +625,8 @@ export function SearchByDateComponent({
         item={item}
         index={index}
         onPress={handleMenuItemPress}
-        isCollection={collectionStatus[item.id] || false}
-        isCustomMeal={customMealStatus[item.id] || false}
+        isCollection={getResolvedCollectionState(item, collectionStatus, customMealStatus).isCollection}
+        isCustomMeal={getResolvedCollectionState(item, collectionStatus, customMealStatus).isCustomMeal}
         hasIntolerance={hasIntolerance}
       />
     );

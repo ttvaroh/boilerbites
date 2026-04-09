@@ -19,6 +19,7 @@ export interface DayMenuItem {
   ingredients: string | null;
   protein_per_100cals: number | null;
   is_collection: boolean | null;
+  is_custom_meal: boolean | null;
   // Additional context from the day menu
   location_name: string;
   meal_name: string;
@@ -135,7 +136,8 @@ class DateSearchService {
         allergens: item.allergens || [],
         ingredients: null, // Not returned by SQL function
         protein_per_100cals: item.protein_per_100cals,
-        is_collection: null, // Not returned by SQL function
+        is_collection: item.is_collection ?? null,
+        is_custom_meal: item.is_custom_meal ?? null,
         // Context from the SQL function
         location_name: item.location_name,
         meal_name: item.meal_name,
@@ -566,6 +568,7 @@ class FatSecretSearchService {
       allergens: this.extractAllergens(food.food_attributes),
       ingredients: null,
       is_collection: false,
+      is_custom_meal: false,
     };
   }
 
