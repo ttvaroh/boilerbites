@@ -23,43 +23,26 @@ import { FitbitFoodEntry, FitbitTokenResponse } from './FitbitTypes';
 
 // Fitbit API configuration
 const FITBIT_AUTH_URL = 'https://www.fitbit.com/oauth2/authorize';
-const FITBIT_TOKEN_URL = 'https://api.fitbit.com/oauth2/token';
 const FITBIT_API_BASE = 'https://api.fitbit.com/1';
 const FITBIT_SCOPES = 'nutrition activity';
 
-/** Base64 encode for Basic Auth (React Native has no Buffer) */
-function base64Encode(str: string): string {
-  const KEY = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  let output = '';
-  for (let i = 0; i < str.length; i += 3) {
-    const a = str.charCodeAt(i);
-    const b = i + 1 < str.length ? str.charCodeAt(i + 1) : 0;
-    const c = i + 2 < str.length ? str.charCodeAt(i + 2) : 0;
-    const n = (a << 16) + (b << 8) + c;
-    output += KEY[(n >> 18) & 63] + KEY[(n >> 12) & 63] + KEY[(n >> 6) & 63] + KEY[n & 63];
-  }
-  const pad = str.length % 3;
-  return pad ? output.slice(0, -(3 - pad)) : output;
-}
-
 export class FitbitService extends BaseHealthAppService {
   private clientId: string;
-  private clientSecret: string;
   private redirectUri: string;
 
   constructor() {
     super('fitbit');
-    // Get credentials from environment variables
+    // Only the public client_id lives in the app. The client secret is held by the
+    // `fitbit-token` Supabase Edge Function and is never bundled into the client.
     this.clientId = process.env.EXPO_PUBLIC_FITBIT_CLIENT_ID || '';
-    this.clientSecret = process.env.EXPO_PUBLIC_FITBIT_CLIENT_SECRET || '';
     this.redirectUri = `${Linking.createURL('fitbit-callback')}`;
   }
 
   /**
-   * Check if Fitbit service is available (requires API credentials)
+   * Check if Fitbit service is available (requires the public client id to be configured)
    */
   async isAvailable(): Promise<boolean> {
-    return !!(this.clientId && this.clientSecret);
+    return !!this.clientId;
   }
 
   /**
@@ -82,7 +65,7 @@ export class FitbitService extends BaseHealthAppService {
    * Connect Fitbit account (initiate OAuth flow)
    */
   async connect(userId: string): Promise<{ success: boolean; error?: string; data?: any }> {
-    if (!this.clientId || !this.clientSecret) {
+    if (!this.clientId) {
       return { success: false, error: 'Fitbit API credentials not configured' };
     }
 
@@ -169,30 +152,24 @@ export class FitbitService extends BaseHealthAppService {
     data?: FitbitTokenResponse;
   }> {
     try {
-      // Create Basic Auth header
-      const credentials = `${this.clientId}:${this.clientSecret}`;
-      const base64Credentials = base64Encode(credentials);
-
-      const response = await fetch(FITBIT_TOKEN_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': `Basic ${base64Credentials}`,
-        },
-        body: new URLSearchParams({
-          grant_type: 'authorization_code',
-          code: code,
+      // Token exchange runs server-side so the client secret never ships in the app.
+      const { data, error } = await supabase.functions.invoke('fitbit-token', {
+        body: {
+          action: 'exchange',
+          code,
           redirect_uri: this.redirectUri,
-        }).toString(),
+        },
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        return { success: false, error: `Token exchange failed: ${errorText}` };
+      if (error) {
+        return { success: false, error: `Token exchange failed: ${error.message}` };
       }
 
-      const data: FitbitTokenResponse = await response.json();
-      return { success: true, data };
+      if (!data || (data as any).error) {
+        return { success: false, error: (data as any)?.error || 'Token exchange failed' };
+      }
+
+      return { success: true, data: data as FitbitTokenResponse };
     } catch (error: any) {
       return { success: false, error: error.message || 'Unknown error' };
     }
@@ -221,28 +198,23 @@ export class FitbitService extends BaseHealthAppService {
         return { success: true };
       }
 
-      // Create Basic Auth header
-      const credentials = `${this.clientId}:${this.clientSecret}`;
-      const base64Credentials = base64Encode(credentials);
-
-      const response = await fetch(FITBIT_TOKEN_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': `Basic ${base64Credentials}`,
-        },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
+      // Token refresh runs server-side so the client secret never ships in the app.
+      const { data: refreshData, error: refreshError } = await supabase.functions.invoke('fitbit-token', {
+        body: {
+          action: 'refresh',
           refresh_token: connection.refresh_token,
-        }).toString(),
+        },
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        return { success: false, error: `Token refresh failed: ${errorText}` };
+      if (refreshError) {
+        return { success: false, error: `Token refresh failed: ${refreshError.message}` };
       }
 
-      const tokenData: FitbitTokenResponse = await response.json();
+      if (!refreshData || (refreshData as any).error) {
+        return { success: false, error: (refreshData as any)?.error || 'Token refresh failed' };
+      }
+
+      const tokenData: FitbitTokenResponse = refreshData as FitbitTokenResponse;
 
       // Update connection with new tokens
       const { error: updateError } = await supabase
