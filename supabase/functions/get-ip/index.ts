@@ -6,8 +6,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 serve(async (req) => {
   // This helper function is a temporary utility to find the outbound IP address
   // Note: Supabase Edge Functions require the Authorization header by default
-  // You can call this with: curl -H "Authorization: Bearer YOUR_ANON_KEY" https://...
-  
+
   try {
     // Make a request to a service that returns the caller's IP
     const ipServices = [
@@ -54,19 +53,21 @@ serve(async (req) => {
           instructions: [
             "1. Copy the IP address above",
             "2. Go to FatSecret Developer Portal → API Keys → IP Restrictions",
-            "3. Add the IP in format: IP/32 (e.g., " + (uniqueIPs[0] ? `${uniqueIPs[0]}/32` : "IP/32") + ")",
+            "3. Add the IP in format: IP/32 (e.g., " +
+              (uniqueIPs[0] ? `${uniqueIPs[0]}/32` : "IP/32") +
+              ")",
             "4. Save and wait 5-10 minutes for changes to take effect",
             "5. Delete this function: supabase functions delete get-ip",
           ],
           rawResults: results,
         },
         null,
-        2
+        2,
       ),
       {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
   } catch (error) {
     return new Response(
@@ -77,8 +78,7 @@ serve(async (req) => {
       {
         status: 500,
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
   }
 });
-

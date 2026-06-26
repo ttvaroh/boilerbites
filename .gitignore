@@ -41,7 +41,7 @@ yarn-error.*
 .examples/
 
 # Supabase SQL functions (database implementation)
-supabase/.temp/
+supabase/
 .supabase-setup/
 lib/sql/*.sql
 lib/legacy/*.sql
