@@ -55,6 +55,45 @@ export interface DateSearchResult {
   error: any | null;
 }
 
+// Short-lived client cache for date-search RPC results. Repeated identical
+// queries (date flips back/forth, sort toggles, re-entering the screen) are
+// served from memory instead of re-hitting search_menu_items, cutting egress.
+const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+const SEARCH_CACHE_MAX_ENTRIES = 50;
+
+interface SearchCacheEntry {
+  expiresAt: number;
+  result: DateSearchResult;
+}
+
+const searchResultCache = new Map<string, SearchCacheEntry>();
+
+function getCachedSearch(key: string): DateSearchResult | null {
+  const entry = searchResultCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    searchResultCache.delete(key);
+    return null;
+  }
+  // Refresh recency for simple LRU eviction.
+  searchResultCache.delete(key);
+  searchResultCache.set(key, entry);
+  return entry.result;
+}
+
+function setCachedSearch(key: string, result: DateSearchResult): void {
+  if (searchResultCache.size >= SEARCH_CACHE_MAX_ENTRIES) {
+    const oldest = searchResultCache.keys().next().value;
+    if (oldest !== undefined) {
+      searchResultCache.delete(oldest);
+    }
+  }
+  searchResultCache.set(key, {
+    expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,
+    result,
+  });
+}
+
 class DateSearchService {
   /**
    * Search menu items for a specific date
@@ -65,8 +104,9 @@ class DateSearchService {
     options: DateSearchOptions = {}
   ): Promise<DateSearchResult> {
     try {
-      // Get current user for custom food filtering
-      const { data: { user } } = await supabase.auth.getUser();
+      // Get current user for custom food filtering (local session read, no network round-trip)
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user ?? null;
       
       // Format date to YYYY-MM-DD
       const formattedDate = typeof date === 'string' 
@@ -87,7 +127,7 @@ class DateSearchService {
 
       // Use the optimized SQL function with date parameter
       // The function now returns JSON with { data: [...], total_count: number }
-      const { data: responseData, error } = await supabase.rpc('search_menu_items', {
+      const rpcParams = {
         search_date: formattedDate,
         search_query: filters.searchQuery || '',
         filter_vegetarian: filters.dietaryPreferences?.vegetarian || null,
@@ -99,10 +139,19 @@ class DateSearchService {
         available_only: false, // Set to true if you want only currently open meals
         sort_column: options.sortBy || 'name',
         sort_direction: options.sortOrder || 'asc',
-        result_limit: options.limit || 50,
+        result_limit: options.limit || 30,
         result_offset: options.offset || 0,
         user_id: user?.id || null
-      });
+      };
+
+      // Serve identical recent queries from the client cache.
+      const cacheKey = JSON.stringify(rpcParams);
+      const cached = getCachedSearch(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      const { data: responseData, error } = await supabase.rpc('search_menu_items', rpcParams);
 
       if (error) {
         console.error('Search error:', error);
@@ -115,7 +164,13 @@ class DateSearchService {
         : responseData;
       
       if (!result || !result.data || result.data.length === 0) {
-        return { data: [], count: result?.total_count || 0, error: null };
+        const emptyResult: DateSearchResult = {
+          data: [],
+          count: result?.total_count || 0,
+          error: null,
+        };
+        setCachedSearch(cacheKey, emptyResult);
+        return emptyResult;
       }
 
       // Convert the SQL function results to DayMenuItem format
@@ -148,11 +203,13 @@ class DateSearchService {
         meal_is_open: null // Not available from SQL function
       }));
 
-      return {
+      const finalResult: DateSearchResult = {
         data: items,
         count: result.total_count || 0, // Use total_count from SQL (unique count computed in SQL)
-        error: null
+        error: null,
       };
+      setCachedSearch(cacheKey, finalResult);
+      return finalResult;
     } catch (err) {
       console.error('Date search service error:', err);
       return {

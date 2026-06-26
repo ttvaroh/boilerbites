@@ -49,6 +49,7 @@ interface MenuItem {
 
 const HYDRATION_DEBOUNCE_MS = 250;
 const HYDRATION_BATCH_SIZE = 100;
+const PAGE_SIZE = 30;
 
 const chunkArray = <T,>(items: T[], size: number): T[][] => {
   const chunks: T[][] = [];
@@ -160,8 +161,8 @@ function convertDayMenuItemsToMenuItems(data: DayMenuItem[]): MenuItem[] {
         protein_per_100cals: item.protein_per_100cals || undefined,
         last_verified: undefined,
         ingredients: item.ingredients || undefined,
-        is_collection: item.is_collection || undefined,
-        is_custom_meal: item.is_custom_meal || undefined,
+        is_collection: item.is_collection ?? undefined,
+        is_custom_meal: item.is_custom_meal ?? undefined,
         location_name: item.location_name,
         meal_name: item.meal_name,
         station_name: item.station_name,
@@ -183,13 +184,16 @@ function createDateFilters(filters: SearchFilters, query: string): DateSearchFil
   };
 }
 
-function createDateOptions(options: SearchOptions): DateSearchOptions {
+function createDateOptions(
+  options: SearchOptions,
+  pagination: { limit: number; offset: number },
+): DateSearchOptions {
   return {
     sortBy: options.sortBy === 'protein/calorie' ? 'protein_per_100cals' : 
             options.sortBy === null ? undefined : options.sortBy,
     sortOrder: options.sortOrder,
-    limit: 1000,
-    offset: 0
+    limit: pagination.limit,
+    offset: pagination.offset
   };
 }
 
@@ -197,18 +201,33 @@ function createDateOptions(options: SearchOptions): DateSearchOptions {
 function useSearch(searchDate: string) {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [isSearching, setIsSearching] = React.useState(false);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [searchResults, setSearchResults] = React.useState<MenuItem[]>([]);
   const [totalCount, setTotalCount] = React.useState(0);
+  const [currentOffset, setCurrentOffset] = React.useState(0);
+  const [hasMore, setHasMore] = React.useState(false);
   const [error, setError] = React.useState<any>(null);
   const [hasSearched, setHasSearched] = React.useState(false);
   
-  const debouncedQuery = useDebounce(searchQuery, 300);
+  const debouncedQuery = useDebounce(searchQuery, 450);
   const abortControllerRef = React.useRef<AbortController | null>(null);
+  const currentOffsetRef = React.useRef(0);
+  const latestSearchResultsRef = React.useRef<MenuItem[]>([]);
+  const loadMoreInFlightRef = React.useRef(false);
+
+  React.useEffect(() => {
+    currentOffsetRef.current = currentOffset;
+  }, [currentOffset]);
+
+  React.useEffect(() => {
+    latestSearchResultsRef.current = searchResults;
+  }, [searchResults]);
 
   const performSearch = React.useCallback(async (
     query: string,
     filters: SearchFilters,
-    options: SearchOptions = {}
+    options: SearchOptions = {},
+    append: boolean = false
   ) => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -218,11 +237,24 @@ function useSearch(searchDate: string) {
     abortControllerRef.current = controller;
 
     try {
-      setIsSearching(true);
+      if (append) {
+        if (loadMoreInFlightRef.current) {
+          return;
+        }
+        loadMoreInFlightRef.current = true;
+        setIsLoadingMore(true);
+      } else {
+        setIsSearching(true);
+        setCurrentOffset(0);
+        currentOffsetRef.current = 0;
+      }
       setError(null);
 
       const dateFilters = createDateFilters(filters, query);
-      const dateOptions = createDateOptions(options);
+      const dateOptions = createDateOptions(options, {
+        limit: PAGE_SIZE,
+        offset: append ? currentOffsetRef.current : 0,
+      });
 
       const { data, count, error } = await dateSearchService.searchMenuItemsByDate(
         searchDate,
@@ -238,7 +270,31 @@ function useSearch(searchDate: string) {
       }
 
       const convertedResults = convertDayMenuItemsToMenuItems(data);
-      setSearchResults(convertedResults);
+      if (append) {
+        const mergedMap = new Map<string, MenuItem>();
+        for (const item of latestSearchResultsRef.current) {
+          mergedMap.set(item.id, item);
+        }
+        for (const item of convertedResults) {
+          if (!mergedMap.has(item.id)) {
+            mergedMap.set(item.id, item);
+          } else {
+            const existing = mergedMap.get(item.id)!;
+            const mergedMeals = Array.from(new Set([...(existing.meals || []), ...(item.meals || [])]));
+            mergedMap.set(item.id, { ...existing, ...item, meals: mergedMeals });
+          }
+        }
+        const mergedResults = Array.from(mergedMap.values());
+        setSearchResults(mergedResults);
+        setCurrentOffset(mergedResults.length);
+        currentOffsetRef.current = mergedResults.length;
+        setHasMore(mergedResults.length < count);
+      } else {
+        setSearchResults(convertedResults);
+        setCurrentOffset(convertedResults.length);
+        currentOffsetRef.current = convertedResults.length;
+        setHasMore(convertedResults.length < count);
+      }
       setTotalCount(count);
     } catch (err) {
       if (!controller.signal.aborted) {
@@ -247,9 +303,17 @@ function useSearch(searchDate: string) {
     } finally {
       if (!controller.signal.aborted) {
         setIsSearching(false);
+        setIsLoadingMore(false);
       }
+      loadMoreInFlightRef.current = false;
     }
   }, [searchDate]);
+
+  const resetPagination = React.useCallback(() => {
+    setCurrentOffset(0);
+    currentOffsetRef.current = 0;
+    setHasMore(false);
+  }, []);
 
   React.useEffect(() => {
     return () => {
@@ -264,11 +328,14 @@ function useSearch(searchDate: string) {
     setSearchQuery,
     debouncedQuery,
     isSearching,
+    isLoadingMore,
     searchResults,
     setSearchResults,
     totalCount,
+    hasMore,
     error,
     performSearch,
+    resetPagination,
     hasSearched,
     setHasSearched
   };
@@ -388,11 +455,14 @@ export function SearchByDateComponent({
     setSearchQuery,
     debouncedQuery,
     isSearching,
+    isLoadingMore,
     searchResults,
     setSearchResults,
     totalCount,
+    hasMore,
     error,
     performSearch,
+    resetPagination,
     hasSearched,
     setHasSearched
   } = useSearch(dateString);
@@ -430,25 +500,42 @@ export function SearchByDateComponent({
   });
 
   const [refreshing, setRefreshing] = React.useState(false);
+  const onEndReachedCalledDuringMomentum = React.useRef(true);
 
-  // Update filters when nutrition goals change
+  // Update filters when nutrition goals change.
+  // Only update state when values actually change; returning the same `prev`
+  // reference lets React bail out and avoids retriggering the search effect
+  // (which previously caused a duplicate RPC call on mount).
   React.useEffect(() => {
-    if (nutritionGoals) {
-      setCurrentFilters(prev => ({
+    if (!nutritionGoals) return;
+    setCurrentFilters(prev => {
+      const nextDietary = {
+        vegetarian: nutritionGoals.vegetarian_preference || false,
+        vegan: nutritionGoals.vegan_preference || false,
+        glutenFree: nutritionGoals.gluten_allergy || false,
+      };
+      const allergensChanged =
+        prev.excludeAllergens.length !== userAllergenNames.length ||
+        prev.excludeAllergens.some((a, i) => a !== userAllergenNames[i]);
+      const dietaryChanged =
+        prev.dietaryPreferences.vegetarian !== nextDietary.vegetarian ||
+        prev.dietaryPreferences.vegan !== nextDietary.vegan ||
+        prev.dietaryPreferences.glutenFree !== nextDietary.glutenFree;
+      if (!allergensChanged && !dietaryChanged) {
+        return prev;
+      }
+      return {
         ...prev,
         excludeAllergens: userAllergenNames,
-        dietaryPreferences: {
-          vegetarian: nutritionGoals.vegetarian_preference || false,
-          vegan: nutritionGoals.vegan_preference || false,
-          glutenFree: nutritionGoals.gluten_allergy || false,
-        },
-      }));
-    }
+        dietaryPreferences: nextDietary,
+      };
+    });
   }, [nutritionGoals, userAllergenNames]);
 
   // Trigger search when debounced query, filters, or date changes
   React.useEffect(() => {
     setSearchResults([]);
+    resetPagination();
     
     if (debouncedQuery.trim() || hasSearched) {
       setHasSearched(true);
@@ -462,7 +549,7 @@ export function SearchByDateComponent({
         sortOrder
       });
     }
-  }, [debouncedQuery, currentFilters, sortBy, sortOrder, performSearch, hasSearched, dateString]);
+  }, [debouncedQuery, currentFilters, sortBy, sortOrder, performSearch, hasSearched, dateString, resetPagination, setSearchResults]);
 
   const handleSearch = React.useCallback(async (query: string, filters: SearchFilters) => {
     setCurrentFilters(filters);
@@ -481,6 +568,28 @@ export function SearchByDateComponent({
       setRefreshing(false);
     }
   }, [debouncedQuery, currentFilters, sortBy, sortOrder, performSearch]);
+
+  const loadMoreResults = React.useCallback(() => {
+    if (onEndReachedCalledDuringMomentum.current) {
+      return;
+    }
+
+    if (!hasMore || isSearching || isLoadingMore || searchResults.length === 0 || searchResults.length >= totalCount) {
+      return;
+    }
+
+    onEndReachedCalledDuringMomentum.current = true;
+
+    performSearch(
+      debouncedQuery,
+      currentFilters,
+      {
+        sortBy,
+        sortOrder,
+      },
+      true,
+    );
+  }, [hasMore, isSearching, isLoadingMore, searchResults.length, totalCount, performSearch, debouncedQuery, currentFilters, sortBy, sortOrder]);
 
   const handleSortChange = React.useCallback((newSortBy: string, order: 'highest' | 'lowest') => {
     // Handle clear sort
@@ -657,17 +766,26 @@ export function SearchByDateComponent({
 
   // Footer component
   const ListFooterComponent = React.useCallback(() => {
+    if (isLoadingMore) {
+      return (
+        <View className="py-4 justify-center items-center">
+          <ActivityIndicator size="small" color="#CFB991" />
+          <Text className="text-gray-400 text-sm font-sora mt-2">Loading more results...</Text>
+        </View>
+      );
+    }
+
     if (searchResults.length > 0 && !isSearching) {
       return (
         <View className="py-4 justify-center items-center">
           <Text className="text-gray-400 text-sm font-sora">
-            {searchResults.length} of {totalCount} items
+            {searchResults.length} of {totalCount} items{hasMore ? " • Scroll for more" : ""}
           </Text>
         </View>
       );
     }
     return null;
-  }, [searchResults.length, totalCount, isSearching]);
+  }, [searchResults.length, totalCount, isSearching, isLoadingMore, hasMore]);
 
   return (
     <ErrorBoundary>
@@ -776,6 +894,14 @@ export function SearchByDateComponent({
               updateCellsBatchingPeriod={50}
               disableVirtualization={false}
               legacyImplementation={false}
+              onEndReached={loadMoreResults}
+              onEndReachedThreshold={0.6}
+              onScrollBeginDrag={() => {
+                onEndReachedCalledDuringMomentum.current = false;
+              }}
+              onMomentumScrollBegin={() => {
+                onEndReachedCalledDuringMomentum.current = false;
+              }}
             />
           </View>
 
