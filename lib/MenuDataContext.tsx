@@ -3,9 +3,11 @@ import {
     ReactNode,
     useContext,
     useEffect,
+    useRef,
     useState,
 } from "react";
 import { isJWTExpiredError } from "./authUtils";
+import { menuCache } from "./menuCache";
 import {
     getCurrentMealTypeByHour,
     getMealOrder,
@@ -13,6 +15,10 @@ import {
 } from "./mealConfig";
 import { supabase } from "./supabase";
 import { getTodayDateString } from "./timezone-utils";
+
+// How long a known day_menu version is trusted before re-probing for mid-day
+// menu changes. Within this window we serve persistent cache without a probe.
+const VERSION_STALENESS_MS = 5 * 60 * 1000;
 
 interface MenuItem {
   id: string;
@@ -128,6 +134,57 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
   const [detailedMenuCache, setDetailedMenuCache] = useState<Map<string, Meal>>(
     new Map(),
   );
+  // Known day_menu.last_updated versions, keyed "locationName:date".
+  // Used to validate the persistent (AsyncStorage) menu cache without
+  // refetching the full nested menu payload on every app launch.
+  const menuVersionsRef = useRef<
+    Map<string, { version: string | null; fetchedAt: number }>
+  >(new Map());
+
+  const recordMenuVersion = (
+    locationName: string,
+    date: string,
+    version: string | null,
+  ) => {
+    menuVersionsRef.current.set(`${locationName}:${date}`, {
+      version,
+      fetchedAt: Date.now(),
+    });
+  };
+
+  // Probe just the day_menu.last_updated stamp (a single tiny row) to decide
+  // whether a cached payload is still current.
+  const probeMenuVersion = async (
+    locationName: string,
+    date: string,
+  ): Promise<string | null> => {
+    try {
+      const { data } = await supabase
+        .from("day_menu")
+        .select("last_updated")
+        .eq("location_name", locationName)
+        .eq("serve_date", date)
+        .maybeSingle();
+      const version = (data?.last_updated as string | undefined) ?? null;
+      recordMenuVersion(locationName, date, version);
+      return version;
+    } catch {
+      return null;
+    }
+  };
+
+  // Returns the authoritative version for a location/date, probing only when
+  // the known version is missing or older than the staleness window.
+  const resolveMenuVersion = async (
+    locationName: string,
+    date: string,
+  ): Promise<string | null> => {
+    const known = menuVersionsRef.current.get(`${locationName}:${date}`);
+    if (known && Date.now() - known.fetchedAt < VERSION_STALENESS_MS) {
+      return known.version;
+    }
+    return probeMenuVersion(locationName, date);
+  };
 
   // Switch to a new location - preserve cache for instant switching back
   const switchLocation = async (locationName: string): Promise<void> => {
@@ -153,10 +210,32 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
     locationName: string,
     date: string,
   ): Promise<MealsByDate | null> => {
-    // Check cache first
+    // Check in-memory (L1) cache first
     const cacheKey = `${locationName}:${date}`;
     if (basicMealCache.has(cacheKey)) {
       return basicMealCache.get(cacheKey)!;
+    }
+
+    // Check persistent (L2) cache, validating against the server version.
+    const isPastDate = date < getTodayDateString();
+    const persisted = await menuCache.getBasicDay<MealsByDate>(
+      locationName,
+      date,
+    );
+    if (persisted) {
+      const serveFromCache = async () => {
+        setBasicMealCache((prev) => new Map(prev).set(cacheKey, persisted.data));
+        return persisted.data;
+      };
+      if (isPastDate) {
+        // Past-date menus are immutable; serve without a version check.
+        return serveFromCache();
+      }
+      const version = await resolveMenuVersion(locationName, date);
+      if (version !== null && version === persisted.version) {
+        return serveFromCache();
+      }
+      // Version changed (or unknown): fall through to a full fetch.
     }
 
     // Fetch from database if not cached
@@ -167,6 +246,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
           `
           id,
           is_published,
+          last_updated,
           day_meal (
             id,
             meal_name,
@@ -184,6 +264,9 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
       if (menuError || !menuData) {
         return null;
       }
+
+      const version = (menuData.last_updated as string | undefined) ?? null;
+      recordMenuVersion(locationName, date, version);
 
       const mealsByDate: MealsByDate = {};
 
@@ -211,6 +294,9 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
       // Cache the entire day (all meals for this date)
       if (Object.keys(mealsByDate).length > 0) {
         setBasicMealCache((prev) => new Map(prev).set(cacheKey, mealsByDate));
+        if (version !== null) {
+          void menuCache.setBasicDay(locationName, date, version, mealsByDate);
+        }
       }
 
       return mealsByDate;
@@ -229,10 +315,34 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
     date: string,
     mealType: string,
   ): Promise<Meal | null> => {
-    // OPTIMIZED: Check cache first with meal-specific key
+    // OPTIMIZED: Check in-memory (L1) cache first with meal-specific key
     const cacheKey = `${locationName}:${date}:${mealType}`;
     if (detailedMenuCache.has(cacheKey)) {
       return detailedMenuCache.get(cacheKey)!;
+    }
+
+    // Check persistent (L2) cache, validating against the server version.
+    const isPastDate = date < getTodayDateString();
+    const persisted = await menuCache.getDetailedMeal<Meal>(
+      locationName,
+      date,
+      mealType,
+    );
+    if (persisted) {
+      const serveFromCache = async () => {
+        setDetailedMenuCache((prev) =>
+          new Map(prev).set(cacheKey, persisted.data),
+        );
+        return persisted.data;
+      };
+      if (isPastDate) {
+        return serveFromCache();
+      }
+      const cachedVersion = await resolveMenuVersion(locationName, date);
+      if (cachedVersion !== null && cachedVersion === persisted.version) {
+        return serveFromCache();
+      }
+      // Version changed (or unknown): fall through to a full fetch.
     }
 
     try {
@@ -241,6 +351,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
         .select(
           `
           id,
+          last_updated,
           day_meal!inner (
             id,
             meal_name,
@@ -284,6 +395,9 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
       if (menuError || !menuData) {
         return null;
       }
+
+      const version = (menuData.last_updated as string | undefined) ?? null;
+      recordMenuVersion(locationName, date, version);
 
       // Find the specific meal using location-specific mapping
       const targetMeal = menuData.day_meal.find((meal: any) => {
@@ -347,6 +461,15 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
 
       // OPTIMIZED: Cache the detailed meal data with meal-specific key
       setDetailedMenuCache((prev) => new Map(prev).set(cacheKey, mealData));
+      if (version !== null) {
+        void menuCache.setDetailedMeal(
+          locationName,
+          date,
+          mealType,
+          version,
+          mealData,
+        );
+      }
 
       return mealData;
     } catch (error) {
@@ -581,9 +704,10 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
     return menuData?.menusByDate.has(date) || false;
   };
 
-  // Load locations on mount
+  // Load locations on mount; prune stale persistent menu cache entries.
   useEffect(() => {
     refreshLocations();
+    void menuCache.prune();
   }, []);
 
   // Helper function to map locations and menus to LocationInfo[]
@@ -705,6 +829,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
           id,
           is_published,
           location_name,
+          last_updated,
           day_meal (
             id,
             meal_name,
@@ -730,6 +855,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
                 id,
                 is_published,
                 location_name,
+                last_updated,
                 day_meal (
                   id,
                   meal_name,
@@ -749,6 +875,13 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
                   menu,
                 ]),
               );
+              for (const menu of retryResult.data || []) {
+                recordMenuVersion(
+                  menu.location_name,
+                  today,
+                  (menu.last_updated as string | undefined) ?? null,
+                );
+              }
               const locationsList = mapLocationsToLocationInfo(
                 locationsData || [],
                 menuMap,
@@ -771,6 +904,16 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
       const menuMap: Map<string, any> = new Map(
         (allMenus || []).map((menu: any) => [menu.location_name, menu]),
       );
+
+      // Record fresh versions for today so meal fetches can validate the
+      // persistent cache without an extra probe.
+      for (const menu of allMenus || []) {
+        recordMenuVersion(
+          menu.location_name,
+          today,
+          (menu.last_updated as string | undefined) ?? null,
+        );
+      }
 
       // Map locations to LocationInfo[] structure (maintains backward compatibility)
       const locationsList = mapLocationsToLocationInfo(

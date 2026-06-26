@@ -165,3 +165,18 @@ export function addDaysToDateString(dateStr: string, days: number): string {
   const day = date.getDate().toString().padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+
+/**
+ * Get local date (YYYY-MM-DD) from an ISO timestamp.
+ * Use this so "which day" an entry belongs to matches the user's local date
+ * (e.g. 11pm EST stays on the same calendar day, not the next UTC day).
+ * @param isoTimestamp ISO 8601 string (e.g. from created_at)
+ * @returns YYYY-MM-DD in the device's local timezone
+ */
+export function getLocalDateStringFromTimestamp(isoTimestamp: string): string {
+  const d = new Date(isoTimestamp);
+  const year = d.getFullYear();
+  const month = (d.getMonth() + 1).toString().padStart(2, "0");
+  const day = d.getDate().toString().padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}

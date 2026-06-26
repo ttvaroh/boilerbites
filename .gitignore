@@ -58,8 +58,18 @@ lib/collection-etl/urls.txt
 # API implementation (GraphQL endpoints, queries, headers)
 lib/api.ts
 
-# Internal API documentation
-docs/internal/*
+# Documentation and API samples (kept local only; never committed)
+docs/
+examples/
+
+# Internal analysis / planning notes
+postgrest-egress-analysis.md
+PUBLIC_RELEASE_RISK_ASSESSMENT.md
+ACTION_REQUIRED.md
+*-analysis.md
+
+# Editor backup files
+*.save
 
 # Python
 __pycache__/
