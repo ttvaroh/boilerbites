@@ -16,6 +16,7 @@ import NutritionFacts from "../../components/NutritionFacts";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNutritionCache } from "../../contexts/NutritionCacheContext";
 import { useToast } from "../../contexts/ToastContext";
+import { ITEM_SELECT_COLUMNS_WITH_INGREDIENTS } from "../../lib/itemSelectColumns";
 import { supabase } from "../../lib/supabase";
 import {
   createLocalDateFromString,
@@ -194,7 +195,7 @@ export default function NutritionPage() {
         // Fetch item from database (Purdue or FatSecret)
         const { data, error } = await supabase
           .from("item")
-          .select("*")
+          .select(ITEM_SELECT_COLUMNS_WITH_INGREDIENTS)
           .eq("id", itemId.trim())
           .single();
 

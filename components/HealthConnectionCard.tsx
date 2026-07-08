@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from 'react-native';
+import { HEALTH_CONNECTION_SELECT_COLUMNS } from '../lib/itemSelectColumns';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { AppleHealthService } from '../lib/health-integrations/apple-health/AppleHealthService';
@@ -44,7 +45,7 @@ export default function HealthConnectionCard({
     try {
       const { data, error } = await supabase
         .from('health_app_connections')
-        .select('*')
+        .select(HEALTH_CONNECTION_SELECT_COLUMNS)
         .eq('user_id', user.id)
         .eq('app_type', appType)
         .maybeSingle();

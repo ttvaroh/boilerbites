@@ -9,6 +9,11 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import {
+  hydrateCollectionStatus,
+  seedCollectionStatus,
+} from "../lib/collectionStatusCache";
+import { ITEM_SELECT_COLUMNS } from "../lib/itemSelectColumns";
 import { supabase } from "../lib/supabase";
 import { fatSecretSearchService } from "../services/searchService";
 import ItemSearchComponent from "./ItemSearch";
@@ -91,20 +96,17 @@ export default function CustomMealBuilder({
 
   // Search Purdue items and Collections
   const searchPurdueItems = useCallback(async (query: string) => {
-    if (!query.trim()) {
+    if (!query.trim() || query.trim().length < 2) {
       setSearchResults([]);
       return;
     }
 
     setIsSearching(true);
     try {
-      // Search for both Purdue items and Collections
-      // Filter: system items (user_id is NULL), not FatSecret items
-      // Include both regular items (is_collection = false) and collections (is_collection = true)
       const { data, error } = await supabase
         .from("item")
-        .select("*")
-        .is("user_id", null) // Only system items (Purdue items and collections)
+        .select(ITEM_SELECT_COLUMNS)
+        .is("user_id", null)
         .not("id", "like", "fatsecret_%")
         .ilike("name", `%${query.trim()}%`)
         .limit(50);
@@ -113,6 +115,10 @@ export default function CustomMealBuilder({
         console.error("Error searching Purdue items and collections:", error);
         setSearchResults([]);
         return;
+      }
+
+      if (data) {
+        seedCollectionStatus(data);
       }
 
       setSearchResults(data || []);
@@ -197,18 +203,8 @@ export default function CustomMealBuilder({
   // Check if item is a collection
   const checkCollectionStatus = useCallback(async (itemIds: string[]) => {
     try {
-      const { data } = await supabase
-        .from("item")
-        .select("id, is_collection")
-        .in("id", itemIds);
-
-      if (data) {
-        const status: Record<string, boolean> = {};
-        data.forEach((item: any) => {
-          status[item.id] = item.is_collection || false;
-        });
-        setCollectionStatus((prev) => ({ ...prev, ...status }));
-      }
+      const statusMap = await hydrateCollectionStatus(itemIds);
+      setCollectionStatus((prev) => ({ ...prev, ...statusMap }));
     } catch (error) {
       console.error("Error checking collection status:", error);
     }

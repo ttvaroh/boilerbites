@@ -14,6 +14,7 @@ import {
 import type { QuantityTypeIdentifier } from '@kingstinct/react-native-healthkit/types';
 import { ComparisonPredicateOperator } from '@kingstinct/react-native-healthkit/types';
 import { Platform } from 'react-native';
+import { HEALTH_CONNECTION_SELECT_COLUMNS } from '../../itemSelectColumns';
 import { supabase } from '../../supabase';
 import {
   FoodEntryForSync,
@@ -353,7 +354,7 @@ export class AppleHealthService extends BaseHealthAppService {
     try {
       const { data, error } = await supabase
         .from('health_app_connections')
-        .select('*')
+        .select(HEALTH_CONNECTION_SELECT_COLUMNS)
         .eq('user_id', userId)
         .eq('app_type', 'apple_health')
         .maybeSingle();

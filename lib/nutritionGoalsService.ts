@@ -22,7 +22,8 @@ export interface NutritionGoals {
   updated_at?: string;
 }
 
-// Default nutrition goals based on average adult needs
+const NUTRITION_PREFERENCES_COLUMNS =
+  "id,user_id,calories,protein,carbs,fat,dairy_allergy,gluten_allergy,nuts_allergy,soy_allergy,eggs_allergy,shellfish_allergy,fish_allergy,peanut_allergy,vegan_preference,vegetarian_preference,created_at,updated_at";
 const DEFAULT_GOALS = {
   calories: 2300,
   protein: 144,
@@ -34,7 +35,7 @@ const DEFAULT_GOALS = {
 export const fetchNutritionGoals = async (userId: string): Promise<NutritionGoals | null> => {
   let { data, error } = await supabase
     .from('nutrition_preferences')
-    .select('*')
+    .select(NUTRITION_PREFERENCES_COLUMNS)
     .eq('user_id', userId)
     .maybeSingle();
   
@@ -46,7 +47,7 @@ export const fetchNutritionGoals = async (userId: string): Promise<NutritionGoal
         // Retry the query after refresh
         const retryResult = await supabase
           .from('nutrition_preferences')
-          .select('*')
+          .select(NUTRITION_PREFERENCES_COLUMNS)
           .eq('user_id', userId)
           .maybeSingle();
         data = retryResult.data;

@@ -12,6 +12,7 @@ import BackgroundTemplate from "../../components/BackgroundTemplate";
 import CustomFoodForm from "../../components/CustomFoodForm";
 import { useToast } from "../../contexts/ToastContext";
 import { editCustomItem, removeCustomFood } from "../../lib/api";
+import { ITEM_SELECT_COLUMNS_WITH_INGREDIENTS } from "../../lib/itemSelectColumns";
 import { supabase } from "../../lib/supabase";
 
 export default function EditCustomFoodPage() {
@@ -52,7 +53,7 @@ export default function EditCustomFoodPage() {
       setLoading(true);
       const { data, error } = await supabase
         .from("item")
-        .select("*")
+        .select(ITEM_SELECT_COLUMNS_WITH_INGREDIENTS)
         .eq("id", itemId)
         .single();
 

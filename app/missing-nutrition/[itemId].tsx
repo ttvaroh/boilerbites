@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import BackgroundTemplate from "../../components/BackgroundTemplate";
+import { ITEM_SELECT_COLUMNS } from "../../lib/itemSelectColumns";
 import { supabase } from "../../lib/supabase";
 
 interface MenuItem {
@@ -37,7 +38,7 @@ export default function MissingNutritionPage() {
         setLoading(true);
         const { data, error } = await supabase
           .from('item')
-          .select('*')
+          .select(ITEM_SELECT_COLUMNS)
           .eq('id', itemId)
           .maybeSingle();
 

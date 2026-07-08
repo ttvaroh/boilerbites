@@ -19,6 +19,7 @@ import {
   removeItemFromCustomMeal,
   updateMealItemQuantity,
 } from "../../lib/api";
+import { ITEM_SELECT_COLUMNS_WITH_INGREDIENTS } from "../../lib/itemSelectColumns";
 import { supabase } from "../../lib/supabase";
 
 export default function EditMealPage() {
@@ -45,7 +46,7 @@ export default function EditMealPage() {
       // Load meal item
       const { data: mealData, error: mealError } = await supabase
         .from("item")
-        .select("*")
+        .select(ITEM_SELECT_COLUMNS_WITH_INGREDIENTS)
         .eq("id", mealId)
         .single();
 

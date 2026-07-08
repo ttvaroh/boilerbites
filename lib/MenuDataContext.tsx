@@ -6,8 +6,17 @@ import {
     useRef,
     useState,
 } from "react";
+import { MenuItem, Meal, MealsByDate, Station } from "../types/menu";
 import { isJWTExpiredError } from "./authUtils";
+import { seedCollectionStatus } from "./collectionStatusCache";
+import { NESTED_MENU_ITEM_SELECT } from "./itemSelectColumns";
 import { menuCache } from "./menuCache";
+import { locationCache } from "./locationCache";
+import {
+    ensureGlobalMenuVersionFresh,
+    getMostRecentMenuBoundaryMs,
+    loadMenuVersionConfig,
+} from "./menuVersion";
 import {
     getCurrentMealTypeByHour,
     getMealOrder,
@@ -15,52 +24,6 @@ import {
 } from "./mealConfig";
 import { supabase } from "./supabase";
 import { getTodayDateString } from "./timezone-utils";
-
-// How long a known day_menu version is trusted before re-probing for mid-day
-// menu changes. Within this window we serve persistent cache without a probe.
-const VERSION_STALENESS_MS = 5 * 60 * 1000;
-
-interface MenuItem {
-  id: string;
-  name: string;
-  vegetarian?: boolean;
-  vegan?: boolean;
-  gluten?: boolean;
-  allergens?: string[];
-  serving_size?: string;
-  calories?: number;
-  protein_g?: number;
-  carbs_g?: number;
-  fat_g?: number;
-  fiber_g?: number;
-  sugar_g?: number;
-  sodium_mg?: number;
-  protein_per_100cals?: number;
-  ingredients?: string;
-  last_verified?: string;
-}
-
-interface Station {
-  id: string;
-  name: string;
-  items: MenuItem[];
-}
-
-interface Meal {
-  id: string;
-  name: string;
-  start_time: string;
-  end_time: string;
-  open: boolean;
-  stations: Station[];
-}
-
-interface MealsByDate {
-  breakfast?: Meal;
-  lunch?: Meal;
-  lateLunch?: Meal; // Only for Windsor
-  dinner?: Meal;
-}
 
 interface MenuDataByDate {
   locationName: string;
@@ -120,6 +83,67 @@ interface MenuDataProviderProps {
   children: ReactNode;
 }
 
+function parseMenuItem(item: Record<string, unknown>): MenuItem {
+  return {
+    id: item.id as string,
+    name: item.name as string,
+    vegetarian: item.vegetarian as boolean | undefined,
+    vegan: item.vegan as boolean | undefined,
+    gluten: item.gluten as boolean | undefined,
+    allergens: (item.allergens as string[]) || [],
+    serving_size: item.serving_size as string | undefined,
+    calories: item.calories as number | undefined,
+    protein_g: item.protein_g as number | undefined,
+    carbs_g: item.carbs_g as number | undefined,
+    fat_g: item.fat_g as number | undefined,
+    fiber_g: item.fiber_g as number | undefined,
+    sugar_g: item.sugar_g as number | undefined,
+    sodium_mg: item.sodium_mg as number | undefined,
+    protein_per_100cals: item.protein_per_100cals as number | undefined,
+    last_verified: item.last_verified as string | undefined,
+    is_collection: item.is_collection as boolean | undefined,
+    user_id: item.user_id as string | null | undefined,
+  };
+}
+
+function buildMealFromRaw(meal: any): Meal {
+  const stationsWithItems: Station[] = [];
+
+  if (meal.day_station && meal.day_station.length > 0) {
+    for (const station of meal.day_station) {
+      const items: MenuItem[] = [];
+
+      if (station.day_station_item && station.day_station_item.length > 0) {
+        for (const stationItem of station.day_station_item) {
+          if (stationItem.item) {
+            items.push(parseMenuItem(stationItem.item));
+          }
+        }
+      }
+
+      stationsWithItems.push({
+        id: station.id,
+        name: station.name,
+        items,
+      });
+    }
+  }
+
+  const menuItems = stationsWithItems.flatMap((station) => station.items);
+  if (menuItems.length > 0) {
+    seedCollectionStatus(menuItems);
+  }
+
+  return {
+    id: meal.id,
+    name: meal.meal_name,
+    start_time: meal.start_time || "",
+    end_time: meal.end_time || "",
+    open: meal.open,
+    stations: stationsWithItems,
+  };
+}
+
 export function MenuDataProvider({ children }: MenuDataProviderProps) {
   const [currentLocation, setCurrentLocation] = useState<string | null>(null);
   const [menuData, setMenuData] = useState<MenuDataByDate | null>(null);
@@ -174,15 +198,26 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
   };
 
   // Returns the authoritative version for a location/date, probing only when
-  // the known version is missing or older than the staleness window.
+  // a cron boundary has passed since the last confirmation.
   const resolveMenuVersion = async (
     locationName: string,
     date: string,
   ): Promise<string | null> => {
-    const known = menuVersionsRef.current.get(`${locationName}:${date}`);
-    if (known && Date.now() - known.fetchedAt < VERSION_STALENESS_MS) {
+    const isPastDate = date < getTodayDateString();
+    if (isPastDate) {
+      return menuVersionsRef.current.get(`${locationName}:${date}`)?.version ?? null;
+    }
+
+    await ensureGlobalMenuVersionFresh();
+
+    const key = `${locationName}:${date}`;
+    const known = menuVersionsRef.current.get(key);
+    const boundaryMs = getMostRecentMenuBoundaryMs();
+
+    if (known && known.fetchedAt >= boundaryMs) {
       return known.version;
     }
+
     return probeMenuVersion(locationName, date);
   };
 
@@ -366,22 +401,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
               day_station_item (
                 item_id,
                 item:item_id (
-                  id,
-                  name,
-                  vegetarian,
-                  vegan,
-                  gluten,
-                  allergens,
-                  serving_size,
-                  calories,
-                  protein_g,
-                  carbs_g,
-                  fat_g,
-                  fiber_g,
-                  sugar_g,
-                  sodium_mg,
-                  protein_per_100cals,
-                  last_verified
+                  ${NESTED_MENU_ITEM_SELECT}
                 )
               )
             )
@@ -399,79 +419,48 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
       const version = (menuData.last_updated as string | undefined) ?? null;
       recordMenuVersion(locationName, date, version);
 
-      // Find the specific meal using location-specific mapping
-      const targetMeal = menuData.day_meal.find((meal: any) => {
-        const mappedType = mapMealNameToType(locationName, meal.meal_name);
-        return mappedType === mealType;
-      });
+      let requestedMeal: Meal | null = null;
+      const cacheUpdates = new Map<string, Meal>();
 
-      if (!targetMeal) {
-        return null;
-      }
+      for (const rawMeal of menuData.day_meal || []) {
+        const mappedType = mapMealNameToType(locationName, rawMeal.meal_name);
+        if (!mappedType) continue;
 
-      // Process stations and items for this meal only
-      const stationsWithItems: Station[] = [];
+        const mealData = buildMealFromRaw(rawMeal);
+        const mealCacheKey = `${locationName}:${date}:${mappedType}`;
+        cacheUpdates.set(mealCacheKey, mealData);
 
-      if (targetMeal.day_station && targetMeal.day_station.length > 0) {
-        for (const station of targetMeal.day_station) {
-          const items: MenuItem[] = [];
-
-          if (station.day_station_item && station.day_station_item.length > 0) {
-            for (const stationItem of station.day_station_item) {
-              if (stationItem.item) {
-                const item = stationItem.item as any;
-                items.push({
-                  id: item.id,
-                  name: item.name,
-                  vegetarian: item.vegetarian,
-                  vegan: item.vegan,
-                  gluten: item.gluten,
-                  allergens: item.allergens || [],
-                  serving_size: item.serving_size,
-                  calories: item.calories,
-                  protein_g: item.protein_g,
-                  carbs_g: item.carbs_g,
-                  fat_g: item.fat_g,
-                  fiber_g: item.fiber_g,
-                  sugar_g: item.sugar_g,
-                  sodium_mg: item.sodium_mg,
-                  protein_per_100cals: item.protein_per_100cals,
-                  last_verified: item.last_verified,
-                });
-              }
-            }
-          }
-
-          stationsWithItems.push({
-            id: station.id,
-            name: station.name,
-            items,
-          });
+        if (mappedType === mealType) {
+          requestedMeal = mealData;
         }
       }
 
-      const mealData: Meal = {
-        id: targetMeal.id,
-        name: targetMeal.meal_name,
-        start_time: targetMeal.start_time || "",
-        end_time: targetMeal.end_time || "",
-        open: targetMeal.open,
-        stations: stationsWithItems,
-      };
-
-      // OPTIMIZED: Cache the detailed meal data with meal-specific key
-      setDetailedMenuCache((prev) => new Map(prev).set(cacheKey, mealData));
-      if (version !== null) {
-        void menuCache.setDetailedMeal(
-          locationName,
-          date,
-          mealType,
-          version,
-          mealData,
-        );
+      if (!requestedMeal) {
+        return null;
       }
 
-      return mealData;
+      setDetailedMenuCache((prev) => {
+        const next = new Map(prev);
+        for (const [key, meal] of cacheUpdates.entries()) {
+          next.set(key, meal);
+        }
+        return next;
+      });
+
+      if (version !== null) {
+        for (const [key, meal] of cacheUpdates.entries()) {
+          const [, , mappedMealType] = key.split(":");
+          void menuCache.setDetailedMeal(
+            locationName,
+            date,
+            mappedMealType,
+            version,
+            meal,
+          );
+        }
+      }
+
+      return requestedMeal;
     } catch (error) {
       console.error(
         `Error fetching detailed meal data for ${locationName} on ${date}:`,
@@ -537,22 +526,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
               day_station_item (
                 item_id,
                 item:item_id (
-                  id,
-                  name,
-                  vegetarian,
-                  vegan,
-                  gluten,
-                  allergens,
-                  serving_size,
-                  calories,
-                  protein_g,
-                  carbs_g,
-                  fat_g,
-                  fiber_g,
-                  sugar_g,
-                  sodium_mg,
-                  protein_per_100cals,
-                  last_verified
+                  ${NESTED_MENU_ITEM_SELECT}
                 )
               )
             )
@@ -567,85 +541,12 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
         return null;
       }
 
-      console.log("🚀 Optimized query result:", {
-        hasMenu: !!menuData,
-        mealsCount: menuData.day_meal?.length || 0,
-        totalStations:
-          menuData.day_meal?.reduce(
-            (acc: number, meal: any) => acc + (meal.day_station?.length || 0),
-            0,
-          ) || 0,
-        totalItems:
-          menuData.day_meal?.reduce(
-            (acc: number, meal: any) =>
-              acc +
-              (meal.day_station?.reduce(
-                (stationAcc: number, station: any) =>
-                  stationAcc + (station.day_station_item?.length || 0),
-                0,
-              ) || 0),
-            0,
-          ) || 0,
-      });
-
       // Process the joined data into the expected structure
       const mealsByDate: MealsByDate = {};
 
       if (menuData.day_meal && menuData.day_meal.length > 0) {
         for (const meal of menuData.day_meal) {
-          // Process stations and items for this meal
-          const stationsWithItems: Station[] = [];
-
-          if (meal.day_station && meal.day_station.length > 0) {
-            for (const station of meal.day_station) {
-              const items: MenuItem[] = [];
-
-              if (
-                station.day_station_item &&
-                station.day_station_item.length > 0
-              ) {
-                for (const stationItem of station.day_station_item) {
-                  if (stationItem.item) {
-                    const item = stationItem.item as any; // Type assertion for joined query result
-                    items.push({
-                      id: item.id,
-                      name: item.name,
-                      vegetarian: item.vegetarian,
-                      vegan: item.vegan,
-                      gluten: item.gluten,
-                      allergens: item.allergens || [],
-                      serving_size: item.serving_size,
-                      calories: item.calories,
-                      protein_g: item.protein_g,
-                      carbs_g: item.carbs_g,
-                      fat_g: item.fat_g,
-                      fiber_g: item.fiber_g,
-                      sugar_g: item.sugar_g,
-                      sodium_mg: item.sodium_mg,
-                      protein_per_100cals: item.protein_per_100cals,
-                      last_verified: item.last_verified,
-                    });
-                  }
-                }
-              }
-
-              stationsWithItems.push({
-                id: station.id,
-                name: station.name,
-                items,
-              });
-            }
-          }
-
-          // Create meal object
-          const mealWithStations: Meal = {
-            id: meal.id,
-            name: meal.meal_name,
-            start_time: meal.start_time || "",
-            end_time: meal.end_time || "",
-            open: meal.open,
-            stations: stationsWithItems,
-          };
+          const mealWithStations = buildMealFromRaw(meal);
 
           // Map meal to the correct key
           const mealName = meal.meal_name.toLowerCase();
@@ -706,6 +607,7 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
 
   // Load locations on mount; prune stale persistent menu cache entries.
   useEffect(() => {
+    void loadMenuVersionConfig();
     refreshLocations();
     void menuCache.prune();
   }, []);
@@ -782,22 +684,59 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
     });
   };
 
+  const invalidateBasicMealCacheIfVersionChanged = (
+    locationName: string,
+    date: string,
+    nextVersion: string | null,
+  ) => {
+    const key = `${locationName}:${date}`;
+    const known = menuVersionsRef.current.get(key);
+    if (known?.version === nextVersion) {
+      return;
+    }
+
+    setBasicMealCache((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Map(prev);
+      next.delete(key);
+      return next;
+    });
+
+    setDetailedMenuCache((prev) => {
+      const prefix = `${locationName}:${date}:`;
+      let changed = false;
+      const next = new Map(prev);
+      for (const cacheKey of prev.keys()) {
+        if (cacheKey.startsWith(prefix)) {
+          next.delete(cacheKey);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  };
+
   // Fetch locations with basic menu info for today
   const refreshLocations = async (): Promise<void> => {
     try {
       setLoading(true);
       setError(null);
 
-      // Clear cache on manual refresh
-      setBasicMealCache(new Map());
-
       // Get today's date in EST
       const today = getTodayDateString();
 
-      // Fetch all locations
+      // Fetch all locations (static list — long-lived AsyncStorage cache)
+      const cachedLocations = await locationCache.get();
       let { data: locationsData, error: locationsError } = await supabase
         .from("location")
         .select("name, type");
+
+      if (locationsData?.length) {
+        void locationCache.set(locationsData);
+      } else if (cachedLocations) {
+        locationsData = cachedLocations;
+        locationsError = null;
+      }
 
       // If JWT expired, try to refresh and retry once
       if (locationsError && isJWTExpiredError(locationsError)) {
@@ -810,6 +749,9 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
               .select("name, type");
             locationsData = retryResult.data;
             locationsError = retryResult.error;
+            if (locationsData?.length) {
+              void locationCache.set(locationsData);
+            }
           }
         } catch (refreshErr) {
           console.warn("Error refreshing session:", refreshErr);
@@ -876,11 +818,14 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
                 ]),
               );
               for (const menu of retryResult.data || []) {
-                recordMenuVersion(
+                const nextVersion =
+                  (menu.last_updated as string | undefined) ?? null;
+                invalidateBasicMealCacheIfVersionChanged(
                   menu.location_name,
                   today,
-                  (menu.last_updated as string | undefined) ?? null,
+                  nextVersion,
                 );
+                recordMenuVersion(menu.location_name, today, nextVersion);
               }
               const locationsList = mapLocationsToLocationInfo(
                 locationsData || [],
@@ -908,11 +853,13 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
       // Record fresh versions for today so meal fetches can validate the
       // persistent cache without an extra probe.
       for (const menu of allMenus || []) {
-        recordMenuVersion(
+        const nextVersion = (menu.last_updated as string | undefined) ?? null;
+        invalidateBasicMealCacheIfVersionChanged(
           menu.location_name,
           today,
-          (menu.last_updated as string | undefined) ?? null,
+          nextVersion,
         );
+        recordMenuVersion(menu.location_name, today, nextVersion);
       }
 
       // Map locations to LocationInfo[] structure (maintains backward compatibility)

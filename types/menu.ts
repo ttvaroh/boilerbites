@@ -15,7 +15,10 @@ export interface MenuItem {
   fiber_g?: number;
   sugar_g?: number;
   sodium_mg?: number;
+  protein_per_100cals?: number;
   last_verified?: string;
+  is_collection?: boolean;
+  user_id?: string | null;
 }
 
 export interface Station {

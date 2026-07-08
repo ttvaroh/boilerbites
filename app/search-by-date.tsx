@@ -16,7 +16,18 @@ import SearchItemCard from "../components/SearchItemCard";
 import SortBy from "../components/SortBy";
 import { useNutritionGoals } from "../contexts/NutritionGoalsContext";
 import { getUserAllergenNames, itemContainsIntolerance } from "../lib/allergenUtils";
-import { supabase } from "../lib/supabase";
+import {
+  getCustomMealStatusMap,
+  getCollectionStatusMap,
+  getUnresolvedItemIds,
+  hydrateCollectionStatus,
+  seedCollectionStatusFromFlags,
+} from "../lib/collectionStatusCache";
+import {
+  ensureGlobalMenuVersionFresh,
+  getGlobalMenuVersionState,
+} from "../lib/menuVersion";
+import { searchFeedCache } from "../lib/searchFeedCache";
 import { createLocalDateFromString } from "../lib/timezone-utils";
 import { DateSearchFilters, DateSearchOptions, dateSearchService, DayMenuItem } from "../services/searchService";
 
@@ -250,6 +261,23 @@ function useSearch(searchDate: string) {
       }
       setError(null);
 
+      if (!append && !query.trim()) {
+        const menuVersion = await ensureGlobalMenuVersionFresh();
+        const cachedFeed = await searchFeedCache.get<MenuItem>(
+          searchDate,
+          menuVersion,
+        );
+        if (cachedFeed) {
+          setSearchResults(cachedFeed.results);
+          setTotalCount(cachedFeed.totalCount);
+          setCurrentOffset(cachedFeed.results.length);
+          currentOffsetRef.current = cachedFeed.results.length;
+          setHasMore(cachedFeed.results.length < cachedFeed.totalCount);
+          setIsSearching(false);
+          return;
+        }
+      }
+
       const dateFilters = createDateFilters(filters, query);
       const dateOptions = createDateOptions(options, {
         limit: PAGE_SIZE,
@@ -294,6 +322,14 @@ function useSearch(searchDate: string) {
         setCurrentOffset(convertedResults.length);
         currentOffsetRef.current = convertedResults.length;
         setHasMore(convertedResults.length < count);
+
+        if (!query.trim()) {
+          const menuVersion = getGlobalMenuVersionState().version;
+          void searchFeedCache.set(searchDate, menuVersion, {
+            results: convertedResults,
+            totalCount: count,
+          });
+        }
       }
       setTotalCount(count);
     } catch (err) {
@@ -621,41 +657,42 @@ export function SearchByDateComponent({
 
   const checkCollectionStatusBatch = React.useCallback(async (itemIds: string[], requestId: number) => {
     try {
-      const newCollectionStatus: Record<string, boolean> = {};
-      const newCustomMealStatus: Record<string, boolean> = {};
+      seedCollectionStatusFromFlags(
+        searchResults.filter(
+          (item) =>
+            item.is_collection !== undefined || item.is_custom_meal !== undefined,
+        ),
+      );
 
-      for (const chunk of chunkArray(itemIds, HYDRATION_BATCH_SIZE)) {
-        const { data: itemsData, error } = await supabase
-          .from('item')
-          .select('id, is_collection, user_id')
-          .in('id', chunk);
-
-        // Ignore stale responses from older requests.
-        if (requestId !== hydrationRequestIdRef.current) {
-          return;
+      const unresolved = getUnresolvedItemIds(itemIds);
+      if (unresolved.length === 0) {
+        const newCollectionStatus = getCollectionStatusMap(itemIds);
+        const newCustomMealStatus = getCustomMealStatusMap(itemIds);
+        if (requestId === hydrationRequestIdRef.current) {
+          setCollectionStatus((prev) => ({ ...prev, ...newCollectionStatus }));
+          setCustomMealStatus((prev) => ({ ...prev, ...newCustomMealStatus }));
         }
-
-        if (error || !itemsData) {
-          continue;
-        }
-
-        itemsData.forEach((item: any) => {
-          const isCollection = item.is_collection || false;
-          const isCustomMeal = isCollection && item.user_id !== null;
-          const isSystemCollection = isCollection && item.user_id === null;
-          newCollectionStatus[item.id] = isSystemCollection;
-          newCustomMealStatus[item.id] = isCustomMeal;
-        });
+        return;
       }
 
-      if (requestId === hydrationRequestIdRef.current) {
-        setCollectionStatus(prev => ({ ...prev, ...newCollectionStatus }));
-        setCustomMealStatus(prev => ({ ...prev, ...newCustomMealStatus }));
+      await hydrateCollectionStatus(unresolved);
+
+      if (requestId !== hydrationRequestIdRef.current) {
+        return;
       }
+
+      setCollectionStatus((prev) => ({
+        ...prev,
+        ...getCollectionStatusMap(itemIds),
+      }));
+      setCustomMealStatus((prev) => ({
+        ...prev,
+        ...getCustomMealStatusMap(itemIds),
+      }));
     } catch (error) {
       console.error('Error checking collection status batch:', error);
     }
-  }, []);
+  }, [searchResults]);
 
   const handleMenuItemPress = React.useCallback(async (item: MenuItem) => {
     const { isCollection: resolvedIsCollection, isCustomMeal: resolvedIsCustomMeal } =

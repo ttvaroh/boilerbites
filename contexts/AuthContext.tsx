@@ -66,7 +66,15 @@ interface AuthContextType {
   removeFoodEntry: (entryId: string) => Promise<{ error: any }>;
   toggleFavorite: (itemId: string) => Promise<{ error: any; isFavorited: boolean }>;
   getFavorites: () => Promise<{ data: FavoriteItem[] | null; error: any }>;
-  getDailyNutrition: (date?: string) => Promise<{ data: DailyNutrition | null; error: any }>;
+  getDailyNutrition: (
+    date?: string,
+    goals?: {
+      calories?: number;
+      protein?: number;
+      carbs?: number;
+      fat?: number;
+    },
+  ) => Promise<{ data: DailyNutrition | null; error: any }>;
   updateDailyGoals: (date: string, goals: { calories?: number; protein?: number; carbs?: number; fat?: number; }) => Promise<{ error: any }>;
 }
 
@@ -491,7 +499,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error: null };
   };
 
-  const getDailyNutrition = async (date?: string) => {
+  const getDailyNutrition = async (
+    date?: string,
+    goalsSnapshot?: {
+      calories?: number;
+      protein?: number;
+      carbs?: number;
+      fat?: number;
+    },
+  ) => {
     if (!user) {
       return { data: null, error: new Error('User not authenticated') };
     }
@@ -546,22 +562,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       );
 
-      // Get goals from user_daily_nutrition table if it exists, otherwise use defaults
-      const { data: existingData, error: fetchError } = await supabase
-        .from('user_daily_nutrition')
-        .select('id, goal_calories, goal_protein_g, goal_carbs_g, goal_fat_g')
-        .eq('user_id', user.id)
-        .eq('date', targetDate)
-        .single();
-
-      // Use goals from database if available, otherwise use defaults
-      const goal_calories = existingData?.goal_calories || 2300;
-      const goal_protein_g = existingData?.goal_protein_g || 115;
-      const goal_carbs_g = existingData?.goal_carbs_g || 288;
-      const goal_fat_g = existingData?.goal_fat_g || 77;
+      // Goals come from NutritionGoalsContext on the client; avoid a second
+      // user_daily_nutrition read on every progress refresh.
+      const goal_calories = goalsSnapshot?.calories ?? 2300;
+      const goal_protein_g = goalsSnapshot?.protein ?? 115;
+      const goal_carbs_g = goalsSnapshot?.carbs ?? 288;
+      const goal_fat_g = goalsSnapshot?.fat ?? 77;
 
       const result: DailyNutrition = {
-        id: existingData?.id || '',
+        id: '',
         user_id: user.id,
         date: targetDate,
         goal_calories,

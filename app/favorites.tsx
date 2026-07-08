@@ -13,7 +13,12 @@ import BackgroundTemplate from "../components/BackgroundTemplate";
 import FavoriteItemCard from "../components/FavoriteItemCard";
 import { useAuth } from "../contexts/AuthContext";
 import { getItemAppearances } from "../lib/api";
+import {
+  hydrateCollectionStatus,
+  seedCollectionStatus,
+} from "../lib/collectionStatusCache";
 import { getCachedFavorites, setCachedFavorites } from "../lib/favoritesCache";
+import { ITEM_SELECT_COLUMNS } from "../lib/itemSelectColumns";
 import { supabase } from "../lib/supabase";
 import { getTodayDateString } from "../lib/timezone-utils";
 
@@ -70,19 +75,9 @@ export default function FavoritesPage() {
   const checkCollectionStatusBatch = React.useCallback(
     async (itemIds: string[]): Promise<Record<string, boolean>> => {
       try {
-        const { data: itemsData, error } = await supabase
-          .from("item")
-          .select("id, is_collection")
-          .in("id", itemIds);
-
-        if (!error && itemsData) {
-          const newStatus: Record<string, boolean> = {};
-          itemsData.forEach((item: any) => {
-            newStatus[item.id] = item.is_collection || false;
-          });
-          setCollectionStatus((prev) => ({ ...prev, ...newStatus }));
-          return newStatus;
-        }
+        const statusMap = await hydrateCollectionStatus(itemIds);
+        setCollectionStatus((prev) => ({ ...prev, ...statusMap }));
+        return statusMap;
       } catch (error) {
         console.error("Error checking collection status batch:", error);
       }
@@ -90,10 +85,6 @@ export default function FavoritesPage() {
     },
     [],
   );
-
-  // Columns for list/cards only (exclude ingredients to reduce egress)
-  const ITEM_SELECT_COLUMNS =
-    "id,name,vegetarian,vegan,gluten,allergens,serving_size,calories,protein_g,carbs_g,fat_g,fiber_g,sugar_g,sodium_mg,protein_per_100cals,last_verified,is_collection,source";
 
   // Single consolidated load: 1× getFavorites, 1× item (Purdue), 1× item (Global), 1× day_station_item.
   const loadAllFavorites = React.useCallback(
@@ -266,6 +257,14 @@ export default function FavoritesPage() {
       setGlobalFavorites(globalFavoritesWithDetails);
       hasAttemptedGlobalFetch.current = true;
 
+      seedCollectionStatus(
+        [...purdueItems, ...globalItems].map((item: any) => ({
+          id: item.id,
+          is_collection: item.is_collection,
+          user_id: item.user_id,
+        })),
+      );
+
       const upcomingFavoritesWithDetails: FavoriteItem[] = [];
       const appearancesByItemId = new Map(
         appearancesPerItem.map((x) => [x.id, x.appearances]),
@@ -333,10 +332,10 @@ export default function FavoritesPage() {
         ...globalFavoritesWithDetails.map((f) => f.id),
       ];
       const uniqueIds = Array.from(new Set(allIds));
-      let collectionStatusMap: Record<string, boolean> = {};
-      if (uniqueIds.length > 0) {
-        collectionStatusMap = await checkCollectionStatusBatch(uniqueIds);
-      }
+      const collectionStatusMap =
+        uniqueIds.length > 0
+          ? await checkCollectionStatusBatch(uniqueIds)
+          : {};
       setCachedFavorites(user.id, {
         favorites: favoritesWithDetails,
         upcomingFavorites: sortedUpcoming,
@@ -362,21 +361,12 @@ export default function FavoritesPage() {
   const fetchUpcomingFavorites = React.useCallback(() => loadAllFavorites(), [loadAllFavorites]);
 
   const checkCollectionStatus = React.useCallback(async (itemId: string) => {
-    try {
-      const { data: itemData, error } = await supabase
-        .from("item")
-        .select("is_collection")
-        .eq("id", itemId)
-        .single();
-
-      if (!error && itemData) {
-        setCollectionStatus((prev) => ({
-          ...prev,
-          [itemId]: itemData.is_collection,
-        }));
-      }
-    } catch (error) {
-      console.error("Error checking if item is collection:", error);
+    const statusMap = await hydrateCollectionStatus([itemId]);
+    if (statusMap[itemId] !== undefined) {
+      setCollectionStatus((prev) => ({
+        ...prev,
+        [itemId]: statusMap[itemId],
+      }));
     }
   }, []);
 

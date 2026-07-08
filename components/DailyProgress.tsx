@@ -19,7 +19,7 @@ interface DailyProgressProps {
 
 const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
   const { user, getDailyNutrition } = useAuth();
-  const { getNutritionData, setNutritionData, getCacheInvalidationTime } = useNutritionCache();
+  const { getNutritionData, setNutritionData, isNutritionFresh, subscribeToInvalidation } = useNutritionCache();
   const { goals: nutritionGoals } = useNutritionGoals();
   const { showToast } = useToast();
   const [nutritionData, setNutritionDataState] = useState<any>(null);
@@ -49,18 +49,17 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
   const getNutritionDataRef = useRef(getNutritionData);
   const setNutritionDataRef = useRef(setNutritionData);
   const getDailyNutritionRef = useRef(getDailyNutrition);
-  const getCacheInvalidationTimeRef = useRef(getCacheInvalidationTime);
-  
-  // Track cache invalidation times to detect when cache is cleared
-  const lastInvalidationTimeRef = useRef<number | null>(null);
+  const isNutritionFreshRef = useRef(isNutritionFresh);
+  const nutritionGoalsRef = useRef(nutritionGoals);
   
   // Update refs when functions change
   useEffect(() => {
     getNutritionDataRef.current = getNutritionData;
     setNutritionDataRef.current = setNutritionData;
     getDailyNutritionRef.current = getDailyNutrition;
-    getCacheInvalidationTimeRef.current = getCacheInvalidationTime;
-  }, [getNutritionData, setNutritionData, getDailyNutrition, getCacheInvalidationTime]);
+    isNutritionFreshRef.current = isNutritionFresh;
+    nutritionGoalsRef.current = nutritionGoals;
+  }, [getNutritionData, setNutritionData, getDailyNutrition, isNutritionFresh, nutritionGoals]);
 
   // Modal state
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -98,9 +97,6 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
     // This allows the animation to compare old data values with new data values
     // and only animate if they're actually different
     dataSetForDateRef.current = ''; // Reset data set tracking
-    // Don't reset animatedToValuesRef - we want to track if we need to animate
-    // Reset invalidation time ref for new date
-    lastInvalidationTimeRef.current = null;
     
     // Fade out animation for smooth transition
     Animated.timing(fadeAnim, {
@@ -139,49 +135,43 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
 
     const fetchNutritionData = async () => {
       try {
-        // Check cache first - if available, use it immediately
-        const cachedData = getNutritionDataRef.current(fetchDate);
-        if (cachedData) {
-          // Use cached data immediately - this is instant
-          updateData(cachedData);
-          
-          // Still fetch fresh data in background to update cache, but don't update state if same
-          const { data, error } = await getDailyNutritionRef.current(fetchDate);
-          
-          if (!abortController.signal.aborted && currentDateRef.current === fetchDate) {
-            if (!error && data) {
-              // Only update if data actually changed
-              const dataKey = `${data.consumed_calories}-${data.consumed_protein_g}-${data.consumed_carbs_g}-${data.consumed_fat_g}`;
-              const cachedKey = `${cachedData.consumed_calories}-${cachedData.consumed_protein_g}-${cachedData.consumed_carbs_g}-${cachedData.consumed_fat_g}`;
-        
-              if (dataKey !== cachedKey) {
-                // Data changed, update it
-                updateData(data);
-                // Update cache with fresh data
-                setNutritionDataRef.current(fetchDate, data);
-              }
-              // If data is the same, don't update cache (prevents unnecessary re-renders)
+        const goalsSnapshot = nutritionGoalsRef.current
+          ? {
+              calories: nutritionGoalsRef.current.calories,
+              protein: nutritionGoalsRef.current.protein,
+              carbs: nutritionGoalsRef.current.carbs,
+              fat: nutritionGoalsRef.current.fat,
             }
-          }
-        } else {
-          // No cache, fetch fresh data
-          const { data, error } = await getDailyNutritionRef.current(fetchDate);
+          : undefined;
+
+        const cachedData = getNutritionDataRef.current(fetchDate);
+        if (cachedData && isNutritionFreshRef.current(fetchDate)) {
+          updateData(cachedData);
+          return;
+        }
+
+        if (cachedData) {
+          updateData(cachedData);
+        }
+
+        const { data, error } = await getDailyNutritionRef.current(
+          fetchDate,
+          goalsSnapshot,
+        );
           
-          if (abortController.signal.aborted || currentDateRef.current !== fetchDate) {
-            return;
-          }
+        if (abortController.signal.aborted || currentDateRef.current !== fetchDate) {
+          return;
+        }
           
         if (error) {
           console.error('Error fetching daily nutrition:', error);
-            if (currentDateRef.current === fetchDate) {
-              setLoading(false);
-            }
+          if (currentDateRef.current === fetchDate && !cachedData) {
+            setLoading(false);
+          }
         } else {
-            updateData(data);
-          // Cache the data for future use
+          updateData(data);
           if (data) {
-              setNutritionDataRef.current(fetchDate, data);
-            }
+            setNutritionDataRef.current(fetchDate, data);
           }
         }
       } catch (error: any) {
@@ -204,51 +194,43 @@ const DailyProgress = ({ selectedDate = new Date() }: DailyProgressProps) => {
     };
   }, [user, dateString, fadeAnim, caloriesProgressAnim, proteinProgressAnim, carbsProgressAnim, fatProgressAnim]);
 
-  // Watch for cache invalidation and refetch when cache is cleared
+  // Refetch when nutrition cache is explicitly invalidated (food logged/edited).
   useEffect(() => {
     if (!user) return;
 
-    // Initialize last invalidation time for current date
-    const currentInvalidationTime = getCacheInvalidationTimeRef.current(dateString);
-    if (currentInvalidationTime !== null) {
-      lastInvalidationTimeRef.current = currentInvalidationTime;
-    }
-
-    const checkInvalidation = () => {
-      // Only check if we're still on the same date
-      if (currentDateRef.current !== dateString) {
+    const unsubscribe = subscribeToInvalidation((invalidatedDate) => {
+      if (currentDateRef.current !== invalidatedDate) {
         return;
       }
 
-      const invalidationTime = getCacheInvalidationTimeRef.current(dateString);
-      if (invalidationTime && 
-          invalidationTime !== lastInvalidationTimeRef.current) {
-        // Cache was invalidated, trigger a refetch
-        lastInvalidationTimeRef.current = invalidationTime;
-        const fetchFreshData = async () => {
-          try {
-            const { data, error } = await getDailyNutritionRef.current(dateString);
-            if (!error && data && currentDateRef.current === dateString) {
-              setNutritionDataState(data);
-              setNutritionDataRef.current(dateString, data);
-            }
-          } catch (error) {
-            console.error('Error refetching nutrition data after cache invalidation:', error);
+      const fetchFreshData = async () => {
+        try {
+          const goalsSnapshot = nutritionGoalsRef.current
+            ? {
+                calories: nutritionGoalsRef.current.calories,
+                protein: nutritionGoalsRef.current.protein,
+                carbs: nutritionGoalsRef.current.carbs,
+                fat: nutritionGoalsRef.current.fat,
+              }
+            : undefined;
+          const { data, error } = await getDailyNutritionRef.current(
+            invalidatedDate,
+            goalsSnapshot,
+          );
+          if (!error && data && currentDateRef.current === invalidatedDate) {
+            setNutritionDataState(data);
+            setNutritionDataRef.current(invalidatedDate, data);
           }
-        };
-        fetchFreshData();
-      }
-    };
+        } catch (error) {
+          console.error('Error refetching nutrition data after cache invalidation:', error);
+        }
+      };
 
-    // Check immediately
-    checkInvalidation();
+      fetchFreshData();
+    });
 
-    // Set up interval to check for cache invalidation (every 500ms)
-    // This allows DailyProgress to detect when cache is cleared from other screens
-    const interval = setInterval(checkInvalidation, 500);
-
-    return () => clearInterval(interval);
-  }, [dateString, user]);
+    return unsubscribe;
+  }, [dateString, user, subscribeToInvalidation]);
 
   // Memoize data calculations to prevent unnecessary re-renders
   const proteinData = useMemo(() => ({ 

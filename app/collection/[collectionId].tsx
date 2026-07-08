@@ -16,6 +16,7 @@ import {
   findCollectionDerivedItem
 } from "../../lib/collectionUtils";
 import { COLLECTION_DERIVED_USER_ID } from "../../lib/constants";
+import { ITEM_SELECT_COLUMNS } from "../../lib/itemSelectColumns";
 import { supabase } from "../../lib/supabase";
 
 interface CollectionItem {
@@ -57,7 +58,7 @@ export default function CollectionPage() {
         // First, get the collection item details
         const { data: collectionData, error: collectionError } = await supabase
           .from('item')
-          .select('*')
+          .select(ITEM_SELECT_COLUMNS)
           .eq('id', collectionId)
           .eq('is_collection', true)
           .single();
@@ -73,22 +74,7 @@ export default function CollectionPage() {
           .select(`
             item_id,
             item:item_id (
-              id,
-              name,
-              vegetarian,
-              vegan,
-              gluten,
-              allergens,
-              serving_size,
-              calories,
-              protein_g,
-              carbs_g,
-              fat_g,
-              fiber_g,
-              sugar_g,
-              sodium_mg,
-              last_verified,
-              ingredients
+              ${ITEM_SELECT_COLUMNS}
             )
           `)
           .eq('collection_id', collectionId);

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import BackgroundTemplate from "../../components/BackgroundTemplate";
 import MealNavigationHeader from "../../components/MealNavigationHeader";
@@ -9,8 +9,8 @@ import { useNutritionGoals } from "../../contexts/NutritionGoalsContext";
 import { useMenuView } from "../../hooks/useMenuView";
 import { useStationExpansion } from "../../hooks/useStationExpansion";
 import { getUserAllergenNames } from "../../lib/allergenUtils";
+import { isSystemCollection } from "../../lib/collectionStatusCache";
 import { useMenuData } from "../../lib/MenuDataContext";
-import { supabase } from "../../lib/supabase";
 import { getTodayDateString } from "../../lib/timezone-utils";
 import { MenuItem } from "../../types/menu";
 
@@ -26,8 +26,6 @@ export default function DiningHallPage() {
     getMealBasicInfo,
     getMealDetailedData,
     switchLocation,
-    currentLocation,
-    loading: contextLoading,
     error: contextError,
   } = useMenuData();
 
@@ -41,8 +39,6 @@ export default function DiningHallPage() {
   const expansion = useStationExpansion();
   const { goals: nutritionGoals } = useNutritionGoals();
 
-  // Local state
-  const [collectionStatus, setCollectionStatus] = useState<Record<string, boolean>>({});
   const initializedLocationRef = useRef<string | null>(null);
   const initializedStationsRef = useRef<string | null>(null);
 
@@ -72,30 +68,19 @@ export default function DiningHallPage() {
     };
   }, [nutritionGoals]);
 
-  // ============================================================================
-  // Collection Status Loading
-  // ============================================================================
-
-  const loadCollectionStatus = useCallback(async (itemIds: string[]) => {
-    if (itemIds.length === 0) return;
-
-    try {
-      const { data: itemsData, error } = await supabase
-        .from('item')
-        .select('id, is_collection')
-        .in('id', itemIds);
-
-      if (!error && itemsData) {
-        const newStatus: Record<string, boolean> = {};
-        itemsData.forEach((item: any) => {
-          newStatus[item.id] = item.is_collection || false;
-        });
-        setCollectionStatus(prev => ({ ...prev, ...newStatus }));
-      }
-    } catch (error) {
-      console.warn('Collection status check failed:', error);
+  const collectionStatus = useMemo(() => {
+    if (menuView.viewState.status !== "loaded") {
+      return {};
     }
-  }, []);
+
+    const result: Record<string, boolean> = {};
+    for (const station of menuView.viewState.data.stations) {
+      for (const item of station.items) {
+        result[item.id] = isSystemCollection(item);
+      }
+    }
+    return result;
+  }, [menuView.viewState]);
 
   // ============================================================================
   // Handlers
@@ -148,7 +133,6 @@ export default function DiningHallPage() {
       if (isNewLocation) {
         // Reset non-view state
         expansion.reset();
-        setCollectionStatus({});
         initializedLocationRef.current = name;
         initializedStationsRef.current = null; // Reset stations ref for new location
         
@@ -165,42 +149,21 @@ export default function DiningHallPage() {
     initialize();
   }, [name, getMealBasicInfo, menuView, expansion, switchLocation]);
 
-  // OPTIMIZED: Load collection status in parallel with menu data
-  // Start loading as soon as we have stations (from cache or fresh data)
+  // Initialize station expansion once per unique menu view
   useEffect(() => {
-    // If we have loaded data, extract item IDs and load collection status
     if (menuView.viewState.status === 'loaded') {
       const stations = menuView.viewState.data.stations;
       const viewState = menuView.viewState;
       
-      // Create a stable key to prevent re-initializing the same stations
-      // Use date, mealType, and first station ID to create unique key
       const firstStationId = stations.length > 0 ? stations[0].id : '';
       const stationsKey = `${viewState.date}:${viewState.mealType}:${firstStationId}`;
       
-      // Only initialize if we haven't already initialized for these exact stations
-      // This prevents infinite loop when viewState changes but stations are the same
       if (initializedStationsRef.current !== stationsKey) {
         initializedStationsRef.current = stationsKey;
-        
-        // Initialize expansion state (only once per unique stations)
         expansion.initialize(stations);
       }
-      
-      // Load collection status for all items (in parallel, don't block)
-      // Only load if we have new stations (check by comparing item count)
-      const itemIds = stations.flatMap(station =>
-        station.items.map(item => item.id)
-      );
-      
-      if (itemIds.length > 0) {
-        // Fire and forget - load in background
-        loadCollectionStatus(itemIds).catch(err => {
-          console.warn('Failed to load collection status:', err);
-        });
-      }
     }
-  }, [menuView.viewState, expansion, loadCollectionStatus]);
+  }, [menuView.viewState, expansion]);
 
   // ============================================================================
   // Memoized Values (continued)
@@ -226,7 +189,6 @@ export default function DiningHallPage() {
     }
     
     if (state.status === 'loading') {
-      // Use the actual meal name if available, otherwise show blank
       const mealName = state.mealName || '';
       return {
         name: mealName,
@@ -236,7 +198,6 @@ export default function DiningHallPage() {
     }
     
     if (state.status === 'cached') {
-      // Show cached meal name immediately
       return {
         name: state.mealName,
         startTime: '-',
@@ -265,12 +226,6 @@ export default function DiningHallPage() {
     }
     return [];
   }, [menuView.viewState]);
-
-  // ============================================================================
-  // Render: Optimistic Loading (No Blocking States)
-  // ============================================================================
-  // OPTIMIZED: Never block with "Loading..." - always show something
-  // If we have cached data, show it immediately. Otherwise show skeleton.
 
   // ============================================================================
   // Render: Error State
@@ -331,11 +286,8 @@ export default function DiningHallPage() {
             onNavigate={handleNavigate}
           />
 
-          {/* Content based on view state - Optimistic Rendering */}
-          {/* OPTIMIZED: Show cached data immediately or skeleton, never "Loading..." */}
           {(menuView.viewState.status === 'loading' || menuView.viewState.status === 'cached' || menuView.viewState.status === 'initializing') && (
             <View className="py-8">
-              {/* Show skeleton loaders for stations */}
               {[1, 2, 3].map((i) => (
                 <View key={i} className="mb-6">
                   <View className="h-6 w-32 bg-gray-700 rounded mb-3" />

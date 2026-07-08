@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import BackgroundTemplate from "../../components/BackgroundTemplate";
 import MenuItemCard from "../../components/MenuItemCard";
+import { ITEM_SELECT_COLUMNS, ITEM_SELECT_COLUMNS_WITH_INGREDIENTS } from "../../lib/itemSelectColumns";
 import { supabase } from "../../lib/supabase";
 
 export default function CustomFoodPage() {
@@ -44,7 +45,7 @@ export default function CustomFoodPage() {
       // Fetch custom foods (not meals) joined with item rows
       const { data, error } = await supabase
         .from('custom_food')
-        .select(`item_id, item:item_id (*)`)
+        .select(`item_id, item:item_id (${ITEM_SELECT_COLUMNS_WITH_INGREDIENTS})`)
         .eq('created_by', userId)
         .order('created_at', { ascending: false });
 
@@ -76,7 +77,7 @@ export default function CustomFoodPage() {
       // Fetch custom meals (is_collection = true AND user_id IS NOT NULL)
       const { data, error } = await supabase
         .from('custom_food')
-        .select(`item_id, item:item_id (*)`)
+        .select(`item_id, item:item_id (${ITEM_SELECT_COLUMNS_WITH_INGREDIENTS})`)
         .eq('created_by', userId)
         .order('created_at', { ascending: false });
 

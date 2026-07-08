@@ -24,6 +24,7 @@ import { ToastProvider } from "../contexts/ToastContext";
 import "../global.css";
 import { useWhatsNew } from "../hooks/useWhatsNew";
 import { MenuDataProvider, useMenuData } from "../lib/MenuDataContext";
+import { shouldRefreshAfterForeground } from "../lib/menuVersion";
 import { supabase } from "../lib/supabase";
 
 const DEFAULT_MIN_SUPPORTED_VERSION = process.env.EXPO_PUBLIC_MIN_SUPPORTED_VERSION || "0.0.0";
@@ -85,17 +86,14 @@ const AppRefreshManager = ({ children }: { children: ReactNode }) => {
         appState.current.match(/inactive|background/) &&
         nextAppState === "active"
       ) {
-        // App has come to foreground
-        const now = Date.now();
-        if (
-          backgroundTimestamp.current &&
-          now - backgroundTimestamp.current >= 900000
-        ) {
-          // 15 minutes = 900000ms (reduced egress from foreground refresh)
+        const crossedMenuBoundary = shouldRefreshAfterForeground(
+          backgroundTimestamp.current,
+        );
+
+        if (backgroundTimestamp.current && crossedMenuBoundary) {
           handleAppRefresh();
         }
       } else if (nextAppState.match(/inactive|background/)) {
-        // App is going to background
         backgroundTimestamp.current = Date.now();
       }
       appState.current = nextAppState;

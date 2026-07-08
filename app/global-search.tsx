@@ -16,6 +16,15 @@ import SearchItemCard from "../components/SearchItemCard";
 import { useAuth } from "../contexts/AuthContext";
 import { useNutritionGoals } from "../contexts/NutritionGoalsContext";
 import { getUserAllergenNames, itemContainsIntolerance } from "../lib/allergenUtils";
+import {
+  getCustomMealStatusMap,
+  getCollectionStatusMap,
+  getUnresolvedItemIds,
+  hydrateCollectionStatus,
+  seedCollectionStatus,
+  seedCollectionStatusFromFlags,
+} from "../lib/collectionStatusCache";
+import { ITEM_SELECT_COLUMNS } from "../lib/itemSelectColumns";
 import { supabase } from "../lib/supabase";
 import { FatSecretSearchFilters, fatSecretSearchService } from "../services/searchService";
 
@@ -294,7 +303,7 @@ export default function GlobalSearchPage() {
 
   // Search custom foods and meals
   const searchCustomItems = React.useCallback(async (query: string): Promise<MenuItem[]> => {
-    if (!user?.id || !query.trim()) {
+    if (!user?.id || query.trim().length < 2) {
       return [];
     }
 
@@ -310,9 +319,7 @@ export default function GlobalSearchPage() {
       // Custom foods/meals have user_id matching the current user
       const { data: customItemsData, error: customItemsError } = await supabase
         .from('item')
-        .select(
-          'id, name, vegetarian, vegan, gluten, allergens, serving_size, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg, protein_per_100cals, ingredients, is_collection, user_id',
-        )
+        .select(ITEM_SELECT_COLUMNS)
         .eq('user_id', userId)
         .ilike('name', `%${query.trim()}%`)
         .limit(20);
@@ -320,6 +327,8 @@ export default function GlobalSearchPage() {
       if (customItemsError || !customItemsData) {
         return [];
       }
+
+      seedCollectionStatus(customItemsData);
 
       return customItemsData.map((item: any) => ({
         ...item,
@@ -410,41 +419,34 @@ export default function GlobalSearchPage() {
 
   const checkCollectionStatusBatch = React.useCallback(async (itemIds: string[], requestId: number) => {
     try {
-      const newCollectionStatus: Record<string, boolean> = {};
-      const newCustomMealStatus: Record<string, boolean> = {};
+      seedCollectionStatusFromFlags(
+        searchResults.filter(
+          (item) =>
+            item.is_collection !== undefined || item.is_custom_meal !== undefined,
+        ),
+      );
 
-      for (const chunk of chunkArray(itemIds, HYDRATION_BATCH_SIZE)) {
-        const { data: itemsData, error } = await supabase
-          .from('item')
-          .select('id, is_collection, user_id')
-          .in('id', chunk);
-
-        // Ignore stale responses from older requests.
-        if (requestId !== hydrationRequestIdRef.current) {
-          return;
-        }
-
-        if (error || !itemsData) {
-          continue;
-        }
-
-        itemsData.forEach((item: any) => {
-          const isCollection = item.is_collection || false;
-          const isCustomMeal = isCollection && item.user_id !== null;
-          const isSystemCollection = isCollection && item.user_id === null;
-          newCollectionStatus[item.id] = isSystemCollection;
-          newCustomMealStatus[item.id] = isCustomMeal;
-        });
+      const unresolved = getUnresolvedItemIds(itemIds);
+      if (unresolved.length > 0) {
+        await hydrateCollectionStatus(unresolved);
       }
 
-      if (requestId === hydrationRequestIdRef.current) {
-        setCollectionStatus(prev => ({ ...prev, ...newCollectionStatus }));
-        setCustomMealStatus(prev => ({ ...prev, ...newCustomMealStatus }));
+      if (requestId !== hydrationRequestIdRef.current) {
+        return;
       }
+
+      setCollectionStatus((prev) => ({
+        ...prev,
+        ...getCollectionStatusMap(itemIds),
+      }));
+      setCustomMealStatus((prev) => ({
+        ...prev,
+        ...getCustomMealStatusMap(itemIds),
+      }));
     } catch (error) {
       console.error('Error checking collection status batch:', error);
     }
-  }, []);
+  }, [searchResults]);
 
   const handleMenuItemPress = React.useCallback(async (item: MenuItem) => {
     const { isCollection: resolvedIsCollection, isCustomMeal: resolvedIsCustomMeal } =

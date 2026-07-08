@@ -7,6 +7,7 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 import { getLocalDateStringFromTimestamp } from '../../timezone-utils';
+import { HEALTH_CONNECTION_SELECT_COLUMNS } from '../../itemSelectColumns';
 import { supabase } from '../../supabase';
 import {
   FoodEntryForSync,
@@ -183,7 +184,7 @@ export class FitbitService extends BaseHealthAppService {
       // Get current connection
       const { data: connection, error: fetchError } = await supabase
         .from('health_app_connections')
-        .select('*')
+        .select(HEALTH_CONNECTION_SELECT_COLUMNS)
         .eq('user_id', userId)
         .eq('app_type', 'fitbit')
         .maybeSingle();
@@ -243,7 +244,7 @@ export class FitbitService extends BaseHealthAppService {
   private async getAccessToken(userId: string): Promise<string | null> {
     const { data: connection } = await supabase
       .from('health_app_connections')
-      .select('*')
+      .select(HEALTH_CONNECTION_SELECT_COLUMNS)
       .eq('user_id', userId)
       .eq('app_type', 'fitbit')
       .maybeSingle();
@@ -582,7 +583,7 @@ export class FitbitService extends BaseHealthAppService {
     try {
       const { data, error } = await supabase
         .from('health_app_connections')
-        .select('*')
+        .select(HEALTH_CONNECTION_SELECT_COLUMNS)
         .eq('user_id', userId)
         .eq('app_type', 'fitbit')
         .maybeSingle();

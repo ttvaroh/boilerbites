@@ -3,7 +3,8 @@
  * Orchestrates sync across all health app integrations
  */
 
-import { supabase } from '../supabase';
+import { HEALTH_CONNECTION_SELECT_COLUMNS } from "../itemSelectColumns";
+import { supabase } from "../supabase";
 import { AppleHealthService } from './apple-health/AppleHealthService';
 import { FitbitService } from './fitbit/FitbitService';
 import {
@@ -34,7 +35,7 @@ export class HealthSyncManager {
     try {
       const { data: connections, error } = await supabase
         .from('health_app_connections')
-        .select('*')
+        .select(HEALTH_CONNECTION_SELECT_COLUMNS)
         .eq('user_id', userId)
         .eq('enabled', true)
         .eq('auto_sync_enabled', true);
@@ -58,7 +59,7 @@ export class HealthSyncManager {
     try {
       const { data: connections, error } = await supabase
         .from('health_app_connections')
-        .select('*')
+        .select(HEALTH_CONNECTION_SELECT_COLUMNS)
         .eq('user_id', userId)
         .eq('enabled', true)
         .eq('auto_sync_enabled', true);
@@ -82,7 +83,7 @@ export class HealthSyncManager {
     try {
       const { data: connections, error } = await supabase
         .from('health_app_connections')
-        .select('*')
+        .select(HEALTH_CONNECTION_SELECT_COLUMNS)
         .eq('user_id', userId)
         .eq('enabled', true)
         .eq('auto_sync_enabled', true);

@@ -39,6 +39,7 @@ export default function DiaryPage() {
     getFoodEntries, 
     setFoodEntries: setFoodEntriesCache, 
     clearFoodEntries,
+    isFoodEntriesFresh,
     removeFoodEntry: removeFoodEntryFromCache
   } = useNutritionCache();
   const router = useRouter();
@@ -102,6 +103,12 @@ export default function DiaryPage() {
       
       // Check cache first
       const cachedEntries = getFoodEntries(dateString);
+      if (cachedEntries && !isRefresh && isFoodEntriesFresh(dateString)) {
+        setFoodEntries(cachedEntries);
+        setLoading(false);
+        return;
+      }
+
       if (cachedEntries && !isRefresh) {
         setFoodEntries(cachedEntries);
         setLoading(false);
