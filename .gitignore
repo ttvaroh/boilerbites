@@ -56,7 +56,7 @@ lib/collection-etl/output.sql
 lib/collection-etl/urls.txt
 
 # API implementation (GraphQL endpoints, queries, headers)
-lib/api.ts
+# lib/api.ts
 
 # Documentation and API samples (kept local only; never committed)
 docs/
