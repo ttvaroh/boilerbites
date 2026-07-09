@@ -10,9 +10,21 @@ import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from 'react-na
 import { HEALTH_CONNECTION_SELECT_COLUMNS } from '../lib/itemSelectColumns';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { AppleHealthService } from '../lib/health-integrations/apple-health/AppleHealthService';
-import { FitbitService } from '../lib/health-integrations/fitbit/FitbitService';
 import { HealthAppConnection } from '../lib/health-integrations/base/types';
+
+async function getHealthService(appType: 'apple_health' | 'fitbit') {
+  if (appType === 'apple_health') {
+    const { AppleHealthService } = await import(
+      '../lib/health-integrations/apple-health/AppleHealthService'
+    );
+    return new AppleHealthService();
+  }
+
+  const { FitbitService } = await import(
+    '../lib/health-integrations/fitbit/FitbitService'
+  );
+  return new FitbitService();
+}
 
 interface HealthConnectionCardProps {
   appType: 'apple_health' | 'fitbit';
@@ -64,14 +76,7 @@ export default function HealthConnectionCard({
 
     setLoading(true);
     try {
-      let service: AppleHealthService | FitbitService;
-      
-      if (appType === 'apple_health') {
-        service = new AppleHealthService();
-      } else {
-        service = new FitbitService();
-      }
-
+      const service = await getHealthService(appType);
       const result = await service.connect(user.id);
 
       if (result.success) {
@@ -100,14 +105,7 @@ export default function HealthConnectionCard({
             if (!user) return;
             setLoading(true);
             try {
-              let service: AppleHealthService | FitbitService;
-              
-              if (appType === 'apple_health') {
-                service = new AppleHealthService();
-              } else {
-                service = new FitbitService();
-              }
-
+              const service = await getHealthService(appType);
               const result = await service.disconnect(user.id);
 
               if (result.success) {

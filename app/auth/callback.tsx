@@ -56,7 +56,7 @@ export default function AuthCallback() {
             // Check if session already exists (may have been set by deep link handler)
             const { data: { session: existingSession } } = await supabase.auth.getSession();
             if (existingSession) {
-              router.replace('/profile');
+              router.replace('/(tabs)/profile');
               return;
             }
             
@@ -72,7 +72,7 @@ export default function AuthCallback() {
             }
             
             if (sessionData.session) {
-              router.replace('/profile');
+              router.replace('/(tabs)/profile');
               return;
             }
           }
@@ -92,7 +92,7 @@ export default function AuthCallback() {
         // Check if session already exists (may have been set by signInWithAzure or another handler)
         const { data: { session: existingSession } } = await supabase.auth.getSession();
         if (existingSession) {
-          router.replace('/profile');
+          router.replace('/(tabs)/profile');
           return;
         }
 
@@ -101,21 +101,21 @@ export default function AuthCallback() {
           if (sessionError) {
             const { data: { session: checkSession } } = await supabase.auth.getSession();
             if (checkSession) {
-              router.replace('/profile');
+              router.replace('/(tabs)/profile');
               return;
             }
             router.replace('/signin');
             return;
           }
 
-          router.replace('/profile');
+          router.replace('/(tabs)/profile');
         } else {
           router.replace('/signin');
         }
       } catch (_) {
         const { data: { session: checkSession } } = await supabase.auth.getSession();
         if (checkSession) {
-          router.replace('/profile');
+          router.replace('/(tabs)/profile');
           return;
         }
         router.replace('/signin');
@@ -131,7 +131,7 @@ export default function AuthCallback() {
       if (url.includes('auth/callback') && url.includes('#')) {
         const { data: { session: existingSession } } = await supabase.auth.getSession();
         if (existingSession) {
-          router.replace('/profile');
+          router.replace('/(tabs)/profile');
           return;
         }
         handleCallback(url);

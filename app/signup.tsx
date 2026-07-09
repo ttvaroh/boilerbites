@@ -70,7 +70,7 @@ export default function SignUpScreen() {
     if (error) {
       Alert.alert("Sign Up Error", error.message || "Failed to sign up with Azure");
     } else {
-      router.replace("/profile");
+      router.replace("/(tabs)/profile");
     }
   };
 
@@ -81,7 +81,7 @@ export default function SignUpScreen() {
     if (error) {
       Alert.alert("Sign Up Error", error.message || "Failed to sign up with Apple");
     } else {
-      router.replace("/profile");
+      router.replace("/(tabs)/profile");
     }
   };
 

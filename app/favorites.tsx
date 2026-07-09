@@ -63,9 +63,9 @@ export default function FavoritesPage() {
   const [upcomingLoading, setUpcomingLoading] = React.useState(false);
   const [globalLoading, setGlobalLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [activeTab, setActiveTab] = React.useState<"purdue" | "global">(
-    "purdue",
-  );
+  const [activeTab, setActiveTab] = React.useState<
+    "purdue" | "global" | "upcoming"
+  >("purdue");
   const [refreshing, setRefreshing] = React.useState(false);
   const hasAttemptedGlobalFetch = React.useRef(false);
   const [collectionStatus, setCollectionStatus] = React.useState<
@@ -514,13 +514,7 @@ export default function FavoritesPage() {
     );
   }
 
-  const todayStr = getTodayDateString();
-  const availableTodayCards = upcomingFavorites.filter(
-    (item) => item.available_dates?.[0] === todayStr,
-  );
-  const upcomingBitesCards = upcomingFavorites.filter(
-    (item) => item.available_dates?.[0] && item.available_dates[0] > todayStr,
-  );
+  const availableToday = favorites.filter((item) => item.is_available_today);
 
   return (
     <BackgroundTemplate>
@@ -554,7 +548,7 @@ export default function FavoritesPage() {
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setActiveTab("global")}
-            className={`flex-1 py-3 px-4 rounded-r-xl ${
+            className={`flex-1 py-3 px-4 ${
               activeTab === "global"
                 ? "bg-purdueGold"
                 : "bg-gray-800/60 border border-gray-700/50"
@@ -566,6 +560,22 @@ export default function FavoritesPage() {
               }`}
             >
               Global
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setActiveTab("upcoming")}
+            className={`flex-1 py-3 px-4 rounded-r-xl ${
+              activeTab === "upcoming"
+                ? "bg-purdueGold"
+                : "bg-gray-800/60 border border-gray-700/50"
+            }`}
+          >
+            <Text
+              className={`text-center font-sora-semibold ${
+                activeTab === "upcoming" ? "text-black" : "text-white"
+              }`}
+            >
+              Upcoming
             </Text>
           </TouchableOpacity>
         </View>
@@ -585,18 +595,16 @@ export default function FavoritesPage() {
           }
         >
           {activeTab === "purdue" ? (
-            (loading || upcomingLoading) &&
-            favorites.length === 0 &&
-            upcomingFavorites.length === 0 ? (
+            loading && favorites.length === 0 ? (
               <View className="flex-1 justify-center items-center py-16">
                 <ActivityIndicator size="large" color="#CFB991" />
                 <Text className="text-white text-base font-sora mt-4">
                   Loading favorites...
                 </Text>
               </View>
-            ) : favorites.length > 0 || upcomingFavorites.length > 0 ? (
+            ) : favorites.length > 0 ? (
               <>
-                {availableTodayCards.length > 0 && (
+                {availableToday.length > 0 && (
                   <View className="mb-6">
                     <View className="flex-row items-center mb-4">
                       <Ionicons
@@ -605,11 +613,11 @@ export default function FavoritesPage() {
                         color="#10B981"
                       />
                       <Text className="text-green-400 text-lg font-sora-semibold ml-2">
-                        Available Today ({availableTodayCards.length})
+                        Available Today ({availableToday.length})
                       </Text>
                     </View>
                     <View className="space-y-3">
-                      {availableTodayCards.map((item) => (
+                      {availableToday.map((item) => (
                         <TouchableOpacity
                           key={item.id}
                           onPress={() => handleMenuItemPress(item)}
@@ -621,7 +629,6 @@ export default function FavoritesPage() {
                             showLocation={true}
                             showMeals={true}
                             showDates={true}
-                            showMealTimes={true}
                           />
                         </TouchableOpacity>
                       ))}
@@ -629,74 +636,38 @@ export default function FavoritesPage() {
                   </View>
                 )}
 
-                {upcomingBitesCards.length > 0 && (
-                  <View className="mb-6">
-                    <View className="flex-row items-center mb-4">
-                      <Ionicons
-                        name="calendar-outline"
-                        size={20}
-                        color="#CFB991"
-                      />
-                      <Text className="text-purdueGold text-lg font-sora-semibold ml-2">
-                        Upcoming Bites ({upcomingBitesCards.length})
+                <View className="mb-6">
+                  <View className="flex-row items-center justify-between mb-4">
+                    <Text className="text-purdueGold text-lg font-sora-semibold">
+                      Purdue Favorites ({favorites.length})
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => router.push("/(tabs)/search")}
+                      className="bg-purdueGold/20 rounded-full px-3 py-1"
+                    >
+                      <Text className="text-purdueGold text-sm font-sora-semibold">
+                        Add More
                       </Text>
-                    </View>
-                    <View className="space-y-3">
-                      {upcomingBitesCards.map((item) => (
-                        <TouchableOpacity
-                          key={item.id}
-                          onPress={() => handleMenuItemPress(item)}
-                          activeOpacity={0.7}
-                        >
-                          <FavoriteItemCard
-                            item={item}
-                            showAvailability={true}
-                            showLocation={true}
-                            showMeals={true}
-                            showDates={true}
-                            showMealTimes={true}
-                          />
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+                    </TouchableOpacity>
                   </View>
-                )}
-
-                {favorites.length > 0 && (
-                  <View className="mb-6">
-                    <View className="flex-row items-center justify-between mb-4">
-                      <Text className="text-purdueGold text-lg font-sora-semibold">
-                        All Favorites ({favorites.length})
-                      </Text>
+                  <View className="space-y-3">
+                    {favorites.map((item) => (
                       <TouchableOpacity
-                        onPress={() => router.push("/(tabs)/search")}
-                        className="bg-purdueGold/20 rounded-full px-3 py-1"
+                        key={item.id}
+                        onPress={() => handleMenuItemPress(item)}
+                        activeOpacity={0.7}
                       >
-                        <Text className="text-purdueGold text-sm font-sora-semibold">
-                          Add More
-                        </Text>
+                        <FavoriteItemCard
+                          item={item}
+                          showAvailability={true}
+                          showLocation={true}
+                          showMeals={true}
+                          showDates={true}
+                        />
                       </TouchableOpacity>
-                    </View>
-                    <View className="space-y-3">
-                      {favorites.map((item) => (
-                        <TouchableOpacity
-                          key={item.id}
-                          onPress={() => handleMenuItemPress(item)}
-                          activeOpacity={0.7}
-                        >
-                          <FavoriteItemCard
-                            item={item}
-                            showAvailability={true}
-                            showLocation={true}
-                            showMeals={true}
-                            showDates={true}
-                            showMealTimes={true}
-                          />
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+                    ))}
                   </View>
-                )}
+                </View>
               </>
             ) : (
               <View className="flex-1 justify-center items-center py-16">
@@ -717,6 +688,63 @@ export default function FavoritesPage() {
                       Browse Menu
                     </Text>
                   </TouchableOpacity>
+                </View>
+              </View>
+            )
+          ) : activeTab === "upcoming" ? (
+            upcomingLoading && upcomingFavorites.length === 0 ? (
+              <View className="flex-1 justify-center items-center py-16">
+                <ActivityIndicator size="large" color="#CFB991" />
+                <Text className="text-white text-base font-sora mt-4">
+                  Loading available favorites...
+                </Text>
+              </View>
+            ) : upcomingFavorites.length > 0 ? (
+              <View className="mb-6">
+                <View className="flex-row items-center mb-4">
+                  <Ionicons
+                    name="calendar-outline"
+                    size={20}
+                    color="#CFB991"
+                  />
+                  <Text className="text-purdueGold text-lg font-sora-semibold ml-2">
+                    Upcoming Bites ({upcomingFavorites.length})
+                  </Text>
+                </View>
+                <View className="space-y-3">
+                  {upcomingFavorites.map((item) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      onPress={() => handleMenuItemPress(item)}
+                      activeOpacity={0.7}
+                    >
+                      <FavoriteItemCard
+                        item={item}
+                        showAvailability={true}
+                        showLocation={true}
+                        showMeals={true}
+                        showDates={true}
+                        showMealTimes={true}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <View className="flex-1 justify-center items-center py-16">
+                <View className="bg-gray-800/60 backdrop-blur-xl rounded-3xl p-8 items-center border border-gray-700/50">
+                  <Ionicons
+                    name="calendar-outline"
+                    size={80}
+                    color="#6B7280"
+                  />
+                  <Text className="text-gray-400 text-xl font-sora-bold text-center mt-4 mb-2">
+                    No Available Favorites
+                  </Text>
+                  <Text className="text-gray-500 text-center mb-6 font-sora px-4">
+                    Your favorite items are not scheduled on upcoming menus.
+                    Check back later!
+                  </Text>
                 </View>
               </View>
             )

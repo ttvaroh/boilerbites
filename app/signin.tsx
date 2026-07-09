@@ -28,7 +28,7 @@ export default function SignInScreen() {
     if (error) {
       Alert.alert("Sign In Error", error.message);
     } else {
-      router.replace("/profile");
+      router.replace("/(tabs)/profile");
     }
   };
 
@@ -39,7 +39,7 @@ export default function SignInScreen() {
     if (error) {
       Alert.alert("Sign In Error", error.message || "Failed to sign in with Azure");
     } else {
-      router.replace("/profile");
+      router.replace("/(tabs)/profile");
     }
   };
 
@@ -50,7 +50,7 @@ export default function SignInScreen() {
     if (error) {
       Alert.alert("Sign In Error", error.message || "Failed to sign in with Apple");
     } else {
-      router.replace("/profile");
+      router.replace("/(tabs)/profile");
     }
   };
 

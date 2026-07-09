@@ -8,8 +8,8 @@ import { whatsNewEntries } from "../lib/whatsNewData";
 const boilerbitesLogo = require("../assets/images/logos/boilerbites-logo.png");
 const tomHeadshot = require("../assets/images/tommycancun.jpg");
 
-// Always use the latest changelog entry for the "View What's New" button
-const latestEntry = whatsNewEntries[whatsNewEntries.length - 1] ?? null;
+// Newest entry is first in whatsNewEntries
+const latestEntry = whatsNewEntries[0] ?? null;
 
 export default function AboutScreen() {
   const router = useRouter();
@@ -123,7 +123,7 @@ export default function AboutScreen() {
                 <View className="flex-row items-center mb-3">
                   <Ionicons name="sparkles" size={20} color="#CFB991" />
                   <Text className="text-purdueGold text-sm font-sora-semibold ml-2">
-                    Version 1.0.5 - Latest Updates
+                    Version 1.0.6 - Latest Updates
                   </Text>
                 </View>
                 <View className="ml-7">
@@ -132,8 +132,17 @@ export default function AboutScreen() {
                       •
                     </Text>
                     <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      Health App Connections—sync your food log to Apple Health
-                      or Fitbit from Profile → Health App Connections
+                      Favorites has a dedicated Upcoming tab showing when and
+                      where items are served
+                    </Text>
+                  </View>
+                  <View className="flex-row items-start">
+                    <Text className="text-gray-400 text-sm font-sora mr-2">
+                      •
+                    </Text>
+                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
+                      Faster menu loading and instant meal switching between
+                      breakfast, lunch, and dinner
                     </Text>
                   </View>
                   <View className="flex-row items-start">
@@ -150,8 +159,8 @@ export default function AboutScreen() {
                       •
                     </Text>
                     <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      Updated privacy policy and new Terms of Service for health
-                      data and app use
+                      Fitbit sync timezone fix and a What's New card after app
+                      updates
                     </Text>
                   </View>
                 </View>
@@ -232,7 +241,7 @@ export default function AboutScreen() {
                   App Version
                 </Text>
                 <Text className="text-purdueGold text-base font-sora-semibold">
-                  1.0.5
+                  1.0.6
                 </Text>
               </View>
               <View className="flex-row items-center justify-between mt-3">
@@ -261,7 +270,9 @@ export default function AboutScreen() {
           onDismiss={() => setShowWhatsNew(false)}
           onCtaPress={() => {
             setShowWhatsNew(false);
-            router.push("/health-connections");
+            if (latestEntry?.ctaButton?.route) {
+              router.push(latestEntry.ctaButton.route as any);
+            }
           }}
         />
       </View>
