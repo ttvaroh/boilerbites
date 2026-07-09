@@ -9,10 +9,11 @@ import Constants from "expo-constants";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { AppState, Linking, Platform, Text, TouchableOpacity, View } from "react-native";
+import { AppState, Linking, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import ErrorBoundary from "../components/ErrorBoundary";
+import UpdateRequiredScreen from "../components/UpdateRequiredScreen";
 import WhatsNewModal from "../components/WhatsNewModal";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { NutritionCacheProvider } from "../contexts/NutritionCacheContext";
@@ -185,28 +186,11 @@ const MinimumVersionGate = ({ children }: { children: ReactNode }) => {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#0a0a0a", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <Text style={{ color: "white", fontSize: 24, fontFamily: "Sora_700Bold", marginBottom: 12, textAlign: "center" }}>
-        Update required
-      </Text>
-      <Text style={{ color: "#d1d5db", fontSize: 15, fontFamily: "Sora_400Regular", textAlign: "center", marginBottom: 24 }}>
-        This version is no longer supported. Please update BoilerBites to continue.
-      </Text>
-      <TouchableOpacity
-        onPress={handleUpdatePress}
-        disabled={!storeUrl}
-        style={{
-          backgroundColor: storeUrl ? "#CFB991" : "#6b7280",
-          paddingHorizontal: 20,
-          paddingVertical: 12,
-          borderRadius: 999,
-        }}
-      >
-        <Text style={{ color: "#0a0a0a", fontFamily: "Sora_600SemiBold", fontSize: 15 }}>
-          {storeUrl ? "Update app" : "Store link unavailable"}
-        </Text>
-      </TouchableOpacity>
-    </View>
+    <UpdateRequiredScreen
+      onUpdatePress={handleUpdatePress}
+      storeUrl={storeUrl}
+      currentVersion={currentVersion}
+    />
   );
 };
 
