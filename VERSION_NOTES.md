@@ -4,6 +4,43 @@ This document tracks all changes and improvements made to BoilerBites since the 
 
 ---
 
+## Version 1.0.6 - July 9, 2026
+
+### Features
+- **Smarter Favorites**: Purdue favorites now show when and where items are served
+  - **Upcoming tab**: Dedicated tab with per-date cards (dining hall, meal, date) powered by the Purdue Menus V3 GraphQL appearances API
+  - **Purdue tab**: "Available Today" highlight plus full favorites list
+  - **Stale-while-revalidate**: Favorites cache with background refresh on pull-to-refresh
+- **Faster menus & search**
+  - **Menu caching**: Full-day menu data cached in memory; meal switching is instant without refetching
+  - **Cron-aware invalidation**: Menu version bumps after scheduled menu populate jobs so clients refresh only when menus actually change
+  - **Paginated search**: Default search feed loads in pages; scroll to load more without waiting for the full result set
+  - **Search & location caches**: Default search feed and location list persisted locally with version gating
+- **What's New modal**: In-app changelog shown after version updates (also re-viewable from About)
+- **Minimum version gate**: Outdated app versions see an update prompt with store link (configurable via Supabase `app_runtime_config`)
+
+### UI/UX Improvements
+- **Profile (signed out)**: Replaced placeholder onboarding icon with the BoilerBites logo and Purdue gold glow
+- **About**: Updated What's New and version label to 1.0.6; "View What's New" shows the latest entry
+- **Update required screen**: Polished full-screen gate when a forced update is needed
+
+### Bug Fixes
+- **Health connections routing**: Lazy-load Apple Health / Fitbit services so the Health Connections screen loads reliably (avoids native module import issues at route load time)
+- **Auth redirects**: Sign-in, sign-up, and OAuth callback now route to `/(tabs)/profile` instead of the non-existent `/profile` path (which showed "Coming Soon")
+- **Fitbit sync**: Timezone handling fix for food log dates
+- **Collection status**: Stopped redundant `is_collection` hydration loops; collection/custom-meal flags embedded in menu selects and cached immutably
+- **Nutrition cache**: TTL-based freshness, subscription invalidation, and removal of polling/background refetch on cache hits
+
+### Technical
+- New modules: `lib/api.ts` (custom food/meal RPCs, V3 appearances), `lib/itemSelectColumns`, `lib/collectionStatusCache`, `lib/menuVersion`, `lib/locationCache`, `lib/searchFeedCache`, `lib/favoritesCache`
+- `MenuDataContext`: Nested menu selects, day-level meal cache, boundary-gated version probing
+- `NutritionCacheContext`: 5-minute TTL, invalidation subscriptions
+- Supabase migration: `menu_version` / `menu_refresh_schedule` seeded; populate cron jobs bump version after run
+- Narrowed PostgREST `select` lists across detail pages, search, and health connections (replaces `select('*')`)
+- `components/UpdateRequiredScreen.tsx` for version gating UI
+
+---
+
 ## Version 1.0.5 - February 11, 2026
 
 ### Features
@@ -280,6 +317,7 @@ This document tracks all changes and improvements made to BoilerBites since the 
 
 | Version | Release Date | Key Features |
 |---------|--------------|--------------|
+| 1.0.6 | Jul 9, 2026 | Upcoming Favorites tab, menu/search caching, paginated search, What's New modal, min-version gate, health routing fixes, onboarding logo |
 | 1.0.5 | Feb 11, 2026 | Health App Connections (Apple Health + Fitbit), working ingredients display, Fitbit sync fixes, privacy/terms updates |
 | 1.0.4 | [Previous] | Edit goals from stats screen, reusable goal editing modal, streamlined nutrition preferences, global search from missing nutrition |
 | 1.0.3 | [Previous] | Home screen & menu loading optimizations, vegan/vegetarian preferences, allergen marking, auto-filter in search, password reset, prefetching |
