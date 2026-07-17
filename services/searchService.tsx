@@ -94,6 +94,40 @@ function setCachedSearch(key: string, result: DateSearchResult): void {
   });
 }
 
+// FatSecret Edge responses also count toward Supabase egress. Cache mapped
+// results so identical query/limit/offset repeats avoid another proxy call.
+interface FatSecretCacheEntry {
+  expiresAt: number;
+  result: FatSecretSearchResult;
+}
+
+const fatSecretResultCache = new Map<string, FatSecretCacheEntry>();
+
+function getCachedFatSecret(key: string): FatSecretSearchResult | null {
+  const entry = fatSecretResultCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    fatSecretResultCache.delete(key);
+    return null;
+  }
+  fatSecretResultCache.delete(key);
+  fatSecretResultCache.set(key, entry);
+  return entry.result;
+}
+
+function setCachedFatSecret(key: string, result: FatSecretSearchResult): void {
+  if (fatSecretResultCache.size >= SEARCH_CACHE_MAX_ENTRIES) {
+    const oldest = fatSecretResultCache.keys().next().value;
+    if (oldest !== undefined) {
+      fatSecretResultCache.delete(oldest);
+    }
+  }
+  fatSecretResultCache.set(key, {
+    expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,
+    result,
+  });
+}
+
 class DateSearchService {
   /**
    * Search menu items for a specific date
@@ -410,7 +444,7 @@ interface FatSecretFoodsSearchResponse {
 }
 
 class FatSecretSearchService {
-  private maxPageSize = 50;
+  private maxPageSize = 20;
   private proxyUrl: string;
 
   constructor() {
@@ -458,6 +492,11 @@ class FatSecretSearchService {
 
       const limit = Math.min(options.limit || 20, this.maxPageSize);
       const offset = options.offset || 0;
+      const cacheKey = JSON.stringify({ query: query.toLowerCase(), limit, offset });
+      const cached = getCachedFatSecret(cacheKey);
+      if (cached) {
+        return cached;
+      }
 
       // Call Supabase Edge Function proxy instead of FatSecret directly
       const { data, error } = await supabase.functions.invoke('fatsecret-proxy', {
@@ -501,11 +540,13 @@ class FatSecretSearchService {
       const mappedItems = foods.map(food => this.mapFoodToMenuItem(food));
       const totalResults = this.parseNumber(json.foods_search?.total_results) || mappedItems.length;
 
-      return {
+      const result: FatSecretSearchResult = {
         data: mappedItems,
         count: totalResults,
         error: null,
       };
+      setCachedFatSecret(cacheKey, result);
+      return result;
     } catch (err) {
       console.error("FatSecret search service error:", err);
       return {

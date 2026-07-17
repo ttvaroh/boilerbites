@@ -19,8 +19,10 @@ import {
 } from "./menuVersion";
 import {
     getCurrentMealTypeByHour,
+    getDbMealNamesForType,
     getMealOrder,
     mapMealNameToType,
+    MealType,
 } from "./mealConfig";
 import { supabase } from "./supabase";
 import { getTodayDateString } from "./timezone-utils";
@@ -381,7 +383,17 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
     }
 
     try {
-      const { data: menuData, error: menuError } = await supabase
+      // Prefer filtering by the exact day_meal id from basic info (tiny/cached).
+      // Fall back to meal_name variants so we never download sibling meals' items.
+      const basicDay = await getMealBasicInfo(locationName, date);
+      const basicMeal = basicDay?.[mealType as keyof MealsByDate];
+      const mealNames = getDbMealNamesForType(locationName, mealType as MealType);
+
+      if (!basicMeal?.id && mealNames.length === 0) {
+        return null;
+      }
+
+      let query = supabase
         .from("day_menu")
         .select(
           `
@@ -409,8 +421,17 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
         `,
         )
         .eq("location_name", locationName)
-        .eq("serve_date", date)
-        .maybeSingle();
+        .eq("serve_date", date);
+
+      if (basicMeal?.id) {
+        query = query.eq("day_meal.id", basicMeal.id);
+      } else if (mealNames.length === 1) {
+        query = query.eq("day_meal.meal_name", mealNames[0]);
+      } else if (mealNames.length > 1) {
+        query = query.in("day_meal.meal_name", mealNames);
+      }
+
+      const { data: menuData, error: menuError } = await query.maybeSingle();
 
       if (menuError || !menuData) {
         return null;
@@ -419,45 +440,33 @@ export function MenuDataProvider({ children }: MenuDataProviderProps) {
       const version = (menuData.last_updated as string | undefined) ?? null;
       recordMenuVersion(locationName, date, version);
 
+      // Response should contain only the requested meal(s); cache that meal alone.
       let requestedMeal: Meal | null = null;
-      const cacheUpdates = new Map<string, Meal>();
-
       for (const rawMeal of menuData.day_meal || []) {
         const mappedType = mapMealNameToType(locationName, rawMeal.meal_name);
-        if (!mappedType) continue;
-
-        const mealData = buildMealFromRaw(rawMeal);
-        const mealCacheKey = `${locationName}:${date}:${mappedType}`;
-        cacheUpdates.set(mealCacheKey, mealData);
-
-        if (mappedType === mealType) {
-          requestedMeal = mealData;
+        if (mappedType === mealType || (!mappedType && basicMeal?.id === rawMeal.id)) {
+          requestedMeal = buildMealFromRaw(rawMeal);
+          break;
         }
+      }
+
+      if (!requestedMeal && menuData.day_meal?.length === 1) {
+        requestedMeal = buildMealFromRaw(menuData.day_meal[0]);
       }
 
       if (!requestedMeal) {
         return null;
       }
 
-      setDetailedMenuCache((prev) => {
-        const next = new Map(prev);
-        for (const [key, meal] of cacheUpdates.entries()) {
-          next.set(key, meal);
-        }
-        return next;
-      });
-
+      setDetailedMenuCache((prev) => new Map(prev).set(cacheKey, requestedMeal!));
       if (version !== null) {
-        for (const [key, meal] of cacheUpdates.entries()) {
-          const [, , mappedMealType] = key.split(":");
-          void menuCache.setDetailedMeal(
-            locationName,
-            date,
-            mappedMealType,
-            version,
-            meal,
-          );
-        }
+        void menuCache.setDetailedMeal(
+          locationName,
+          date,
+          mealType,
+          version,
+          requestedMeal,
+        );
       }
 
       return requestedMeal;

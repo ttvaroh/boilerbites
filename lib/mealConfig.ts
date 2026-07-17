@@ -147,6 +147,48 @@ export function mapMealNameToType(locationName: string, mealName: string): MealT
   return config.mealNameMapping[normalizedName] || null;
 }
 
+/**
+ * Database meal_name values that map to a meal type for a location.
+ * Used to server-filter nested day_meal selects so one meal does not
+ * download the full day's stations/items.
+ */
+export function getDbMealNamesForType(
+  locationName: string,
+  mealType: MealType | string,
+): string[] {
+  const config = getMealConfig(locationName);
+  const names = new Set<string>();
+
+  for (const [dbKey, type] of Object.entries(config.mealNameMapping)) {
+    if (type !== mealType) continue;
+
+    // Mapping keys are lowercase; Purdue/DB names are typically title-cased.
+    const titleCased = dbKey
+      .split("/")
+      .map((segment) =>
+        segment
+          .trim()
+          .split(/[\s-]+/)
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(segment.includes("-") ? "-" : " "),
+      )
+      .join("/");
+    names.add(titleCased);
+
+    if (dbKey.includes("-")) {
+      names.add(
+        dbKey
+          .replace(/-/g, " ")
+          .split(/\s+/)
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(" "),
+      );
+    }
+  }
+
+  return Array.from(names);
+}
+
 // Helper function to format meal type to display name
 export function formatMealTypeName(mealType: MealType | string): string {
   const type = mealType.toLowerCase();

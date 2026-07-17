@@ -208,6 +208,37 @@ function createDateOptions(
   };
 }
 
+/** True when the empty-query "browse" request matches the cached default feed shape. */
+function isDefaultBrowseRequest(filters: SearchFilters, options: SearchOptions): boolean {
+  return (
+    filters.timeOfDay === "All" &&
+    filters.diningHalls.length === 0 &&
+    !filters.dietaryPreferences.vegetarian &&
+    !filters.dietaryPreferences.vegan &&
+    !filters.dietaryPreferences.glutenFree &&
+    filters.excludeAllergens.length === 0 &&
+    options.sortBy === "protein/calorie" &&
+    options.sortOrder === "desc"
+  );
+}
+
+function buildSearchRequestKey(
+  date: string,
+  query: string,
+  filters: SearchFilters,
+  options: SearchOptions,
+  offset: number,
+): string {
+  return JSON.stringify({
+    date,
+    query: query.trim(),
+    filters,
+    sortBy: options.sortBy ?? null,
+    sortOrder: options.sortOrder ?? "desc",
+    offset,
+  });
+}
+
 // Custom hook for search functionality
 function useSearch(searchDate: string) {
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -225,6 +256,7 @@ function useSearch(searchDate: string) {
   const currentOffsetRef = React.useRef(0);
   const latestSearchResultsRef = React.useRef<MenuItem[]>([]);
   const loadMoreInFlightRef = React.useRef(false);
+  const lastSuccessfulSearchKeyRef = React.useRef<string>("");
 
   React.useEffect(() => {
     currentOffsetRef.current = currentOffset;
@@ -238,7 +270,8 @@ function useSearch(searchDate: string) {
     query: string,
     filters: SearchFilters,
     options: SearchOptions = {},
-    append: boolean = false
+    append: boolean = false,
+    force: boolean = false,
   ) => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -246,6 +279,23 @@ function useSearch(searchDate: string) {
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    const requestKey = buildSearchRequestKey(
+      searchDate,
+      query,
+      filters,
+      options,
+      append ? currentOffsetRef.current : 0,
+    );
+
+    // Skip identical non-append requests when we already have results in memory.
+    if (
+      !force &&
+      !append &&
+      requestKey === lastSuccessfulSearchKeyRef.current &&
+      latestSearchResultsRef.current.length > 0
+    ) {
+      return;
+    }
 
     try {
       if (append) {
@@ -261,8 +311,11 @@ function useSearch(searchDate: string) {
       }
       setError(null);
 
-      if (!append && !query.trim()) {
+      // Default empty browse: prefer persistent feed cache (menu-version gated)
+      // before hitting search_menu_items. Pull-to-refresh (force) bypasses cache.
+      if (!force && !append && !query.trim() && isDefaultBrowseRequest(filters, options)) {
         const menuVersion = await ensureGlobalMenuVersionFresh();
+        if (controller.signal.aborted) return;
         const cachedFeed = await searchFeedCache.get<MenuItem>(
           searchDate,
           menuVersion,
@@ -273,6 +326,7 @@ function useSearch(searchDate: string) {
           setCurrentOffset(cachedFeed.results.length);
           currentOffsetRef.current = cachedFeed.results.length;
           setHasMore(cachedFeed.results.length < cachedFeed.totalCount);
+          lastSuccessfulSearchKeyRef.current = requestKey;
           setIsSearching(false);
           return;
         }
@@ -317,13 +371,21 @@ function useSearch(searchDate: string) {
         setCurrentOffset(mergedResults.length);
         currentOffsetRef.current = mergedResults.length;
         setHasMore(mergedResults.length < count);
+        lastSuccessfulSearchKeyRef.current = buildSearchRequestKey(
+          searchDate,
+          query,
+          filters,
+          options,
+          mergedResults.length,
+        );
       } else {
         setSearchResults(convertedResults);
         setCurrentOffset(convertedResults.length);
         currentOffsetRef.current = convertedResults.length;
         setHasMore(convertedResults.length < count);
+        lastSuccessfulSearchKeyRef.current = requestKey;
 
-        if (!query.trim()) {
+        if (!query.trim() && isDefaultBrowseRequest(filters, options)) {
           const menuVersion = getGlobalMenuVersionState().version;
           void searchFeedCache.set(searchDate, menuVersion, {
             results: convertedResults,
@@ -568,11 +630,27 @@ export function SearchByDateComponent({
     });
   }, [nutritionGoals, userAllergenNames]);
 
-  // Trigger search when debounced query, filters, or date changes
+  // Trigger search when debounced query, filters, or date changes.
+  // Skip clearing results for empty browse so a feed-cache hit can paint without flicker.
+  const lastEffectKeyRef = React.useRef<string>("");
   React.useEffect(() => {
-    setSearchResults([]);
+    const effectKey = JSON.stringify({
+      dateString,
+      debouncedQuery,
+      currentFilters,
+      sortBy,
+      sortOrder,
+    });
+    if (effectKey === lastEffectKeyRef.current) {
+      return;
+    }
+    lastEffectKeyRef.current = effectKey;
+
     resetPagination();
-    
+    if (debouncedQuery.trim()) {
+      setSearchResults([]);
+    }
+
     if (debouncedQuery.trim() || hasSearched) {
       setHasSearched(true);
       performSearch(debouncedQuery, currentFilters, {
@@ -599,7 +677,7 @@ export function SearchByDateComponent({
       await performSearch(debouncedQuery, currentFilters, {
         sortBy,
         sortOrder
-      });
+      }, false, true);
     } finally {
       setRefreshing(false);
     }

@@ -174,7 +174,7 @@ function useFatSecretSearch() {
       const fatSecretFilters = createFatSecretFilters(query);
       const { data, count, error } = await fatSecretSearchService.searchFoods(
         fatSecretFilters,
-        { limit: 50, offset: offset }
+        { limit: 20, offset: offset }
       );
 
       if (controller.signal.aborted) return;

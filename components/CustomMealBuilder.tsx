@@ -141,7 +141,7 @@ export default function CustomMealBuilder({
     try {
       const { data, count, error } = await fatSecretSearchService.searchFoods(
         { searchQuery: query.trim() },
-        { limit: 50, offset: 0 }
+        { limit: 20, offset: 0 }
       );
 
       if (error) {
