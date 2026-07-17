@@ -5,6 +5,10 @@ export const ITEM_SELECT_COLUMNS =
 export const ITEM_SELECT_COLUMNS_WITH_INGREDIENTS =
   `${ITEM_SELECT_COLUMNS},ingredients`;
 
+/** Shared PostgREST column list for food_entry reads. */
+export const FOOD_ENTRY_SELECT_COLUMNS =
+  "id,user_id,item_id,quantity,created_at,meal_name,source";
+
 export const NESTED_MENU_ITEM_SELECT = `
   id,
   name,

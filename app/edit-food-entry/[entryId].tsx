@@ -15,7 +15,10 @@ import MacroBreakdown from "../../components/MacroBreakdown";
 import NutritionFacts from "../../components/NutritionFacts";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNutritionCache } from "../../contexts/NutritionCacheContext";
-import { ITEM_SELECT_COLUMNS_WITH_INGREDIENTS } from "../../lib/itemSelectColumns";
+import {
+  FOOD_ENTRY_SELECT_COLUMNS,
+  ITEM_SELECT_COLUMNS_WITH_INGREDIENTS,
+} from "../../lib/itemSelectColumns";
 import { supabase } from "../../lib/supabase";
 import { getTodayDateString } from "../../lib/timezone-utils";
 
@@ -70,7 +73,7 @@ export default function EditFoodEntryPage() {
         // Fetch the food entry
         const { data: entryData, error: entryError } = await supabase
           .from('food_entry')
-          .select(ITEM_SELECT_COLUMNS_WITH_INGREDIENTS)
+          .select(FOOD_ENTRY_SELECT_COLUMNS)
           .eq('id', entryId)
           .eq('user_id', user.id)
           .single();

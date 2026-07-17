@@ -4,6 +4,22 @@ This document tracks all changes and improvements made to BoilerBites since the 
 
 ---
 
+## Version 1.0.7 - July 17, 2026
+
+### Bug Fixes
+- **Diary edit/delete**: Fixed "Food entry not found" when opening a diary entry to edit or delete it
+  - Cause: `edit-food-entry` was selecting item-table columns from `food_entry` after the 1.0.6 query optimization
+  - Fix: Use a dedicated `FOOD_ENTRY_SELECT_COLUMNS` list for food entry reads
+
+### UI/UX Improvements
+- **About**: Updated What's New and version label to 1.0.7
+
+### Technical
+- Added `FOOD_ENTRY_SELECT_COLUMNS` in `lib/itemSelectColumns.ts`
+- `app/edit-food-entry/[entryId].tsx` now selects food entry columns correctly, then loads the related item separately
+
+---
+
 ## Version 1.0.6 - July 9, 2026
 
 ### Features
@@ -317,6 +333,7 @@ This document tracks all changes and improvements made to BoilerBites since the 
 
 | Version | Release Date | Key Features |
 |---------|--------------|--------------|
+| 1.0.7 | Jul 17, 2026 | Fixed diary food entry edit/delete ("Food entry not found") |
 | 1.0.6 | Jul 9, 2026 | Upcoming Favorites tab, menu/search caching, paginated search, What's New modal, min-version gate, health routing fixes, onboarding logo |
 | 1.0.5 | Feb 11, 2026 | Health App Connections (Apple Health + Fitbit), working ingredients display, Fitbit sync fixes, privacy/terms updates |
 | 1.0.4 | [Previous] | Edit goals from stats screen, reusable goal editing modal, streamlined nutrition preferences, global search from missing nutrition |

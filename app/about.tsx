@@ -123,7 +123,7 @@ export default function AboutScreen() {
                 <View className="flex-row items-center mb-3">
                   <Ionicons name="sparkles" size={20} color="#CFB991" />
                   <Text className="text-purdueGold text-sm font-sora-semibold ml-2">
-                    Version 1.0.6 - Latest Updates
+                    Version 1.0.7 - Latest Updates
                   </Text>
                 </View>
                 <View className="ml-7">
@@ -132,35 +132,8 @@ export default function AboutScreen() {
                       •
                     </Text>
                     <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      Favorites has a dedicated Upcoming tab showing when and
-                      where items are served
-                    </Text>
-                  </View>
-                  <View className="flex-row items-start">
-                    <Text className="text-gray-400 text-sm font-sora mr-2">
-                      •
-                    </Text>
-                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      Faster menu loading and instant meal switching between
-                      breakfast, lunch, and dinner
-                    </Text>
-                  </View>
-                  <View className="flex-row items-start">
-                    <Text className="text-gray-400 text-sm font-sora mr-2">
-                      •
-                    </Text>
-                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      Ingredients and allergens now load and display correctly
-                      on item details
-                    </Text>
-                  </View>
-                  <View className="flex-row items-start">
-                    <Text className="text-gray-400 text-sm font-sora mr-2">
-                      •
-                    </Text>
-                    <Text className="text-gray-300 text-sm font-sora flex-1 leading-5">
-                      Fitbit sync timezone fix and a What's New card after app
-                      updates
+                      Fixed opening and deleting food entries from the diary
+                      edit screen
                     </Text>
                   </View>
                 </View>
@@ -241,7 +214,7 @@ export default function AboutScreen() {
                   App Version
                 </Text>
                 <Text className="text-purdueGold text-base font-sora-semibold">
-                  1.0.6
+                  1.0.7
                 </Text>
               </View>
               <View className="flex-row items-center justify-between mt-3">

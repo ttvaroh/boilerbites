@@ -2,7 +2,7 @@
   "expo": {
     "name": "BoilerBites",
     "slug": "boilerbites",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/images/logos/boilerbites-logo.png",
     "scheme": "boilerbites",

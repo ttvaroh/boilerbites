@@ -17,6 +17,26 @@ export type WhatsNewEntry = {
 
 export const whatsNewEntries: WhatsNewEntry[] = [
   {
+    version: "1.0.7",
+    title: "Diary Edit Fix",
+    subtitle: "Open and delete food entries from the diary again",
+    features: [
+      {
+        icon: "journal",
+        text: "Fixed a bug where editing or deleting a diary food entry showed \"Food entry not found\"",
+      },
+      {
+        icon: "trash",
+        text: "You can open any diary entry and remove it from the edit screen as expected",
+      },
+    ],
+    ctaButton: {
+      label: "Go to Diary",
+      route: "/(tabs)/diary",
+      icon: "arrow-forward",
+    },
+  },
+  {
     version: "1.0.6",
     title: "Faster & Smarter Favorites",
     subtitle: "See when your favorites are served and enjoy a snappier app",
